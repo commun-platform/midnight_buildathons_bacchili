@@ -4,7 +4,7 @@
 
 ## Approach
 
-D1 is the current operational store. API, scheduled workflow, GUI, and Agent contracts remain independent of the storage implementation so a future Turso/libSQL adapter can replace D1 without domain changes.
+D1 is the only implemented operational store. API and scheduled code use the storage port so a future Turso/libSQL adapter can replace D1 without changing their domain logic. The browser consumes HTTP responses and has no direct database dependency. No external Attestation Agent implementation is included.
 
 ```text
 Worker API / Scheduled Handler
@@ -15,7 +15,7 @@ Worker API / Scheduled Handler
        Turso adapter (future)
 ```
 
-`apps/proof-gateway/src/storage/sql.ts` is the only storage port. API code must not reference `D1Database` or a libSQL client directly; adapter selection belongs in `storage/index.ts`.
+`apps/proof-gateway/src/storage/sql.ts` is the storage port. API code does not reference `D1Database` directly; adapter selection belongs in `storage/index.ts`. At present, `createSqlDatabase` always returns `D1SqlDatabase`; `DATA_BACKEND` and a Turso adapter do not exist yet.
 
 ## Port Contract
 
@@ -31,7 +31,7 @@ Parameters are limited to `string | number | null`. Timestamps use UTC ISO 8601.
 
 ## Schema Compatibility
 
-- Treat `apps/proof-gateway/migrations/*.sql` as canonical for both engines.
+- Treat `apps/proof-gateway/migrations/*.sql` as the canonical D1 schema and port each numbered migration to a future compatible backend.
 - Use SQLite/libSQL-compatible SQL, foreign keys, indexes, and `CHECK` constraints.
 - Keep adapter-specific metadata out of domain and API responses.
 - Route multi-statement writes through `SqlDatabase.batch`.
