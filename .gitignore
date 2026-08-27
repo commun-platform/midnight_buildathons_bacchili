@@ -1,0 +1,61 @@
+# Dependencies and package-manager caches
+node_modules/
+.npm/
+.pnpm-store/
+
+# Build, test, and compiler output
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+.eslintcache
+.parcel-cache/
+.vite/
+.turbo/
+
+# Compact and proving-key output
+contracts/*/src/managed/
+contracts/*/src/generated/
+.benchmark-cache/
+
+# Local environment and secret material
+.env
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.certificate/
+*.key
+*.p12
+*.pfx
+*.pem
+credentials.json
+secrets.json
+
+# Runtime identity, state, and collected data
+.host-role
+.state/
+runtime/
+data/
+midnight-level-db/
+
+# Generated device release packages
+.device-release/
+.edge-release/
+
+# Cloudflare and local development state
+.wrangler/
+
+# Local agent and editor state
+.agents/
+.codex/
+.idea/
+.vscode/
+*.swp
+*~
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
