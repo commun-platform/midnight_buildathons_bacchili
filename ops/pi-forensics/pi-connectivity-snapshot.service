@@ -1,0 +1,25 @@
+[Unit]
+Description=Record Raspberry Pi connectivity and hardware health snapshot
+After=NetworkManager.service network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/pi-connectivity-snapshot wlan0 measurement-edge-agent.service
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pi-connectivity
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=CAP_NET_RAW
+AmbientCapabilities=CAP_NET_RAW

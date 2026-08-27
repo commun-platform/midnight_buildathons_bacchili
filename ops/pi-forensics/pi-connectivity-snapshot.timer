@@ -1,0 +1,12 @@
+[Unit]
+Description=Record Raspberry Pi connectivity and hardware health every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Persistent=true
+Unit=pi-connectivity-snapshot.service
+
+[Install]
+WantedBy=timers.target
