@@ -1,0 +1,7 @@
+interface Env {
+  PROOF_GATEWAY_TOKEN?: string;
+  INGEST_API_TOKEN?: string;
+  ATTESTATION_API_TOKEN?: string;
+  PUBLIC_MIDNIGHT_NETWORK?: string;
+  PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS?: string;
+}
