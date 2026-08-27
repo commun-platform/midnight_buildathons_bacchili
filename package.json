@@ -1,0 +1,57 @@
+{
+  "name": "midnight-cloudflare-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "apps/development/*",
+    "apps/device/*",
+    "contracts/*",
+    "packages/*"
+  ],
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
+  },
+  "scripts": {
+    "dev:guard": "node scripts/require-development-host.mjs",
+    "build": "npm run dev:guard && npm run build --workspaces --if-present",
+    "typecheck": "npm run dev:guard && npm run typecheck --workspaces --if-present",
+    "test": "npm run dev:guard && npm run contract:compile && npm run test -w @midnight-demo/shared && npm run test -w @midnight-demo/sensor-registry-contract && npm run test -w @midnight-demo/development-cli && npm run test -w @midnight-demo/edge-agent && npm run test -w @midnight-demo/device-wallet-agent && npm run test -w @midnight-demo/proof-gateway",
+    "verify": "npm run verify:portability && npm run test && npm run typecheck && npm run build",
+    "verify:portability": "node scripts/verify-repository-portability.mjs",
+    "contract:compile": "npm run dev:guard && npm run compile -w @midnight-demo/sensor-registry-contract",
+    "attestation:compile": "npm run dev:guard && npm run compile -w @midnight-demo/daily-attestation-contract",
+    "benchmark:compile": "npm run attestation:compile",
+    "benchmark:daily-proof": "npm run dev:guard && npm run benchmark:daily-proof -w @midnight-demo/development-cli --",
+    "dashboard:dev": "npm run dev:guard && npm run dev -w @midnight-demo/proof-gateway",
+    "cloudflare:dev": "npm run dev:guard && npm run dev -w @midnight-demo/proof-gateway",
+    "cloudflare:secret": "npm run dev:guard && npm run secret -w @midnight-demo/proof-gateway",
+    "cloudflare:config:network": "npm run dev:guard && npm run config:network -w @midnight-demo/proof-gateway",
+    "cloudflare:config:contract": "npm run dev:guard && npm run config:contract -w @midnight-demo/proof-gateway",
+    "cloudflare:deploy": "npm run dev:guard && npm run deploy -w @midnight-demo/proof-gateway",
+    "cloudflare:destroy": "npm run dev:guard && npm run destroy -w @midnight-demo/proof-gateway",
+    "development:funding": "npm run dev:guard && npm run funding -w @midnight-demo/development-cli --",
+    "development:wallet": "npm run dev:guard && npm run wallet -w @midnight-demo/development-cli --",
+    "development:wallet:migrate": "npm run dev:guard && node scripts/migrate-development-wallet.mjs",
+    "development:deploy": "npm run dev:guard && npm run contract:compile && npm run deploy -w @midnight-demo/development-cli --",
+    "development:status": "npm run dev:guard && npm run status -w @midnight-demo/development-cli --",
+    "device:artifacts:export": "npm run dev:guard && node scripts/export-device-artifacts.mjs",
+    "device:artifacts:verify": "node scripts/verify-device-artifacts.mjs",
+    "development:device-configure": "npm run dev:guard && node scripts/configure-device-deployment.mjs",
+    "device:release": "./package_archive.sh",
+    "device:archive": "./package_archive.sh",
+    "device:funding": "npm run funding -w @midnight-demo/device-wallet-agent --",
+    "device:wallet": "npm run wallet -w @midnight-demo/device-wallet-agent --",
+    "device:submit": "npm run submit -w @midnight-demo/device-wallet-agent --",
+    "device:status": "npm run status -w @midnight-demo/device-wallet-agent --",
+    "edge:serve": "npm run serve -w @midnight-demo/edge-agent --",
+    "edge:test": "npm run test -w @midnight-demo/edge-agent"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  }
+}

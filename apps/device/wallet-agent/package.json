@@ -1,0 +1,43 @@
+{
+  "name": "@midnight-demo/device-wallet-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "funding": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts funding",
+    "wallet": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts wallet",
+    "submit": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts submit",
+    "status": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts status",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "@midnight-demo/sensor-registry-contract": "*",
+    "@midnight-demo/shared": "*",
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
+    "@scure/bip39": "2.2.0",
+    "dotenv": "^17.2.1",
+    "rxjs": "^7.8.2",
+    "tsx": "^4.23.1",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  }
+}

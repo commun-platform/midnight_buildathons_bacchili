@@ -1,0 +1,32 @@
+{
+  "name": "@midnight-demo/proof-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "types": "node ../../scripts/require-development-host.mjs && wrangler types src/worker-configuration.d.ts --include-runtime=false --config wrangler.jsonc",
+    "types:check": "node ../../scripts/require-development-host.mjs && wrangler types src/worker-configuration.d.ts --include-runtime=false --config wrangler.jsonc --check",
+    "build": "node ../../scripts/require-development-host.mjs && wrangler deploy --dry-run --outdir dist",
+    "test": "node ../../scripts/require-development-host.mjs && vitest run src",
+    "typecheck": "npm run types:check && tsc -p tsconfig.json --noEmit",
+    "db:migrate:local": "node ../../scripts/require-development-host.mjs && wrangler d1 migrations apply midnight-sensor-data --local --config wrangler.jsonc",
+    "db:migrate:remote": "node ../../scripts/require-development-host.mjs && wrangler d1 migrations apply midnight-sensor-data --remote --config wrangler.jsonc",
+    "dev": "npm run db:migrate:local && wrangler dev --config wrangler.jsonc",
+    "secret": "node ../../scripts/require-development-host.mjs && wrangler secret put PROOF_GATEWAY_TOKEN --config wrangler.jsonc",
+    "secret:ingest": "node ../../scripts/require-development-host.mjs && wrangler secret put INGEST_API_TOKEN --config wrangler.jsonc",
+    "secret:attestation": "node ../../scripts/require-development-host.mjs && wrangler secret put ATTESTATION_API_TOKEN --config wrangler.jsonc",
+    "config:network": "node ../../scripts/require-development-host.mjs && wrangler secret put PUBLIC_MIDNIGHT_NETWORK --config wrangler.jsonc",
+    "config:contract": "node ../../scripts/require-development-host.mjs && wrangler secret put PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS --config wrangler.jsonc",
+    "deploy": "node ../../scripts/require-development-host.mjs && wrangler deploy --config wrangler.jsonc && npm run db:migrate:remote",
+    "destroy": "node ../../scripts/require-development-host.mjs && wrangler delete --config wrangler.jsonc --name midnight-proof-gateway && wrangler d1 delete midnight-sensor-data --config wrangler.jsonc --skip-confirmation"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "0.3.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260825.1",
+    "typescript": "^6.0.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.125.0"
+  }
+}

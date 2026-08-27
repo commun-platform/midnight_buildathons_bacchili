@@ -1,0 +1,22 @@
+{
+  "name": "@midnight-demo/sensor-registry-contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./witnesses": "./src/witnesses.ts"
+  },
+  "scripts": {
+    "compile": "node ../../scripts/require-development-host.mjs && compact compile src/sensor-registry.compact src/managed/sensor-registry",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@midnight-demo/shared": "*",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.0"
+  }
+}
