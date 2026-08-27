@@ -1,0 +1,64 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "midnight-proof-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "midnight-sensor-data",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["5 * * * *"]
+  },
+  "ratelimits": [
+    {
+      "name": "PROOF_RATE_LIMITER",
+      "namespace_id": "84731026",
+      "simple": {
+        "limit": 4,
+        "period": 60
+      }
+    }
+  ],
+  "containers": [
+    {
+      "name": "midnight-proof-server",
+      "class_name": "ProofServerContainer",
+      "image": "docker.io/midnightntwrk/proof-server:8.1.0",
+      "instance_type": "standard-2",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PROOF_SERVER",
+        "class_name": "ProofServerContainer"
+      }
+    ]
+  },
+  "exports": {
+    "ProofServerContainer": {
+      "type": "durable-object",
+      "container": "midnight-proof-server",
+      "storage": "sqlite"
+    }
+  },
+  "assets": {
+    "directory": "../dashboard/public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health", "/ready", "/check", "/prove", "/proof/*"]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "invocation_logs": false
+    }
+  }
+}

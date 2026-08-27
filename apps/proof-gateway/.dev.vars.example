@@ -1,0 +1,5 @@
+PROOF_GATEWAY_TOKEN=replace-with-a-long-random-token
+INGEST_API_TOKEN=replace-with-a-different-long-random-token
+ATTESTATION_API_TOKEN=replace-with-another-long-random-token
+PUBLIC_MIDNIGHT_NETWORK=Midnight Preprod
+PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS=
