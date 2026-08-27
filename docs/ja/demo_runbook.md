@@ -23,6 +23,7 @@ chmod 600 .env.device
 # MIDNIGHT_PROOF_SERVER_URL/TOKEN、DEVICE_CONTRACT_ADDRESS、
 # CLOUDFLARE_INGEST_URL/TOKEN、sensor identity/pathを設定する。
 ./installer.sh --ingest-url https://<worker>.workers.dev/api/v1/readings
+cd ~/.midnight/midnight-cloudflare-demo/current
 npm run device:wallet
 npm run device:funding
 sudo systemctl status measurement-edge-agent
@@ -30,9 +31,11 @@ curl http://127.0.0.1:8788/health
 sudo journalctl -u measurement-edge-agent -f
 ```
 
-既定のSensor Pathは`/sys/class/thermal/thermal_zone0/temp`です。別のsysfs互換Sensorを使う場合は`TEMPERATURE_SENSOR_PATH`を変更します。WorkerにはSample ReadingやTransaction Fallbackがないため、このServiceが実値を正常にUploadするまでGUIは空です。
+Installerはstaging用`.env.device`を`~/.midnight/midnight-cloudflare-demo/config/device.env`へ移し、検証済みRuntimeを`releases/`配下へ導入して`current`から参照します。その後、展開元Archiveは削除できます。既定のSensor Pathは`/sys/class/thermal/thermal_zone0/temp`です。別のsysfs互換Sensorを使う場合は導入済み設定の`TEMPERATURE_SENSOR_PATH`を変更します。WorkerにはSample ReadingやTransaction Fallbackがないため、このServiceが実値を正常にUploadするまでGUIは空です。
 
 Wallet CommandはInstallerで選択した同じ非root Service Userとして実行します。Device Walletは`~/.midnight/midnight-cloudflare-demo/device-wallet/`配下だけに保存し、`.env.development`とは別にBackupします。Pi上で`npm run verify`、Compact Compile、Proof Benchmark、Development Wallet Command、Wrangler、Docker、Deploy Commandを実行してはいけません。Installerは永続journaldとHealth Snapshotを有効化します。強制再起動後は`sudo pi-forensics-report -1`を実行してください。
+
+Upgrade後は`previous`が旧Active Releaseを指します。`~/.midnight/midnight-cloudflare-demo/current/installer.sh --rollback`でTargetを検証し、`current`と`previous`をatomicに入れ替え、Service再起動とHealth確認を実行できます。
 
 ## 3. 運用Proofの送信
 

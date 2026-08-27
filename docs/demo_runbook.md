@@ -23,6 +23,7 @@ chmod 600 .env.device
 # Configure MIDNIGHT_PROOF_SERVER_URL/TOKEN, DEVICE_CONTRACT_ADDRESS,
 # CLOUDFLARE_INGEST_URL/TOKEN, and the sensor identity/path.
 ./installer.sh --ingest-url https://<worker>.workers.dev/api/v1/readings
+cd ~/.midnight/midnight-cloudflare-demo/current
 npm run device:wallet
 npm run device:funding
 sudo systemctl status measurement-edge-agent
@@ -30,9 +31,11 @@ curl http://127.0.0.1:8788/health
 sudo journalctl -u measurement-edge-agent -f
 ```
 
-The default sensor path is `/sys/class/thermal/thermal_zone0/temp`. Change `TEMPERATURE_SENSOR_PATH` for another sysfs-compatible sensor. The Worker contains no sample readings or transaction fallback; the GUI remains empty until this service successfully uploads a real value.
+The installer moves staged `.env.device` to `~/.midnight/midnight-cloudflare-demo/config/device.env`, installs the verified runtime below `releases/`, and points `current` at it. The extracted archive can then be removed. The default sensor path is `/sys/class/thermal/thermal_zone0/temp`. Change `TEMPERATURE_SENSOR_PATH` in the installed configuration for another sysfs-compatible sensor. The Worker contains no sample readings or transaction fallback; the GUI remains empty until this service successfully uploads a real value.
 
 Run the wallet commands as the same non-root service user selected by the installer. The device wallet is stored only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`; back it up separately from `.env.development`. Do not run `npm run verify`, Compact compilation, proof benchmarks, development-wallet commands, Wrangler, Docker, or deployment commands on the Pi. The installer enables persistent journald and health snapshots; after a forced reboot run `sudo pi-forensics-report -1`.
+
+After an upgrade, `previous` points at the former active release. Roll back atomically with `~/.midnight/midnight-cloudflare-demo/current/installer.sh --rollback`; the installer verifies the target, swaps `current` and `previous`, restarts the service, and checks health.
 
 ## 3. Submit an Operational Proof
 

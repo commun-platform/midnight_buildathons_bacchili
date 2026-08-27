@@ -31,7 +31,7 @@ The Cloudflare Worker serves, from one origin:
 
 The system must not expose wallet credentials, bearer tokens, private thresholds, raw proof inputs, or an agent control endpoint to the GUI.
 
-The collector package must not depend on Compact, Midnight wallet/contract SDKs, proof providers, Wrangler, or Docker. The device-wallet package may contain transaction runtime dependencies but no compiler or deployment command. The installer may install only those two device workspaces and must fail closed when ingestion configuration is missing. Development wallet material belongs in backupable `.env.development`; device wallet material belongs below `~/.midnight`, never in `.env.device`.
+The collector package must not depend on Compact, Midnight wallet/contract SDKs, proof providers, Wrangler, or Docker. The device-wallet package may contain transaction runtime dependencies but no compiler or deployment command. The installer may install only those two device workspaces and must fail closed when ingestion configuration is missing. It consolidates versioned runtime, installed configuration, and wallet state below `~/.midnight/midnight-cloudflare-demo/`; `current` and `previous` symlinks provide atomic activation and one-command rollback. Development wallet material belongs in backupable `.env.development`; device wallet material never enters an environment file.
 
 ## 3. Language Behavior
 
@@ -102,5 +102,5 @@ The visual style uses high-contrast navy title bars, gray panels, explicit borde
 | Daily benchmark | Separately exercises full-day classification, signatures, and reason-chain logic; it is not the operational contract |
 | Localization | English fallback, Japanese system detection, persistent manual choice |
 | Delivery | On a development host, `npm run verify` compiles/tests `sensor-registry`, type-checks workspaces, and performs the Worker dry-run; daily profiles require explicit `npm run attestation:compile` |
-| Host separation | The Pi release excludes development apps and Compact sources; installation never invokes compilation, proving-key generation, deployment, Docker, Wrangler, or repository-wide verification |
+| Host separation | The Pi release excludes development apps and Compact sources; installation never invokes compilation, proving-key generation, deployment, Docker, Wrangler, or repository-wide verification; activation occurs only after release verification and device tests pass |
 | Remaining integration | External Attestation Agent, D1-to-prepared-dataset conversion, automatic result reporting/confirmation, independent browser verification, and Turso adapter |

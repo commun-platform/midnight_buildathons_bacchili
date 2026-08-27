@@ -93,7 +93,7 @@ Piへ渡すのは`.device-release/archives/midnight-sensor-device-fw-<version>.t
 
 ## Raspberry Pi／Edge導入
 
-Piが読む設定は`.env.device`です。endpoint、deploy済みContract address、ingestion資格情報、sensor設定だけを置きます。Wallet復旧情報はenvから一切読み込まず、`~/.midnight/midnight-cloudflare-demo/device-wallet/`へowner-only権限で保存します。このWalletは開発・deploy用Walletとは別物です。
+展開したArchiveの`.env.device`は導入Inputとしてだけ使用します。Installerはこれを`~/.midnight/midnight-cloudflare-demo/config/device.env`へ移し、Version別Runtimeを`releases/`配下へ導入して、有効Releaseを`current`で参照します。Wallet復旧情報はenvから一切読み込まず、同じRootの`device-wallet/`へowner-only権限で保存します。このWalletは開発・deploy用Walletとは別物です。
 
 開発サーバ側でWorkerのingestion secretを設定し、一致するingestion URLとtokenだけをPiへ渡します。
 
@@ -118,23 +118,35 @@ URLはinstaller引数でも設定できます。
 Edge installerが行うのは次だけです。
 
 - 運用専用配布物と開発サーバ生成済みContract artifactのintegrityを検証
+- 検証済みReleaseを`~/.midnight/midnight-cloudflare-demo/releases/<version>-<manifest-hash>/`へ導入
+- staging用`.env.device`を`~/.midnight/midnight-cloudflare-demo/config/device.env`へ移動
+- dependency導入とDevice Test成功後だけ`current`をatomicに更新し、旧Targetを`previous`として保存
 - device collectorとdevice wallet workspaceだけの依存関係を導入
 - 小さなdevice単体テストだけを実行
 - リソース上限付き`measurement-edge-agent.service`を登録
 - journald永続化と1分ごとの接続／リソースsnapshotを有効化
 
-旧`--proof-server-url`、`--skip-compact-install`、`--skip-verify`は明示的に拒否します。`compact`、`contract:compile`、全体`verify`、Wrangler、Docker、deploy、Wallet初期化は一切呼びません。`.host-role`へ`device`を記録し、開発・Contract commandを処理開始前に拒否します。
+旧`--proof-server-url`、`--skip-compact-install`、`--skip-verify`は明示的に拒否します。`compact`、`contract:compile`、全体`verify`、Wrangler、Docker、deploy、Wallet初期化は一切呼びません。Device Release Manifestとsystemdの`MIDNIGHT_HOST_ROLE=device`により、開発・Contract commandを処理開始前に拒否します。
+
+Upgrade成功後は、次のCommandで1つ前のReleaseへ戻せます。
+
+```bash
+~/.midnight/midnight-cloudflare-demo/current/installer.sh --rollback
+```
+
+`previous`を検証し、`current`と`previous`のSymlinkを入れ替え、Collectorを再起動してHealthを確認します。Release Directoryは、OperatorがInactive Versionを明示的に削除するまで保持します。
 
 運用Walletはservice userとして明示的に初期化し、表示されたaddressへfundした後、実測値からDatasetを準備した場合にだけ明示的に送信します。
 
 ```bash
+cd ~/.midnight/midnight-cloudflare-demo/current
 npm run device:wallet
 npm run device:funding
 npm run device:submit -- --input data/<prepared-real-dataset>.json
 npm run device:status
 ```
 
-`device:submit`は`PreparedDataset` JSONまたは実測`SensorRecord[]`を受け取ります。配列の場合、Private Range Proofの入力は`--min`、`--max`、`--selected-index`で選択し、既定値は`10`、`35`、中央のrecordです。`--verify-only`はDataset登録を省略します。このcommandは疑似計測値を生成せず、WorkerのAttestation recordも自動更新しません。デバイスcredentials directoryは、開発側の`.env.development`とは別系統でバックアップします。
+`device:submit`は`PreparedDataset` JSONまたは実測`SensorRecord[]`を受け取ります。配列の場合、Private Range Proofの入力は`--min`、`--max`、`--selected-index`で選択し、既定値は`10`、`35`、中央のrecordです。`--verify-only`はDataset登録を省略します。このcommandは疑似計測値を生成せず、WorkerのAttestation recordも自動更新しません。`config/device.env`と`device-wallet/`は、開発側の`.env.development`とは別系統でバックアップします。
 
 ```bash
 sudo systemctl status measurement-edge-agent
@@ -165,7 +177,7 @@ npm run edge:serve
 
 ## Security Boundary
 
-開発Walletは`.env.development`だけを復旧元とし、暗号化／オフラインbackupを保持します。独立したデバイスWalletは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。`.env.device`にはWallet mnemonic／seedを置きません。Piへ渡すのはcompile済みruntime artifactであり、Compact sourceやkey生成toolchainは渡しません。Browser APIにも秘密値を公開しません。
+開発Walletは`.env.development`だけを復旧元とし、暗号化／オフラインbackupを保持します。独立したデバイスWalletは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。導入後の運用設定は`config/device.env`で、staging用`.env.device`は削除され、Wallet mnemonic／seedを含みません。Piへ渡すのはcompile済みruntime artifactであり、Compact sourceやkey生成toolchainは渡しません。Browser APIにも秘密値を公開しません。
 
 詳細は[`system_architecture.md`](system_architecture.md)、[`private_spec.md`](private_spec.md)、[`demo_runbook.md`](demo_runbook.md)を参照してください。
 

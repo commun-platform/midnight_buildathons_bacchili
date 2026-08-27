@@ -93,7 +93,7 @@ Transfer `.device-release/archives/midnight-sensor-device-fw-<version>.tar.gz` a
 
 ## Raspberry Pi / Edge installation
 
-The Pi uses `.env.device` for endpoints, contract address, ingestion credentials, and sensor settings. Wallet recovery material is never read from environment files; it is created under `~/.midnight/midnight-cloudflare-demo/device-wallet/` with owner-only permissions. This wallet is independent of the development/deployer wallet.
+The extracted archive uses `.env.device` only as installation input. The installer moves it to `~/.midnight/midnight-cloudflare-demo/config/device.env`, installs versioned runtime directories below `releases/`, and points `current` at the active release. Wallet recovery material is never read from environment files; it is created under the sibling `device-wallet/` directory with owner-only permissions. This wallet is independent of the development/deployer wallet.
 
 First configure the Worker ingestion token on the development server. Transfer only the matching ingestion URL and ingestion token to the Pi, then:
 
@@ -118,23 +118,35 @@ Alternatively, set the URL during installation:
 The installer performs only these actions:
 
 - verifies the operational-only release and development-built contract artifacts;
+- installs the verified release under `~/.midnight/midnight-cloudflare-demo/releases/<version>-<manifest-hash>/`;
+- moves staged `.env.device` to `~/.midnight/midnight-cloudflare-demo/config/device.env`;
+- atomically updates `current` and preserves the old target as `previous` only after dependency installation and device tests pass;
 - installs only the device collector and device-wallet workspace dependencies;
 - runs small device-only tests;
 - installs a resource-limited `measurement-edge-agent.service`;
 - enables persistent journald storage and one-minute connectivity/resource snapshots.
 
-It explicitly rejects the old `--proof-server-url`, `--skip-compact-install`, and `--skip-verify` options. It never invokes `compact`, `contract:compile`, repository-wide `verify`, Wrangler, Docker, deployment, or wallet initialization. It writes `.host-role=device`; development and contract commands fail before doing work.
+It explicitly rejects the old `--proof-server-url`, `--skip-compact-install`, and `--skip-verify` options. It never invokes `compact`, `contract:compile`, repository-wide `verify`, Wrangler, Docker, deployment, or wallet initialization. The device release manifest and systemd's `MIDNIGHT_HOST_ROLE=device` make development and contract commands fail before doing work.
+
+After a successful upgrade, roll back to the previously active release with:
+
+```bash
+~/.midnight/midnight-cloudflare-demo/current/installer.sh --rollback
+```
+
+The command verifies `previous`, swaps the `current` and `previous` symlinks, restarts the collector, and checks its health. Release directories are retained until an operator deliberately removes an inactive version.
 
 Initialize the operational wallet explicitly as the service user, fund its displayed address, then invoke submissions explicitly when a real dataset has been prepared:
 
 ```bash
+cd ~/.midnight/midnight-cloudflare-demo/current
 npm run device:wallet
 npm run device:funding
 npm run device:submit -- --input data/<prepared-real-dataset>.json
 npm run device:status
 ```
 
-`device:submit` accepts either a `PreparedDataset` JSON object or an array of real `SensorRecord` objects. For an array, `--min`, `--max`, and `--selected-index` select the private range proof input; defaults are `10`, `35`, and the middle record. `--verify-only` skips dataset registration. The command never synthesizes measurements and does not update the Worker's Attestation record automatically. Back up the device credentials directory separately from the development `.env.development` backup.
+`device:submit` accepts either a `PreparedDataset` JSON object or an array of real `SensorRecord` objects. For an array, `--min`, `--max`, and `--selected-index` select the private range proof input; defaults are `10`, `35`, and the middle record. `--verify-only` skips dataset registration. The command never synthesizes measurements and does not update the Worker's Attestation record automatically. Back up `config/device.env` and `device-wallet/` separately from the development `.env.development` backup.
 
 ```bash
 sudo systemctl status measurement-edge-agent
@@ -165,7 +177,7 @@ npm run edge:serve
 
 ## Security boundary
 
-The development wallet exists only in `.env.development`; its encrypted/offline backup is the recovery copy. The independent device wallet exists only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. `.env.device` contains operational configuration but no wallet mnemonic or seed. The Pi receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
+The development wallet exists only in `.env.development`; its encrypted/offline backup is the recovery copy. The independent device wallet exists only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. Installed operational configuration is `config/device.env`; staged `.env.device` is removed after installation and never contains a wallet mnemonic or seed. The Pi receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
 
 See [system architecture](docs/system_architecture.md), [private-state specification](docs/private_spec.md), and the [deployment runbook](docs/demo_runbook.md).
 

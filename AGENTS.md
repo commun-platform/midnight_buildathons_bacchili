@@ -27,7 +27,7 @@ Generated `dist/`, `.state/`, `data/`, `.wrangler/`, and `contracts/*/src/manage
 - `npm run dashboard:dev`: migrate local D1 and start the Worker-hosted SPA.
 - `npm run edge:serve`: start Edge-only temperature collection and its health endpoint on `127.0.0.1:8788`.
 - `./package_archive.sh`: on a development host, build and verify the operational-only Raspberry Pi firmware `.tar.gz` and checksum; the archive root contains `installer.sh`.
-- `./installer.sh`: from an extracted firmware archive, install only the resource-limited device collector and operational-wallet dependencies, without Compact or deployment tasks.
+- `./installer.sh`: from an extracted firmware archive, install versioned device runtime, configuration, and wallet storage below `~/.midnight/midnight-cloudflare-demo/`, without Compact or deployment tasks; `--rollback` swaps the `current` and `previous` release symlinks.
 - `npm run cloudflare:deploy` / `npm run cloudflare:destroy`: create or remove Cloudflare resources; these require authenticated Wrangler access.
 
 ## Coding Style & Naming Conventions
@@ -44,4 +44,4 @@ Use concise imperative Conventional Commit messages, following the scoped histor
 
 ## Security & Configuration Tips
 
-Copy `.env.development.example` and `.env.device.example` into their separate ignored files; never commit environment files, `.dev.vars`, wallet mnemonics, raw sensor data, or private-state passwords. The development wallet recovery source is `.env.development` and must be backed up securely. Device wallet material belongs only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`, never in `.env.device`. Edge collector code must not import Compact, wallet, proving, deployment, or development modules. Treat the current Cloudflare backend/prover as trusted. Keep browser APIs free of wallet, ingestion, and attestation secrets; configure Worker secrets with Wrangler.
+Copy `.env.development.example` into the ignored development file. `.env.device` is only a staging input and is moved during installation to `~/.midnight/midnight-cloudflare-demo/config/device.env`. Never commit environment files, `.dev.vars`, wallet mnemonics, raw sensor data, or private-state passwords. The development wallet recovery source is `.env.development` and must be backed up securely. Device wallet material belongs only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`, never in an environment file. Edge collector code must not import Compact, wallet, proving, deployment, or development modules. Treat the current Cloudflare backend/prover as trusted. Keep browser APIs free of wallet, ingestion, and attestation secrets; configure Worker secrets with Wrangler.

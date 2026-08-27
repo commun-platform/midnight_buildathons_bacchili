@@ -31,7 +31,7 @@ Cloudflare Workerは同一Originで以下を提供します。
 
 GUIへWallet Credential、Bearer Token、Private Threshold、Raw Proof Input、Agent Control Endpointを公開してはいけません。
 
-Collector packageはCompact、Midnight Wallet／Contract SDK、Proof Provider、Wrangler、Dockerへ依存してはなりません。Device Wallet packageはTransaction Runtimeの依存を含められますが、CompilerやDeploy commandを持ちません。Installerが導入できるのは、この2つのDevice Workspaceだけです。Ingestion設定が不足している場合は安全側に失敗します。開発WalletはBackup可能な`.env.development`、Device Walletは`~/.midnight`配下へ置き、`.env.device`には保存しません。
+Collector packageはCompact、Midnight Wallet／Contract SDK、Proof Provider、Wrangler、Dockerへ依存してはなりません。Device Wallet packageはTransaction Runtimeの依存を含められますが、CompilerやDeploy commandを持ちません。Installerが導入できるのは、この2つのDevice Workspaceだけです。Ingestion設定が不足している場合は安全側に失敗します。Version別Runtime、導入済み設定、Wallet Stateは`~/.midnight/midnight-cloudflare-demo/`配下へ集約し、`current`と`previous`のSymlinkでAtomic Activationと1 Command Rollbackを提供します。開発WalletはBackup可能な`.env.development`へ置き、Device Wallet MaterialはEnvironment Fileへ保存しません。
 
 ## 3. 言語動作
 
@@ -102,5 +102,5 @@ Visual Styleは1990年代の官公庁システムを想起させる、高Contras
 | Daily Benchmark | 全日分類、署名、Reason Chain Logicを別途試験し、運用Contractとして扱わない |
 | Localization | 英語Fallback、日本語System検出、手動選択の永続化 |
 | Delivery | 開発Host上の`npm run verify`で`sensor-registry`のcompile／test、全Workspaceのtypecheck、Worker dry-runを実行する。Daily Profileには明示的な`npm run attestation:compile`が必要 |
-| Host分離 | Pi用Releaseに開発AppとCompact Sourceを含めず、導入時にCompile、Proving Key生成、Deploy、Docker、Wrangler、Repository全体のVerifyを呼ばない |
+| Host分離 | Pi用Releaseに開発AppとCompact Sourceを含めず、導入時にCompile、Proving Key生成、Deploy、Docker、Wrangler、Repository全体のVerifyを呼ばない。Release検証とDevice Test成功後だけActivationする |
 | 残る連携 | 外部Attestation Agent、D1からPrepared Datasetへの変換、自動Result報告／確認、Browserでの独立検証、Turso Adapter |
