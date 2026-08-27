@@ -7,9 +7,10 @@ This npm-workspaces monorepo separates runtime responsibilities:
 - `apps/dashboard/public/`: framework-free Worker SPA assets and 1990s government-system styling.
 - `apps/development/operator-cli/`: development wallet sync, encrypted private state, benchmarks, deployment, and Preprod administration.
 - `apps/device/edge-agent/`: minimal Edge temperature collector and localhost health endpoint; no Compact, wallet, proving, or deployment dependencies.
-- `apps/device/wallet-agent/`: operational device wallet, recurring submissions, and status; no compilation or deployment commands.
+- `apps/device/wallet-agent/`: operational device wallet, operator-invoked dataset submission, and status; no daemon, compilation, or deployment commands.
 - `apps/proof-gateway/`: Cloudflare Worker APIs, portable SQL storage adapters, migrations, SPA binding, and Proof Server Container.
 - `contracts/sensor-registry/`: Compact contract, witnesses, and simulator tests.
+- `contracts/daily-attestation/`: development-only fixed-profile generator, witnesses, and benchmark tests; not part of the device firmware or default operational verification path.
 - `packages/shared/`: commitments, Merkle utilities, test fixtures, and unit tests.
 - `docs/`: canonical English guidance; Japanese translations live in `docs/ja/`.
 
@@ -19,9 +20,10 @@ Generated `dist/`, `.state/`, `data/`, `.wrangler/`, and `contracts/*/src/manage
 
 - `npm install`: install all workspace dependencies.
 - `npm run contract:compile`: compile Compact using toolchain `0.31.1`.
-- `npm test`: compile the contract, then run shared, simulator, and Worker API tests.
+- `npm test`: compile `sensor-registry`, then run the selected shared, operational contract, CLI, device, and Worker tests.
 - `npm run typecheck`: type-check every workspace.
-- `npm run verify`: run tests, type-checking, and Wrangler dry-run.
+- `npm run verify`: run portability checks, operational tests, type-checking, and Wrangler dry-run; it does not compile the experimental daily profiles.
+- `npm run attestation:compile` / `npm run benchmark:daily-proof`: explicitly compile and benchmark development-only daily profiles.
 - `npm run dashboard:dev`: migrate local D1 and start the Worker-hosted SPA.
 - `npm run edge:serve`: start Edge-only temperature collection and its health endpoint on `127.0.0.1:8788`.
 - `./package_archive.sh`: on a development host, build and verify the operational-only Raspberry Pi firmware `.tar.gz` and checksum; the archive root contains `installer.sh`.
@@ -38,7 +40,7 @@ Name tests `*.test.ts`. Shared utilities use Node's test runner through `tsx`; c
 
 ## Commit & Pull Request Guidelines
 
-No usable Git history is present in this workspace, so no repository-specific convention can be inferred. Use concise imperative Conventional Commit messages, for example `feat(contract): verify private sensor range`. Pull requests should explain the privacy boundary, list validation commands, link issues, and include screenshots for GUI changes. Call out configuration or deployment changes explicitly.
+Use concise imperative Conventional Commit messages, following the scoped history in this repository, for example `feat(contract): verify private sensor range`. Pull requests should explain the privacy boundary, list validation commands, link issues, and include screenshots for GUI changes. Call out configuration or deployment changes explicitly.
 
 ## Security & Configuration Tips
 

@@ -2,14 +2,14 @@
 
 [English documentation](../../README.md)
 
-Edge Deviceの温度実測値をCloudflare D1へ保存し、プライバシーを保ったAttestationをMidnight Preprodへ記録するシステムです。開発とデバイス運用はworkspace、配布物、Walletのすべてを分離します。
+Edge Deviceの温度実測値をCloudflare D1へ保存するシステムです。デバイス運用Wallet CLIは、準備済みDatasetをMidnightの`sensor-registry`へ登録し、選択した1件のPrivate SampleについてMerkle inclusionと範囲を検証できます。Workerは日次Attestation workflow recordも作成しますが、そのrecordとデバイスWallet送信を接続する常駐Agentはまだ含まれていません。開発とデバイス運用はworkspace、配布物、Walletのすべてを分離します。
 
 ## 実行境界
 
 ```text
 開発サーバ                                     Raspberry Pi／デバイス運用
   Compact compile・proving key生成               センサー収集・認証付き送信
-  全テスト・Proof benchmark                      継続的なTransaction送信
+  全テスト・Proof benchmark                      明示的なDataset Transaction送信
   Cloudflare・Contract deploy                    独立したデバイス運用Wallet
   開発・deploy用Wallet                           localhost health・永続診断ログ
              │                                             │
@@ -21,8 +21,8 @@ Edge Deviceの温度実測値をCloudflare D1へ保存し、プライバシー�
 | ホスト | 実行する処理 | 実行禁止の処理 |
 | --- | --- | --- |
 | 開発サーバ | Compact compile、proving key生成、全テスト、benchmark、Wrangler、開発Wallet同期、Contract deploy、デバイス配布物生成 | 常時センサー収集、デバイスWallet利用 |
-| Raspberry Pi／デバイス | センサー読取り・送信、独立した運用Walletによる継続Tx、loopback health、障害解析ログ | Compact compiler、proving key生成、ローカルProof Server、Docker、Contract deploy、開発Wallet、全workspace test |
-| Cloudflare | Worker API、D1、SPA、scheduler、実行時Proof Server Container | 開発Wallet／デバイスWalletの復旧情報 |
+| Raspberry Pi／デバイス | センサー読取り・送信、独立した運用Walletによる準備済みDatasetの明示的Tx、loopback health、障害解析ログ | Compact compiler、proving key生成、ローカルProof Server、Docker、Contract deploy、開発Wallet、全workspace test |
+| Cloudflare | Worker API、D1、SPA、日次pending record作成、実行時Proof Server Container | 開発Wallet／デバイスWalletの復旧情報 |
 
 Proof ServerがTxごとに行う証明生成と、Compact compilerが事前に行う回路・key生成は別処理です。どちらもPiでは実行しません。
 
@@ -58,7 +58,7 @@ npm run verify
 
 開発Walletの復旧元は`.env.development`です。`npm run development:wallet`の初回実行時にmnemonicをmode `0600`でatomicに保存します。このファイルを暗号化またはオフラインで必ずバックアップしてください。`.state/development/`は同期・deployの再開用cacheであり、Wallet backupではありません。旧混在構成からは、開発サーバ上で新Walletを作る前に`npm run development:wallet:migrate`を実行します。
 
-日次Attestationの固定Profileも開発サーバだけでコンパイルします。Profileごとに別のkeyが必要です。
+実験的な日次Attestation固定Profileも開発サーバだけでコンパイルします。これはbenchmark CLI用であり、`npm run verify`、デバイスF/W、現在の`sensor-registry`送信経路には含まれません。Profileごとに別のkeyが必要です。
 
 ```bash
 ATTESTATION_SAMPLE_COUNTS=24 npm run attestation:compile
@@ -86,6 +86,8 @@ npm run development:status
 # その後、Compile済みartifactを内部exportして秘密情報を含まないF/W archiveを作る。
 ./package_archive.sh
 ```
+
+`PROOF_GATEWAY_TOKEN`はProof request、`INGEST_API_TOKEN`はsensor upload、`ATTESTATION_API_TOKEN`は内部claim／result APIを保護します。最後のtokenは外部Attestation Agentを接続する場合だけ必要であり、そのpolling Agentはこのrepositoryに実装されていません。
 
 Piへ渡すのは`.device-release/archives/midnight-sensor-device-fw-<version>.tar.gz`と`.sha256`だけです。Archiveは単一のtop-level directoryを持ち、rootに実行可能な`installer.sh`を含みます。Manifest検証により開発workspace、Compact source、dev tool、秘密fileの混入を拒否します。開発checkout全体、`.env.development`、`.dev.vars`、`.state/development/`、開発Wallet、Private開発inputはPiへ置かず、Gitにもcommitしません。
 
@@ -123,7 +125,7 @@ Edge installerが行うのは次だけです。
 
 旧`--proof-server-url`、`--skip-compact-install`、`--skip-verify`は明示的に拒否します。`compact`、`contract:compile`、全体`verify`、Wrangler、Docker、deploy、Wallet初期化は一切呼びません。`.host-role`へ`device`を記録し、開発・Contract commandを処理開始前に拒否します。
 
-運用Walletはservice userとして明示的に初期化し、表示されたaddressへfundした後、継続的なデバイスTxだけに使います。
+運用Walletはservice userとして明示的に初期化し、表示されたaddressへfundした後、実測値からDatasetを準備した場合にだけ明示的に送信します。
 
 ```bash
 npm run device:wallet
@@ -132,7 +134,7 @@ npm run device:submit -- --input data/<prepared-real-dataset>.json
 npm run device:status
 ```
 
-`device:submit`は実測値から準備したinputが必須で、疑似計測値を生成しません。デバイスcredentials directoryは、開発側の`.env.development`とは別系統でバックアップします。
+`device:submit`は`PreparedDataset` JSONまたは実測`SensorRecord[]`を受け取ります。配列の場合、Private Range Proofの入力は`--min`、`--max`、`--selected-index`で選択し、既定値は`10`、`35`、中央のrecordです。`--verify-only`はDataset登録を省略します。このcommandは疑似計測値を生成せず、WorkerのAttestation recordも自動更新しません。デバイスcredentials directoryは、開発側の`.env.development`とは別系統でバックアップします。
 
 ```bash
 sudo systemctl status measurement-edge-agent
@@ -154,6 +156,12 @@ systemdを使わないEdge単体開発は次だけです。
 npm run edge:test
 npm run edge:serve
 ```
+
+## 現在の連携状況
+
+- End-to-end実装済み: 認証付き温度送信、D1参照、日次pending record作成、2言語dashboard、remote Proof Gateway、開発Walletによるdeploy、デバイスWalletによる明示的な`registerDataset`／`verifySensorValue` Tx。
+- 開発用実験として実装済み: 24／96／1,440件の固定日次回路、署名付き時間Evidence、追記型Outlier Reason Hash。
+- 未接続: Workerのpending recordをclaimし、対応するPrivate Inputを組み立て、`device:submit`を実行して結果をWorkerへ返す常駐Attestation Agent。これがない間、dashboardの`confirmed`は信頼するAgentがD1へ報告した状態であり、BrowserがMidnightを独立照会した結果ではありません。
 
 ## Security Boundary
 
