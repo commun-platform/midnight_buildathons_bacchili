@@ -1,152 +1,106 @@
 # 計測データ真贋性証明システム 実装仕様
 
-[English documentation](../implement_spec.md)
+[English](../implement_spec.md)
 
 ## 1. 対象ユースケース
 
 ```text
-Edge Device
-  ↓ HTTPS telemetry
-Cloudflare Worker ingestion API
-  ↓
-D1 time-series storage
-  ↓ 1日1回
-Daily Attestation Job
-  ↓
-Cloudflare Container Proof Server
-  ↓
-Raspberry PiのDevice Transaction Agent / 運用Wallet
-  ↓
-Midnight Preprod
-  ↓
-第三者Verification GUI
+Edge温度センサー → Worker Ingestion API → D1時系列データ
+                                             ↓ 現地日付ごとに1回
+                                    pending Attestation record
+
+準備済みの実Dataset → Device Wallet CLI → Remote Prover → Sensor Registry
+                                               ↓
+                                      Midnight Public State
 ```
 
-Device Collectorはセンサー値の送信とloopback health endpointに専念する。別packageのDevice Wallet Agentがremote trusted proverを使って継続的なMidnight Txを送る。Compact compile、proving key生成、全体検証、Contract deployは開発サーバだけで行い、Raspberry PiとBrowserでは実行しない。
+Device Collectorは継続して摂氏温度を計測・送信し、loopback Health Endpointを提供します。別のDevice Wallet CLIが、明示的に指定された実DatasetをRemote Trusted Prover経由でMidnightへ送信します。Compact compile、proving key生成、repository全体の検証、Contract deployは開発サーバだけで実行し、Raspberry PiやBrowserでは実行しません。
 
-Collector packageはCompact、Midnight Wallet／Contract SDK、Proof Provider、Wrangler、Dockerへ依存してはならない。Device Wallet packageはTx実行依存だけを持ち、compilerとdeploy commandを持たない。Installerはこの2つのdevice workspaceだけを導入し、ingestion設定不足時は明示的に失敗する。開発Walletはbackup可能な`.env.development`、デバイスWalletは`~/.midnight`配下に置き、`.env.device`へ復旧情報を入れない。
+WorkerにはAttestation Agent向けのclaim／result endpointがありますが、このrepositoryには常駐Agentが実装されていません。そのため、外部Agentが処理を引き継がない限り、CronはD1に`pending` recordを作成した時点で停止します。
 
-初期構成は`edge-temp-001`の1台だけとし、表示名は英語で`Temperature Sensor`、日本語で`温度センサー`とする。WorkerはD1が空または利用不能な場合でも疑似計測値を生成しない。
+## 2. Runtime Component
 
-## 2. Cloudflare Worker
+Cloudflare Workerは同一Originで以下を提供します。
 
-Workerは以下を同一オリジンで提供する。
+- framework-freeの日英SPA
+- Project、Device、Reading、Attestationの参照API
+- Bearer認証付き温度Ingestion API
+- 外部Agent向けのBearer認証付きAttestation claim／result API
+- hourly scheduled handler
+- 認証付きProof Server Container Gateway
 
-- framework-free SPA assets
-- Project / Device / Reading / Attestation参照API
-- D1/Tursoを交換可能にする`SqlDatabase` Port
-- Bearer認証付きtelemetry ingestion API
-- Attestation Agentのclaim / result API
-- D1 bindingとhourly scheduled handler
-- 認証付きProof Server Container gateway
+GUIへWallet Credential、Bearer Token、Private Threshold、Raw Proof Input、Agent Control Endpointを公開してはいけません。
 
-Vite、React、ブラウザ用Secret、Agent localhostへの直接接続は使用しない。
+Collector packageはCompact、Midnight Wallet／Contract SDK、Proof Provider、Wrangler、Dockerへ依存してはなりません。Device Wallet packageはTransaction Runtimeの依存を含められますが、CompilerやDeploy commandを持ちません。Installerが導入できるのは、この2つのDevice Workspaceだけです。Ingestion設定が不足している場合は安全側に失敗します。開発WalletはBackup可能な`.env.development`、Device Walletは`~/.midnight`配下へ置き、`.env.device`には保存しません。
 
-GUIの正本言語とfallbackは英語とする。初回はブラウザのシステム言語が日本語なら日本語、それ以外は英語を選び、System / English / 日本語の手動選択を`localStorage`へ保存する。
+## 3. 言語動作
 
-## 3. データモデル
+- 正本言語とFallbackは英語です。
+- 初回表示では`navigator.languages`に`ja`が含まれる場合だけ日本語を選び、それ以外は英語を選びます。
+- System、English、日本語を手動選択でき、明示した選択は`localStorage`へ保存します。
+- ProjectとDeviceの表示名は英語のPrimary Fieldとnullableな日本語Fieldを持ちます。
+- 正本ドキュメントはrepository rootと`docs/`、日本語訳は`docs/ja/`に置きます。
+
+## 4. データモデル
 
 | Entity | 主な項目 |
 | --- | --- |
-| Project | name、organization、timezone、expected interval |
-| Device | device type、sensor type、unit、lastSeenAt、normal range |
-| Reading | timestamp、value、outlier、local date、attestationId |
-| Attestation | period、sample/expected/missing count、hour claims、proof status、日次Tx ID、Explorer用Tx Hash、block height |
+| Project | 多言語name／organization、timezone、expected interval |
+| Device | 多言語name／type、`temperature`、`°C`、last seen、Trusted Cloud内のnormal range |
+| Reading | timestamp、value、local date、outlier flag、attestation ID |
+| Attestation | period、count、status、root、Dataset／Verification Tx ID、Explorer Transaction Hash、Block Height |
 
-Online状態は`lastSeenAt`と送信間隔から計算する。日次境界はProject timezoneで判定する。
+初期構成は`edge-temp-001`の1台だけで、**Temperature Sensor**または**温度センサー**と表示します。Migrationは過去のTest Reading、Attestation、未使用Device定義を削除します。D1が空または利用不能な場合でも、APIは生成したReadingへ置き換えません。
 
-APIとScheduled handlerは`SqlDatabase`だけに依存する。現在はD1 Adapterを使用し、将来のTurso/libSQL移行ではAdapterとFactoryだけを変更する。SQL migrationはSQLite/libSQL共通構文を維持する。
+APIとScheduled Codeは`SqlDatabase`だけに依存します。現在のAdapterはD1です。将来のTurso／libSQL Adapterも同じInterfaceとAPI Responseを維持する必要があります。
 
-## 4. 日次Attestation
+## 5. Ingestion
 
-Scheduled handlerはProjectの現地時刻0時台に前日分を集計し、以下を作成する。
+`POST /api/v1/readings`は`INGEST_API_TOKEN`を必須とし、`projectId`、`deviceId`、`sensorType`、`value`、`unit`、ISO 8601形式の`recordedAt`を受け取ります。Deviceは指定Projectへ登録済みで、`sensorType`と`unit`は登録済みの`temperature`と`°C`に完全一致する必要があります。WorkerはProjectの現地日付を導出し、Trusted Cloud内のNormal Rangeを評価して、1つのD1 batchでReadingを保存し`lastSeenAt`を更新します。
+
+## 6. Daily Attestation
+
+Projectの現地時刻0時台に、Scheduled Handlerは前日分のReadingを数え、存在しなければ決定的なAttestation recordを1件作成し、未割当のReadingを関連付けます。
 
 ```text
 Pending → Aggregating → Proving → Submitted → Confirmed / Failed
 ```
 
-同じ現地日付のReadingは同じAttestationへ関連付ける。本番Contractは24件、96件、1,440件の固定日次Profileを持つ。Device CommitmentとPrivate Policy Commitmentを一度だけ登録し、以降は1日分を1つのProof Txで送信する。
+実装済みのCron経路は`pending`で終了します。`POST /api/internal/attestations/claim`は最古のpending recordをatomicに`aggregating`へ移し、`POST /api/internal/attestations/:id/result`は以降のstatusとTransaction Metadataを受け取ります。どちらも`ATTESTATION_API_TOKEN`を必要とします。これらのAPI自体はProof Inputの構築、Device Walletの呼び出し、Transaction確認、Midnight照会を行いません。
 
-## 5. ZKP Claim
+## 7. 運用Proof Claim
 
-本番日次回路が証明する内容は次のとおり。
+Deploy対象の`sensor-registry` Contractには、2つのTransaction Circuitがあります。
 
-> 署名対象の日次データセットに全Commitmentが含まれ、sequenceが連続し、各値がCommit済みPrivate Policyに対して正常または外れ値へ漏れなく一度だけ分類された。
+- `registerDataset`はMerkle Root、Device Commitment、期間、Sample Count、Schema Versionを公開します。
+- `verifySensorValue`は選択した1つのSensor LeafとNonceをPrivateに開き、深さ11のMerkle Pathを再計算し、その温度をPrivateな最小値・最大値と比較します。
 
-Public Evidenceは`dayRoot`と24時間分のClaimを束ねる`hourClaimsRoot`を持つ。各Claimは`hourRoot`、sample/normal/anomaly count、`allWithinRange`を公開する。Raw値、nonce、Policy範囲は非公開である。時間RootへのEd25519署名は回路外で検証し、署名Bundle Hashをオンチェーン状態へ結合する。
+検査に成功すると、DatasetのPublicな`verified` flagとContractのGlobal Verification Resultがtrueになります。運用Circuitが証明するのは選択値の包含と範囲であり、全日分の完全性や全Readingの分類ではありません。
 
-外れ値理由は後から署名済みReason Hashとして追記する。変更は上書きせず`previousReasonHash`で連結し、説明本文はオフチェーンでCanonical Hashを再計算して検証する。
+`device:submit`は`PreparedDataset`または実際の`SensorRecord[]`を受け取ります。配列Inputは`--min`、`--max`、`--selected-index`でLocalに準備し、`--verify-only`を指定すると登録を省略します。準備済みPrivate DataはDevice Wallet Directory配下で暗号化します。
 
-## 6. SPA画面
+別の`daily-attestation` GeneratorとBenchmarkは、24／96／1,440 sampleの固定Profile、全日分のRoot、Hourly Claim、回路外Ed25519 Evidence、追記型Reason Hashを実装します。これらは開発専用の実験であり、Device FirmwareやWorker Lifecycleでは使用しません。
 
-### プロジェクト概要
+## 8. SPA画面
 
-- 最新センサー値カードと最終更新日時
-- Edge Device一覧、デバイス種別、接続状態
-- 当日の受信、期待、欠損、外れ値件数
-- 最新処理と直近のMidnight確認済みAttestation
+- **Project Overview:** 最新の実Reading、最終更新、1台のEdge Device、収集件数、現在とconfirmedのAttestation。
+- **Time-Series Data:** chart、table、outlier／status filter、関連するTransaction状態。
+- **Daily Proof History:** 期間、件数、処理状態、Dataset Tx、Verify Tx。
+- **Third-Party Verification:** AgentがD1へ報告したstatus、root、Contract設定、Transaction ID、Block Height、対応するPreprod Explorer Link、Privacy Boundary。
 
-### 時系列データ
+Visual Styleは1990年代の官公庁システムを想起させる、高Contrastの紺色Title Bar、灰色Panel、明示的なBorder、Table、Keyboard Control、印刷可能なTypographyとします。Browserは現在、Midnight Indexerを照会せず、Proof／Signatureを独立して検証しません。TrustedなAttestation Result APIを通じて保存されたPublic Fieldを表示します。
 
-- シンプルな折れ線グラフと表
-- Device、sensor、outlier、proof status filter
-- 各Readingの日次Attestation状態
-- 確認済みまたは処理中のVerification画面リンク
-- 確認済みTx、Block、ContractのPreprod Explorer外部リンク
+## 9. 受入条件
 
-### 日次証明履歴
-
-- 対象日と処理状態
-- sample / expected / missing / outlier count
-- 日次Proof Txと、存在する場合は外れ値Reason Tx
-
-### 第三者検証
-
-- ZKP claim、24時間Claim、Device署名の検証結果
-- Day Root、Hour Claims Root、Contract、Tx ID、block height
-- Raw値、threshold、nonce、Private Stateが非公開であること
-
-## 7. UI方針
-
-1990年代の官公庁イントラネットを想起させる、紺色タイトルバー、灰色パネル、明示的な枠線、表中心のデザインとする。装飾性より情報階層、状態ラベル、キーボード操作、印刷時の可読性を優先する。
-
-## 8. Privacy Boundary
-
-- Operator API: Trusted Cloud内のRaw時系列値を扱う
-- Public Verification API: Attestationの公開情報だけを返す
-- Worker Secret: ingestion、attestation agent、proof gatewayで分離する
-- Browser: Wallet mnemonic、Private State password、Bearer tokenを保持しない
-- Midnight Public State: roots、commitments、period、count、signature bundle hash、verification resultのみ
-
-## 9. 審査基準
-
-| 審査 | 証跡 |
+| 対象 | 要件 |
 | --- | --- |
-| Engineering | Worker API、D1、scheduled job、Container、Compact、Wallet SDK |
-| QA | 正常、範囲外、Raw改ざん、Policy差替え、sequence欠損、署名改ざん、Reason Chain改ざん |
-| Product | Edge telemetryから日次Privacy Attestationまでの一貫したUC |
-| UX | 3画面＋第三者検証の単純なSPA |
-| Communication | 処理状態、Privacy Boundary、日次Proof TxとReason Txを画面で説明 |
-
-## 10. 実装フェーズと受入条件
-
-1. **Data Plane**: Worker ingestion API、D1 schema、Project参照APIを実装する。
-2. **Attestation Plane**: 現地日付の日次集計、Agent claim/result、Proof Container gatewayを実装する。
-3. **Presentation Plane**: Worker Assetsでframework-free SPAを配信し、4画面をhash routeで切り替える。
-4. **Privacy Plane**: operator data、Midnight Private State、public verification responseを分離する。
-
-| 対象 | 自動テストの受入条件 |
-| --- | --- |
-| Public API | D1の実データまたは明示的なerrorを返し、生成値を返さない |
-| Protected API | token未設定は503、不一致は401、正しいtokenだけ書き込みを許可する |
-| Ingestion | ISO時刻を正規化し、登録済みtemperature/°Cとの一致とprivate normal rangeを検証する |
-| Daily Job | Project timezoneの0時台だけ前日分を作り、Readingへ同じAttestation IDを設定する |
-| Privacy | Public verification responseにRaw値、Policy範囲、nonce、Private Stateを含めない |
-| Contract | 正常、分類完全性、Raw改ざん、Policy差替え、sequence欠損、Reason Chain改ざんを検証する |
-| Delivery | 全workspaceのtest、typecheck、Worker dry-runが成功する |
-| Host分離 | Pi用releaseに開発appとCompact sourceを含めず、導入時にCompile、proving key生成、Deploy、Docker、Wrangler、全workspace検証を一切呼ばない |
-| Storage Adapter | `first`、`all`、変更行数、atomic batchの共通契約を満たす |
-
-## 11. Storage移行
-
-D1からTursoへの切替設計、schema互換ルール、cutover/rollback手順は[`storage_migration.md`](storage_migration.md)を正とする。APIレスポンス、GUI、Attestation Agentの契約は移行前後で変更しない。
+| Public API | D1 DataまたはErrorを返し、生成値を返さない |
+| Ingestion | 認証なし、未知のDevice、Sensor／Unit不一致を拒否する |
+| Scheduling | Project Timezoneを使い、pending recordを作成し、前日のReadingを関連付ける |
+| Privacy | Public VerificationからRaw値、Policy範囲、Nonce、Private Stateを除外する |
+| 運用Contract | 未知Root、重複登録、選択Leaf改ざん、Merkle Path改ざん、無効な範囲、範囲外の選択値を拒否する |
+| Daily Benchmark | 全日分類、署名、Reason Chain Logicを別途試験し、運用Contractとして扱わない |
+| Localization | 英語Fallback、日本語System検出、手動選択の永続化 |
+| Delivery | 開発Host上の`npm run verify`で`sensor-registry`のcompile／test、全Workspaceのtypecheck、Worker dry-runを実行する。Daily Profileには明示的な`npm run attestation:compile`が必要 |
+| Host分離 | Pi用Releaseに開発AppとCompact Sourceを含めず、導入時にCompile、Proving Key生成、Deploy、Docker、Wrangler、Repository全体のVerifyを呼ばない |
+| 残る連携 | 外部Attestation Agent、D1からPrepared Datasetへの変換、自動Result報告／確認、Browserでの独立検証、Turso Adapter |

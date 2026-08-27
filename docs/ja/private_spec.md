@@ -1,142 +1,114 @@
-# 計測データ真贋性証明システム Private State / Dual Ledger 仕様
+# 計測データ真贋性証明システム Private State／Dual Ledger仕様
 
-[English documentation](../private_spec.md)
+[English](../private_spec.md)
 
 ## 1. 目的
 
-Edge Deviceから受信したセンサー値をTrusted Cloudで時系列管理し、Raw値や判定閾値をMidnightへ公開せず、条件を満たすことだけを第三者が検証できる状態にする。
+本システムは、Edge Deviceの温度Readingを運用目的で保存しつつ、Raw値やPrivateなPolicy ThresholdをMidnightへ公開せずに、限定されたClaimを第三者が検証できるようにします。
 
 ```text
-Edge Device → Cloudflare Worker → D1 private operator data
-                                     ↓ daily orchestration
-                              Attestation Agent / ZKP
-                                     ↓
-                            Midnight public ledger
-                                     ↓
-                          Public Verification GUI
+温度センサー → 認証付きWorker → Privateな運用Database
+                                      ↓ 現地0時台のCron
+                            pending Attestation record
+
+準備済みの実Dataset → Device Wallet／ZKP → Midnight Public Ledger
 ```
+
+2つの経路はどちらも実装済みですが、pendingのD1 recordとDevice Wallet commandを接続する常駐Attestation Agentは含まれていません。現在、D1へ書き戻される結果はTrustedな外部Callerから提供されます。
 
 ## 2. Privacy Boundary
 
-### Operator Private Data
+### 運用Private Data
 
-Cloudflareの認証済みoperator領域で保持する。
+認証済みCloud Operator境界は以下を保持します。
 
-- Raw Sensor Dataと受信時刻
-- Project / Deviceの実ID
-- 外れ値判定と非公開閾値
-- Attestation処理エラー
+- Raw温度値と受信Timestamp
+- ProjectとDeviceのIdentifier
+- PrivateなNormal Range PolicyとOutlier判定
+- 処理ErrorとSubmit Error
 
-D1はPublic Verification APIから直接参照させない。Edge ingestion、Attestation Agent、Proof Gatewayには用途別Bearer tokenを使用する。
+ClientはWorker APIを通じてのみD1へAccessします。ただし、[GUI公開範囲](#7-gui公開範囲)に記載するとおり、現在のRead APIにはUser認証層がありません。Ingestion、Attestation Control、Proof Gatewayには別々のBearer Secretを使用します。
 
 ### Midnight Private State
 
-Raspberry Pi上のDevice Wallet Agentが暗号化運用Private Stateとして保持する。
+Raspberry PiのDevice Wallet Host上にある暗号化運用Stateは、送信したPrepared Datasetごとに以下を保持します。
 
-- 日次Sensor Samples
-- Sample nonce
-- threshold min / max
-- 24時間分の入力とCommitment nonce
-- Private Policyのopening
-- デバイスWallet mnemonicとDevice Private State password
+- 提供された全Sensor Record
+- 選択したSample IndexとNonce
+- 選択したSampleの深さ11のMerkle Path
+- 最小・最大Threshold
+- Device WalletのRecovery MaterialとDevice Private State Password
 
-これらを`.env.device`、`.env.development`、ブラウザ、Worker環境変数、Midnight Public Ledgerへ渡さない。デバイスcredentialsは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置く。別系統の開発／Deployer Walletは`.env.development`とその安全なbackupだけに置き、Pi用配布物へ含めない。
+これらを`.env.device`、`.env.development`、Browser Storage、Browserから見える環境変数、Worker Log、Midnight Public Stateへ入れてはいけません。Device Credentialは`~/.midnight/midnight-cloudflare-demo/device-wallet/`配下だけに置きます。別系統の開発／Deployer Walletは`.env.development`とその安全なBackupだけに置き、Piの運用Releaseへ含めません。
 
 ### Public State
 
-Midnight Ledgerと第三者Verification APIには次だけを公開する。
+運用`sensor-registry` Contractは以下を公開します。
 
 ```text
-dayRoot / hourClaimsRoot
+datasetRoot
 deviceCommitment
-policyCommitment
-signatureBundleHash
 periodStart / periodEnd
 sampleCount
-daily anomalyCount
 schemaVersion
-verificationResult
-transactionId / blockHeight
+dataset.verified
+registrationCount / verificationCount
+lastVerifiedRoot / verificationResult
 ```
 
-公開する時間Claim文書は`hourRoot`、`sampleCount`、`normalCount`、`anomalyCount`、`allWithinRange`を持ち、そのCanonical Compact Hashが`hourClaimsRoot`と一致しなければならない。1時間1件の場合にRaw値を漏らすため、min / max / averageとPolicy範囲は公開しない。
+Worker Verification APIは、D1にあるAgent報告のTransaction ID、Transaction Hash、Block Height、Count、Workflow Statusも返す場合があります。最小値、最大値、Raw値、選択したNonce、Merkle PathはPublic Verification Responseに含まれません。
 
-Device IDは直接公開せず、commitmentで表現する。
+Public Ledgerでは直接の運用Device IDではなくCommitmentでDeviceを表現します。
+
+開発専用のDaily Benchmarkは、より大きな提案Public Schema（`dayRoot`、`hourClaimsRoot`、Policy／Signature Bundle Commitment、Hourly Count、Reason Hash）を持ちます。これらは運用Contractや現在のDashboard連携には含まれません。
 
 ## 3. Dual Ledger
 
-本システムの記録は二層に分離する。
-
-| Ledger | 目的 | 主なデータ |
+| Ledger | 目的 | データ |
 | --- | --- | --- |
-| Cloud operational store（D1、将来Turso） | 運用・時系列参照 | Raw値、Device、受信時刻、処理状態 |
-| Midnight | 改ざん検知可能な公開証跡 | commitment、期間、件数、検証結果 |
+| D1、将来Turso | 運用と時系列Query | Raw値、Device、時刻、Workflow状態 |
+| Midnight | 運用Public Contract State | Dataset Root、Device Commitment、期間、件数、Verified Flag、Counter |
 
-両者はRaw値で結合せず、日次`datasetRoot`とZK Proofで整合性を証明する。Operational storeの各Readingは内部`attestationId`で処理単位へ関連付ける。Storage移行後もPublic LedgerとPrivacy Boundaryは変更しない。
+各運用Readingは内部Attestation IDを参照できます。Attestation rowはProtected Result APIから提供されたMerkle RootとTransaction Metadataを保存できますが、現在のWorkerはそのRootを導出せず、TransactionをSubmitせず、提供されたChain Resultを独立して検証しません。D1からTursoへ移行してもPublic Ledger SchemaとPrivacy Boundaryを変更してはいけません。
 
-## 4. 日次Attestation
+## 4. Daily Attestation
 
-Project timezoneの現地0時台に、Worker scheduled handlerが前日分のAttestationを作成する。
+Workerは各Projectの現地0時台に、前日分のAttestationを起票します。
 
 ```text
 Pending → Aggregating → Proving → Submitted → Confirmed / Failed
 ```
 
-Device Wallet Agentは各SampleのPersistent Commitment、24個の時間Root、1個の日次Rootを生成し、Proof Inputを暗号化Device Private Stateへ保存する。継続処理はremote trusted Proof Server経由の1つの全件Proof Txとし、登録／deployは開発サーバから初回に行う。Collector process自体はWalletとProof runtimeを読み込まない。
+Cronは`pending` recordを作成してReadingを関連付けます。Protected APIにより外部Agentがclaimし、後続Stateを報告できますが、その外部AgentはこのRepositoryには実装されていません。収録されているDevice Wallet CLIは、代わりに明示的なPrepared Datasetを受け取り、そのPrivate部分を暗号化Device Private Stateとして保存し、Remote Trusted Proof Serverを通じて`registerDataset`と`verifySensorValue`を送信します。Collector Process自体はWalletやProof Runtimeを読み込みません。
 
-## 5. Compact Contract / Witness
+## 5. Compact Contract
 
-24件、96件、1,440件Profileは同じ本番ロジックを持つ。`submitDailyAttestation`はWitnessから以下を受け取る。
+運用`sensor-registry` ContractはPublicなDataset Metadataを登録し、Privateに選択した1つのLeafを検証します。
 
 ```text
-privateDay
-operatorSecret
+private selected SensorLeaf
+private selected nonce
+private minimum / maximum
+private Merkle path
 ```
 
-回路は次を検証する。
+Circuitは選択したPersistent CommitmentとMerkle Rootを再計算し、Thresholdの順序と選択温度の範囲を検査します。すべての検査に成功した場合だけ、登録済みDatasetのPublicな`verified` flagを設定します。全Recordが存在すること、順序どおりであること、範囲内であることは証明しません。
 
-1. 全SampleのPersistent Commitment、時間Root、日次Rootを再計算する。
-2. Private PolicyのCommitmentが登録済みPolicyと一致することを確認する。
-3. 全日のsequenceに欠損、重複、並べ替えがないことを確認する。
-4. 各時間で`normalCount + anomalyCount = sampleCount`を保証する。
-5. 全検証成功時だけ`verified = true`をPublic Stateへ記録する。
+生成される24、96、1,440 ReadingのDaily Profileは、完全なHourly Classification、Policy Commitment、回路外Device Signature、追記型Reason Hashという拡張設計を実装します。開発用Test／Benchmarkだけで使用し、ArtifactはPi ReleaseへExportされず、そのPublic Evidenceを現在のWorker Workflowは保存しません。
 
-Device Ed25519署名は設計どおり回路外で検証する。各署名は時間Root、件数、sequence範囲、schema version、firmware IDを含み、Bundle HashをAttestationへ保存する。第三者検証はMidnight Proofと24署名の両方を必須とする。
+Benchmark Contract内の`appendOutlierReason`は、Day RootとHourにReason Hashを保存し、Revisionは最新の`previousReasonHash`を参照します。
 
-`appendOutlierReason`は日次Rootと時間にReason Hashを追記し、変更時は最新`previousReasonHash`との一致を強制する。
+## 6. Trust Model
 
-## 6. Proof Server Trust Model
-
-### 現在の構成
-
-採用する本番経路ではCloudflare Containerへprivate preimageを渡すため、CloudflareをTrusted Proverとして扱う。用途別Bearer Secretで制限し、GatewayはProof Inputをログまたは永続化せず、アクセスを監査可能にする。
-
-### Production
-
-将来Operator管理Proverへ置換する場合もContractとPublic Evidence Schemaは変更しない。BrowserにはPrivate InputやWallet Secretを渡さない。
+選択済みの運用経路はPrivate PreimageがCloudflare Containerへ届くため、ContainerをTrusted Proverとして扱います。AccessはBearerで保護し、Proof InputをGatewayでLog／永続化せず、Container／WorkerへのAccessを監査可能にする必要があります。D1 BackendもRaw ReadingとNormal Range Policyを扱うTrusted Boundaryです。将来、Contractを変更せずにOperator管理Proverへ置き換えられます。
 
 ## 7. GUI公開範囲
 
-Operator向け画面は最新値と時系列値を表示できる。第三者Verification画面は以下だけを表示する。
-
-- 対象期間、件数、処理状態
-- 日次ZKP、24時間Claim、Device署名の成否
-- Day Root、Hour Claims Root、contract address、Tx ID、block height
-- Raw value、threshold、nonce、Private Stateが非公開である旨
-
-Public APIレスポンスにRaw Sensor Dataを含めない。
+現在のRead APIとSPAにはUser認証層がないため、Public DeployするとD1の時系列参照Viewも公開されます。Raw ReadingをOperator限定として扱う前にAccess Controlを追加してください。Third-Party Viewは期間、件数、Agent報告のProof Check、Root、設定済みContract Address、Transaction ID、Block Heightだけを表示します。Midnightを照会せず、Signatureも独立して検証しません。
 
 ## 8. テスト要件
 
-- 正常: 全日と24時間Claimが成立し`Verified`
-- 閾値違反: 外れ値へ漏れなく一度だけ分類される
-- Raw改ざん: 日次Root不一致で`Rejected`
-- Policy差替えとsequence欠損: `Rejected`
-- Device／Operator署名改ざん: 回路外検証で`Rejected`
-- Reason predecessor不一致: `Rejected`
-- API境界: 無認証ingestion / agent更新を拒否
-- 公開情報: Verification APIにRaw値・閾値・secretが含まれない
-
-## 9. 完成条件
-
-温度センサー実測値の受信、D1時系列保存、日次Attestation、Private State生成、Dataset登録、ZK検証、Midnight Tx、第三者GUIでの公開検証までを一連で実行できることを完成条件とする。
+- 運用Testは有効な選択Leafを受け入れ、範囲外値、Raw値改ざん、Commitment改ざん、Merkle Path改ざんを拒否します。
+- Daily Benchmark Testは別途、24時間分のClaim、分類件数、Policy差替え、Sequence欠損、Signature、無効なReason Predecessorを検証します。
+- 無認証のIngestionとAgent Updateを拒否します。
+- Public Verification ResponseにRaw値、Threshold、Nonce、Merkle Pathを含めません。
