@@ -5,7 +5,7 @@
 ## 含まれる運用機能
 
 - 温度collectorとloopback health endpoint
-- deploy済みContractを使うデバイス運用Wallet client
+- deploy済みContractを使う、運用者が明示的に起動するDevice Wallet CLI
 - 開発PCで生成してintegrity manifestを付けたCompact runtime artifact
 - `installer.sh`、systemd installer、永続障害解析log
 
@@ -26,7 +26,7 @@ chmod 600 .env.device
 ./installer.sh
 ```
 
-Installerはrelease manifestとContract artifact manifestを検証してからproduction dependencyだけを導入します。Compact compile、proving key生成、Docker、Contract deploy、開発tool導入は行いません。
+Installerはrelease manifestとContract artifact manifestを検証してから、CollectorとDevice Wallet Workspaceのproduction dependencyだけを導入します。Systemd Serviceとして作成するのはCollectorだけで、Walletは明示的に起動するCLIのままです。Compact compile、proving key生成、Docker、Contract deploy、Wallet初期化、開発tool導入は行いません。
 
 導入後の確認:
 
@@ -36,7 +36,7 @@ curl http://127.0.0.1:8788/health
 sudo journalctl -u measurement-edge-agent -f
 ```
 
-Transaction送信が必要な場合だけ、service userとして別系統のデバイスWalletを明示的に初期化します。
+Transaction送信が必要な場合だけ、Installerで選択した同じ非root Service Userとして、別系統のDevice Walletを明示的に初期化します。
 
 ```bash
 npm run device:wallet
@@ -45,4 +45,6 @@ npm run device:submit -- --input /path/to/prepared-real-dataset.json
 npm run device:status
 ```
 
-デバイスWallet directoryは、開発PCの`.env.development` backupとは別に保管してください。
+`device:submit`は実際の`SensorRecord[]`または`PreparedDataset`を受け取ります。配列Inputでは`--min`、`--max`、`--selected-index`を指定でき、既存Rootに対する登録省略には`--verify-only`を使用します。SubmitはScheduled実行されず、WorkerのAttestation recordも更新しません。CollectorはReadingをD1へUploadするだけです。
+
+Device Wallet Directory全体を、開発PCの`.env.development` Backupとは別に保管してください。Recovery Credential、暗号化Private Dataset、Private State Password、Wallet Sync Cacheが含まれます。

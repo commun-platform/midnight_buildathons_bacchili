@@ -5,7 +5,7 @@ This package contains only the Raspberry Pi device runtime. It is produced on a 
 ## Included runtime
 
 - temperature collector and loopback health endpoint;
-- operational device-wallet client for an already-deployed contract;
+- operator-invoked device-wallet CLI for an already-deployed `sensor-registry` contract;
 - development-built Compact runtime artifacts with integrity manifests;
 - `installer.sh`, the systemd installer, and persistent diagnostic logging.
 
@@ -26,7 +26,7 @@ Configure the remote Proof Server URL/token, Worker ingestion URL/token, deploye
 ./installer.sh
 ```
 
-The installer verifies the release and contract-artifact manifests before installing only production dependencies. It does not compile Compact, generate proving keys, run Docker, deploy a contract, or install development tooling.
+The installer verifies the release and contract-artifact manifests before installing only production dependencies for the collector and device-wallet workspaces. It creates a systemd service only for the collector; the wallet remains an explicit CLI. It does not compile Compact, generate proving keys, run Docker, deploy a contract, initialize a wallet, or install development tooling.
 
 After installation:
 
@@ -36,7 +36,7 @@ curl http://127.0.0.1:8788/health
 sudo journalctl -u measurement-edge-agent -f
 ```
 
-Initialize the separate device wallet explicitly as the service user when transaction submission is required:
+Initialize the separate device wallet explicitly as the same non-root service user selected by the installer when transaction submission is required:
 
 ```bash
 npm run device:wallet
@@ -45,4 +45,6 @@ npm run device:submit -- --input /path/to/prepared-real-dataset.json
 npm run device:status
 ```
 
-Back up the device-wallet directory separately from the development PC's `.env.development` backup.
+`device:submit` accepts either a real `SensorRecord[]` or `PreparedDataset`. Array input may use `--min`, `--max`, and `--selected-index`; `--verify-only` skips registration for an existing root. Submission is not scheduled and does not update a Worker Attestation record. The collector only uploads readings to D1.
+
+Back up the entire device-wallet directory separately from the development PC's `.env.development` backup. It contains recovery credentials, encrypted private datasets, the private-state password, and wallet synchronization cache.

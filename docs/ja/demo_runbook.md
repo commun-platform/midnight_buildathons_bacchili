@@ -1,71 +1,90 @@
-# Wave 1 Demo Runbook
+# デプロイおよびレビューRunbook
 
-[English documentation](../demo_runbook.md)
+[English](../demo_runbook.md)
 
-## 1. 一度だけ行う準備
+## 1. 準備
 
-1. 開発サーバで`npm install`と`npm run verify`を完了する。
-2. `.env.development.example`を`.env.development`へコピーし、強い`DEVELOPMENT_PRIVATE_STATE_PASSWORD`を設定する。
-3. `npm run cloudflare:deploy`でWorker、D1、GUI、Containerを作成し、出力URLの末尾へ`/proof`を付けて`MIDNIGHT_PROOF_SERVER_URL`へ設定する。
-4. `npm run cloudflare:secret`でGateway tokenを登録し、同じ値を`.env`の`MIDNIGHT_PROOF_SERVER_TOKEN`へ設定する。
-5. `secret:ingest`と`secret:attestation`を実行し、送信API用とAgent連携用に別々のSecretを登録する。
-6. 開発サーバで`npm run development:wallet`を実行し、直後に`.env.development`を暗号化／オフラインbackupする。表示するPreprod addressへ[Faucet](https://midnight-tmnight-preprod.nethermind.dev)からtNIGHTを送る。
-7. `npm run development:funding`で入金を確認する。
-8. `npm run development:deploy`でContract deployを完了する。addressは`npm run cloudflare:config:contract`でWorker環境へ設定し、Piの`.env.device`にある`DEVICE_CONTRACT_ADDRESS`にも渡す。公開network名は`npm run cloudflare:config:network`で設定する。`.state/development/`は再開用cacheであってWallet backupではない。
-9. `./package_archive.sh`を実行する。deployment addressは埋め込まず、Compile済みartifactだけをscriptが内部exportするため、`.device-release/archives/`に生成された`.tar.gz`と`.sha256`だけをPiへ転送する。
+1. 開発サーバで`npm ci`と`npm run verify`を実行します。
+2. `.env.development.example`を`.env.development`へコピーし、強い`DEVELOPMENT_PRIVATE_STATE_PASSWORD`を設定します。Local Worker開発用に`apps/proof-gateway/.dev.vars.example`を`apps/proof-gateway/.dev.vars`へコピーします。
+3. `npm run cloudflare:deploy`でWorker、D1、GUI、Containerを作成します。
+4. `npm run cloudflare:secret`、`npm run secret:ingest -w @midnight-demo/proof-gateway`、`npm run secret:attestation -w @midnight-demo/proof-gateway`で3つの独立したBindingを登録します。Proof Tokenを`.env.development`の`MIDNIGHT_PROOF_SERVER_TOKEN`へコピーし、`MIDNIGHT_PROOF_SERVER_URL`をDeploy済みWorker URLの末尾に`/proof`を付けた値へ設定します。
+5. `npm run development:wallet`を実行し、直後に`.env.development`を安全にBackupします。表示されたAddressへ入金し、`npm run development:funding`で確認します。
+6. `npm run development:deploy`を実行します。`.state/development/`は再開用Cacheとしてのみ保存します。返されたAddressを`npm run cloudflare:config:contract`で設定し、公開Labelを`npm run cloudflare:config:network`で設定します。
+7. `./package_archive.sh`を実行します。ScriptはNetworkやDeployment Addressを埋め込まず、Compile済み`sensor-registry` Artifactを内部でExportします。`.device-release/archives/`に生成された`.tar.gz`と`.sha256`だけをPiへ転送します。
 
-Piではchecksumを検証してarchiveを展開し、`.env.device.example`から`.env.device`を作成する。endpoint、ingestion資格情報、sensor設定だけを置き、rootの`./installer.sh --ingest-url https://<worker>/api/v1/readings`で導入する。`npm run device:wallet`で独立した運用Walletを`~/.midnight/midnight-cloudflare-demo/device-wallet/`へ初期化する。Compact、`npm run verify`、Proof benchmark、開発Wallet、Wrangler、Docker、Deploy commandは実行しない。強制再起動後は`sudo pi-forensics-report -1`で直前bootを確認する。
-
-## 2. GUI接続
-
-ローカルD1 migrationとWorker SPAを起動します。
+## 2. Edge Deviceの起動
 
 ```bash
-npm run dashboard:dev
+sha256sum -c midnight-sensor-device-fw-<version>.tar.gz.sha256
+tar -xzf midnight-sensor-device-fw-<version>.tar.gz
+cd midnight-sensor-device-fw-<version>
+cp .env.device.example .env.device
+chmod 600 .env.device
+# MIDNIGHT_PROOF_SERVER_URL/TOKEN、DEVICE_CONTRACT_ADDRESS、
+# CLOUDFLARE_INGEST_URL/TOKEN、sensor identity/pathを設定する。
+./installer.sh --ingest-url https://<worker>.workers.dev/api/v1/readings
+npm run device:wallet
+npm run device:funding
+sudo systemctl status measurement-edge-agent
+curl http://127.0.0.1:8788/health
+sudo journalctl -u measurement-edge-agent -f
 ```
 
-GUIはAgentのlocalhostへ接続しません。Workerは疑似計測値や確認済みTxを補完しないため、D1に実データがない場合は空状態を表示します。systemdサービスの既定センサーは`/sys/class/thermal/thermal_zone0/temp`です。
+既定のSensor Pathは`/sys/class/thermal/thermal_zone0/temp`です。別のsysfs互換Sensorを使う場合は`TEMPERATURE_SENSOR_PATH`を変更します。WorkerにはSample ReadingやTransaction Fallbackがないため、このServiceが実値を正常にUploadするまでGUIは空です。
 
-## 3. 2〜3分の審査デモ
+Wallet CommandはInstallerで選択した同じ非root Service Userとして実行します。Device Walletは`~/.midnight/midnight-cloudflare-demo/device-wallet/`配下だけに保存し、`.env.development`とは別にBackupします。Pi上で`npm run verify`、Compact Compile、Proof Benchmark、Development Wallet Command、Wrangler、Docker、Deploy Commandを実行してはいけません。Installerは永続journaldとHealth Snapshotを有効化します。強制再起動後は`sudo pi-forensics-report -1`を実行してください。
 
-1. 「プロジェクト概要」で最新値、最終更新、Edge Device種別、受信件数を見せる。
-2. Online判定がlocalhost healthではなく`lastSeenAt`基準であることを説明する。
-3. 「時系列データ」で外れ値と証明状態を絞り込む。
-4. 「日次証明履歴」で処理待ちとMidnight確認済みを比較する。
-5. 確認済みTxを押し、第三者検証ページを表示する。
-6. `Merkle inclusion`と`Private range`が確認済みで、Raw値、threshold、Merkle pathが非公開であることを示す。
-7. Dataset Tx、Verify Tx、block heightを見せ、`npm run device:status`のPublic Stateと照合する。
-8. ヘッダーでSystem / English / 日本語を切り替え、再読込後も明示選択が保持されることを確認する。
+## 3. 運用Proofの送信
 
-## 4. QA証跡
+CollectorはProof Inputを構築せず、Wallet CLIもDaemonではありません。実際の`SensorRecord[]`または以前に準備した`PreparedDataset`を含むJSON Fileを指定します。
+
+```bash
+npm run device:submit -- --input /secure/path/to/real-records.json \
+  --min 10 --max 35 --selected-index 0
+npm run device:status
+```
+
+このCommandはDatasetを登録し、選択した1つの値を検証します。そのRootを登録済みの場合だけ`--verify-only`を使用してください。JSON OutputにはRegister／Verify Transaction Metadataが含まれますが、D1やWorker Attestation recordは更新しません。
+
+## 4. Attestation Workflowの境界
+
+CronはProjectの現地0時台に`pending` recordを作成し、前日のReadingを関連付けます。このRepositoryは外部Agent向けに次のProtected Endpointを公開します。
+
+```text
+POST /api/internal/attestations/claim
+POST /api/internal/attestations/<attestation-id>/result
+```
+
+最初のclaimは`pending`を`aggregating`へ変更します。Result Endpointは`aggregating`、`proving`、`submitted`、`confirmed`、`failed`とRoot／Transaction Metadataを受け取ります。どちらも`ATTESTATION_API_TOKEN`を使用します。Polling Agent、D1からDatasetへの変換、Submission Bridge、Transaction Confirmation Watcher、Chain Validation Callbackは含まれていません。外部のTrusted Agentが実際にTransactionを検証するまで、recordを`confirmed`にしてはいけません。
+
+## 5. レビュー手順
+
+1. Project Overviewを開き、**Temperature Sensor**／**温度センサー**が唯一のDeviceであることを確認します。
+2. Upload後に最新Cardと`lastSeenAt`が変わることを確認します。
+3. Time-Series Dataを開き、Normal値とOutlier値をFilterします。
+4. Cronがpending Attestationを作成した後にDaily Proof Historyを開きます。
+5. 外部Agentが実際のConfirmed Transactionを報告済みの場合は、そのrecordを選んでThird-Party Verificationを開きます。
+6. Raw Proof Value、Threshold、Nonce、Merkle Pathが表示されないことを確認します。CheckとTransaction MetadataはD1から読み取られ、BrowserはMidnightを独立して照会しません。
+7. 報告されたDataset Tx、Verify Tx、Block Heightを`npm run device:status`およびMidnight Explorerと比較します。
+8. HeaderでSystem、English、日本語を切り替え、Reload後も選択が保持されることを確認します。
+
+## 6. QA証跡
 
 ```bash
 npm run test -w @midnight-demo/shared
 npm run test -w @midnight-demo/sensor-registry-contract
 npm run test -w @midnight-demo/proof-gateway
+npm run verify
 ```
 
-Contract testを単独実行する前にmanaged artifactがない場合は`npm run contract:compile`を実行します。
+Contract Testは有効なData、範囲外Data、Raw値改ざん、Merkle Path改ざんを対象にします。Worker Testは認証、Sensor Metadata検証、Redaction、Scheduling、Storage動作を対象にします。
 
-| Test | Expected |
-| --- | --- |
-| Normal sample | inclusion/range成立、`verified = true` |
-| Out of range | circuit assertionでreject |
-| Raw sample tamper | commitment不一致でreject |
-| Merkle path tamper | dataset root不一致でreject |
+`npm run verify`は運用`sensor-registry`経路を対象にします。実験用Daily Profileは分離され、開発サーバで明示的な`npm run attestation:compile`と`npm run benchmark:daily-proof`を必要とします。
 
-## 5. Destroy
+## 7. 削除
 
 ```bash
 npm run cloudflare:destroy
 ```
 
-削除後はCloudflare Dashboardで`midnight-proof-gateway`が存在しないことを確認します。開発Walletの`.env.development` backupと、別系統のデバイスWallet backupを保持してからcache／dataを安全に消去してください。
-
-## 6. Privacy説明
-
-- 現在: CloudflareバックエンドとContainerをTrusted Cloudとして扱う。
-- Production: Raw値を保持するクラウド領域を認証・暗号化し、公開Verification APIはAttestation情報だけを返す。
-- Dual ledger: Private StateとPublic Stateをデータコピーで同期せず、ZK proofで整合性を接続する。
-- Operator GUI: 認証された運用者だけがRaw時系列値を閲覧する。
-- Public Verifier GUI: Raw値、threshold、nonce、Merkle pathを応答にも画面にも含めない。
+Cloudflareから`midnight-proof-gateway`が削除されたことを確認します。CacheやDataを安全に削除する前に、開発用`.env.development` Backupと、別系統のDevice Wallet Backupを保存してください。
