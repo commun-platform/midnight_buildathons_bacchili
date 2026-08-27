@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const deviceConfigKeys = [
   'MIDNIGHT_NETWORK',
@@ -20,7 +21,13 @@ const deviceConfigKeys = [
 
 const sourcePath = path.resolve(process.argv[2] ?? '.env');
 const destinationPath = path.resolve(process.argv[3] ?? '.env.device');
-const examplePath = path.resolve(path.dirname(destinationPath), '.env.device.example');
+const scriptRoot = fileURLToPath(new URL('../', import.meta.url));
+const adjacentExample = path.resolve(path.dirname(destinationPath), '.env.device.example');
+const examplePath = process.argv[4]
+  ? path.resolve(process.argv[4])
+  : fs.existsSync(adjacentExample)
+    ? adjacentExample
+    : path.join(scriptRoot, '.env.device.example');
 
 function parseEnvironment(contents) {
   const values = new Map();

@@ -1,6 +1,6 @@
 import { config as loadEnv } from 'dotenv';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 export interface EdgeConfig {
   port: number;
@@ -12,11 +12,12 @@ export interface EdgeConfig {
   deviceId: string;
 }
 
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
-const configuredEnvFile = process.env.EDGE_ENV_FILE?.trim();
+const deviceHome = path.join(os.homedir(), '.midnight', 'midnight-cloudflare-demo');
+const configuredEnvFile = process.env.MIDNIGHT_DEVICE_ENV_FILE?.trim()
+  || process.env.EDGE_ENV_FILE?.trim();
 const envFile = configuredEnvFile
-  ? path.resolve(repoRoot, configuredEnvFile)
-  : path.join(repoRoot, '.env.device');
+  ? path.resolve(configuredEnvFile)
+  : path.join(deviceHome, 'config', 'device.env');
 
 loadEnv({ path: envFile, quiet: true });
 

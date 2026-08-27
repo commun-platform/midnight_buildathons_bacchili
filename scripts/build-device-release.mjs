@@ -41,6 +41,7 @@ const sourceEntries = [
   'packages/shared',
   'contracts/sensor-registry/src/witnesses.ts',
   'scripts/require-device-host.mjs',
+  'scripts/install-device-release.mjs',
   'scripts/migrate-device-env.mjs',
   'scripts/verify-device-artifacts.mjs',
   'scripts/verify-device-release.mjs',

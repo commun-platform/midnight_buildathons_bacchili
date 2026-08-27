@@ -17,12 +17,20 @@ INSTALL_NODE=1
 RUN_EDGE_TESTS=1
 INSTALL_FORENSICS=1
 DRY_RUN=0
+ROLLBACK_ONLY=0
 TMP_DIR=""
 USER_HOME=""
 USER_GROUP=""
 RUNTIME_PATH=""
 NODE_BIN=""
 NPM_BIN=""
+DEVICE_HOME=""
+CONFIG_DIR=""
+ENV_FILE=""
+RELEASES_DIR=""
+INSTALLED_RELEASE=""
+CURRENT_LINK=""
+PREVIOUS_LINK=""
 
 log() {
   printf '[device-installer] %s\n' "$*"
@@ -53,11 +61,13 @@ Options:
   --skip-node-install      Require an existing Node.js >= 22.15.0
   --skip-edge-tests        Skip the small device-only boundary/unit tests
   --skip-forensics         Do not install persistent journal/health snapshots
+  --rollback               Swap current/previous releases and restart the service
   --dry-run                Print privileged/install actions without changing files
   -h, --help               Show this help
 
-Set INGEST_API_TOKEN in .env.device before running, or export it for this command.
-Device-wallet recovery material is stored below ~/.midnight, never in this file.
+Set INGEST_API_TOKEN in staged .env.device before running, or export it for this command.
+The installer moves that configuration, versioned releases, and wallet state below
+~/.midnight/midnight-cloudflare-demo/. Wallet recovery material never enters env files.
 EOF
 }
 
@@ -142,6 +152,10 @@ parse_args() {
         ;;
       --skip-forensics)
         INSTALL_FORENSICS=0
+        shift
+        ;;
+      --rollback)
+        ROLLBACK_ONLY=1
         shift
         ;;
       --dry-run)
@@ -293,71 +307,90 @@ set_env_value() {
 }
 
 configure_environment() {
-  local env_file="${SCRIPT_DIR}/.env.device"
-  local configured_url configured_token
+  local configured_url configured_token remove_staged_env=0
 
   if [[ -n "${INGEST_URL}" ]]; then
     [[ "${INGEST_URL}" == http://* || "${INGEST_URL}" == https://* ]] || die "Ingest URL must use HTTP(S)"
     [[ "${INGEST_URL}" == */api/v1/readings* ]] || die "Ingest URL must target /api/v1/readings"
   fi
   if (( DRY_RUN )); then
-    log "Would create or preserve ${env_file} with mode 0600"
+    log "Would create or preserve ${ENV_FILE} with mode 0600"
     return
   fi
-  if [[ ! -f "${env_file}" ]]; then
-    if [[ -f "${SCRIPT_DIR}/.env" ]]; then
+  if [[ -f "${ENV_FILE}" && -f "${SCRIPT_DIR}/.env.device" ]]; then
+    if cmp -s "${ENV_FILE}" "${SCRIPT_DIR}/.env.device"; then
+      remove_staged_env=1
+    else
+      die "${ENV_FILE} already exists and differs from staged .env.device; update the installed config explicitly"
+    fi
+  elif [[ ! -f "${ENV_FILE}" ]]; then
+    if [[ -f "${SCRIPT_DIR}/.env.device" ]]; then
+      log "Installing staged device settings at ${ENV_FILE}"
+      run_user install -m 0600 "${SCRIPT_DIR}/.env.device" "${ENV_FILE}"
+      remove_staged_env=1
+    elif [[ -f "${SCRIPT_DIR}/.env" ]]; then
       log "Migrating only device-safe settings from the legacy mixed .env file"
       run_user "${NODE_BIN}" "${SCRIPT_DIR}/scripts/migrate-device-env.mjs" \
-        "${SCRIPT_DIR}/.env" "${env_file}"
+        "${SCRIPT_DIR}/.env" "${ENV_FILE}"
     elif [[ -f "${SCRIPT_DIR}/.env.edge" ]]; then
-      log "Migrating the previous Edge settings to .env.device"
+      log "Migrating the previous Edge settings to ${ENV_FILE}"
       run_user "${NODE_BIN}" "${SCRIPT_DIR}/scripts/migrate-device-env.mjs" \
-        "${SCRIPT_DIR}/.env.edge" "${env_file}"
+        "${SCRIPT_DIR}/.env.edge" "${ENV_FILE}"
     else
-      cp "${SCRIPT_DIR}/.env.device.example" "${env_file}"
+      run_user install -m 0600 "${SCRIPT_DIR}/.env.device.example" "${ENV_FILE}"
     fi
   fi
-  chmod 0600 "${env_file}"
-  chown "${SERVICE_USER}:${USER_GROUP}" "${env_file}"
+  chmod 0600 "${ENV_FILE}"
+  chown "${SERVICE_USER}:${USER_GROUP}" "${ENV_FILE}"
 
   if [[ -n "${INGEST_URL}" ]]; then
-    set_env_value CLOUDFLARE_INGEST_URL "${INGEST_URL}" "${env_file}"
+    set_env_value CLOUDFLARE_INGEST_URL "${INGEST_URL}" "${ENV_FILE}"
   fi
   if [[ -n "${INGEST_API_TOKEN:-}" && "${INGEST_API_TOKEN}" != replace-with-* ]]; then
-    set_env_value INGEST_API_TOKEN "${INGEST_API_TOKEN}" "${env_file}"
+    set_env_value INGEST_API_TOKEN "${INGEST_API_TOKEN}" "${ENV_FILE}"
   fi
 
-  configured_url="$(env_value CLOUDFLARE_INGEST_URL "${env_file}")"
-  configured_token="$(env_value INGEST_API_TOKEN "${env_file}")"
+  configured_url="$(env_value CLOUDFLARE_INGEST_URL "${ENV_FILE}")"
+  configured_token="$(env_value INGEST_API_TOKEN "${ENV_FILE}")"
   [[ -n "${configured_url}" && "${configured_url}" != *'<your-subdomain>'* ]] \
-    || die "Configure CLOUDFLARE_INGEST_URL in .env.device or pass --ingest-url"
+    || die "Configure CLOUDFLARE_INGEST_URL in ${ENV_FILE} or pass --ingest-url"
   [[ "${configured_url}" == */api/v1/readings* ]] \
     || die "CLOUDFLARE_INGEST_URL must target /api/v1/readings"
   [[ -n "${configured_token}" && "${configured_token}" != replace-with-* ]] \
-    || die "Configure INGEST_API_TOKEN in .env.device or export it before installation"
+    || die "Configure INGEST_API_TOKEN in ${ENV_FILE} or export it before installation"
+
+  if (( remove_staged_env )); then
+    log "Removing staged .env.device after installing the protected configuration"
+    run_user rm -f "${SCRIPT_DIR}/.env.device"
+  fi
 }
 
-mark_device_host() {
+prepare_device_home() {
   if (( DRY_RUN )); then
-    log "Would mark ${SCRIPT_DIR} as a device-only checkout"
+    log "Would prepare ${DEVICE_HOME} for runtime, configuration, and wallet state"
     return
   fi
-  printf 'device\n' > "${SCRIPT_DIR}/.host-role"
-  chmod 0644 "${SCRIPT_DIR}/.host-role"
-  chown "${SERVICE_USER}:${USER_GROUP}" "${SCRIPT_DIR}/.host-role"
-}
-
-prepare_device_wallet_home() {
   local wallet_home="${USER_HOME}/.midnight/midnight-cloudflare-demo/device-wallet"
-  log "Preparing protected device-wallet storage at ${wallet_home}"
-  run_user mkdir -p "${wallet_home}"
+  log "Preparing the consolidated device home at ${DEVICE_HOME}"
+  run_user mkdir -p "${CONFIG_DIR}" "${RELEASES_DIR}" "${wallet_home}"
   run_user chmod 0700 "${USER_HOME}/.midnight" \
-    "${USER_HOME}/.midnight/midnight-cloudflare-demo" \
+    "${DEVICE_HOME}" \
+    "${CONFIG_DIR}" \
+    "${RELEASES_DIR}" \
     "${wallet_home}"
 }
 
+resolve_device_layout() {
+  DEVICE_HOME="${USER_HOME}/.midnight/midnight-cloudflare-demo"
+  CONFIG_DIR="${DEVICE_HOME}/config"
+  ENV_FILE="${CONFIG_DIR}/device.env"
+  RELEASES_DIR="${DEVICE_HOME}/releases"
+  CURRENT_LINK="${DEVICE_HOME}/current"
+  PREVIOUS_LINK="${DEVICE_HOME}/previous"
+}
+
 verify_device_artifacts() {
-  local artifact_dir="${SCRIPT_DIR}/runtime/device-artifacts/sensor-registry"
+  local artifact_dir="${INSTALLED_RELEASE}/runtime/device-artifacts/sensor-registry"
   if [[ ! -f "${artifact_dir}/manifest.json" ]]; then
     warn "Device contract artifacts are not installed; collection will run, but device:submit remains unavailable"
     warn "Build the device release on the development server and transfer its runtime/device-artifacts directory"
@@ -368,12 +401,100 @@ verify_device_artifacts() {
 }
 
 verify_device_release() {
-  if [[ ! -f "${SCRIPT_DIR}/device-release-manifest.json" ]]; then
-    warn "Installing from a full source checkout; use npm run device:release on the development server for an operational-only package"
-    return
-  fi
+  [[ -f "${SCRIPT_DIR}/device-release-manifest.json" ]] \
+    || die "Install from an operational device archive built with package_archive.sh"
   log "Verifying the operational-only device release"
   run_user "${NODE_BIN}" "${SCRIPT_DIR}/scripts/verify-device-release.mjs" "${SCRIPT_DIR}"
+}
+
+activate_release() {
+  local release_path="$1"
+  local old_release="" current_tmp previous_tmp
+  [[ "${release_path}" == "${RELEASES_DIR}/"* ]] \
+    || die "Release path escapes ${RELEASES_DIR}: ${release_path}"
+  if (( ! DRY_RUN )) && [[ ! -f "${release_path}/device-release-manifest.json" ]]; then
+    die "Installed release manifest is missing: ${release_path}"
+  fi
+  current_tmp="${CURRENT_LINK}.tmp-$$"
+  previous_tmp="${PREVIOUS_LINK}.tmp-$$"
+
+  if [[ -L "${CURRENT_LINK}" ]]; then
+    old_release="$(readlink -f "${CURRENT_LINK}")"
+    [[ "${old_release}" == "${RELEASES_DIR}/"* ]] \
+      || die "Current release symlink escapes ${RELEASES_DIR}: ${old_release}"
+  elif [[ -e "${CURRENT_LINK}" ]]; then
+    die "Current runtime path is not a symlink: ${CURRENT_LINK}"
+  fi
+  if [[ -n "${old_release}" && "${old_release}" == "${release_path}" ]]; then
+    log "Device release is already active: ${release_path}"
+    return
+  fi
+  if (( DRY_RUN )); then
+    log "Would activate ${release_path} through ${CURRENT_LINK}"
+    [[ -z "${old_release}" ]] || log "Would preserve ${old_release} through ${PREVIOUS_LINK}"
+    return
+  fi
+
+  run_user ln -s "${release_path}" "${current_tmp}"
+  if [[ -n "${old_release}" ]]; then
+    run_user ln -s "${old_release}" "${previous_tmp}"
+    run_user mv -Tf "${previous_tmp}" "${PREVIOUS_LINK}"
+  fi
+  run_user mv -Tf "${current_tmp}" "${CURRENT_LINK}"
+}
+
+install_device_release() {
+  local manifest="${SCRIPT_DIR}/device-release-manifest.json"
+  local firmware_version manifest_hash release_id
+  firmware_version="$("${NODE_BIN}" -e \
+    'const fs=require("node:fs"); const value=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(value.firmwareVersion);' \
+    "${manifest}")"
+  [[ "${firmware_version}" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]] \
+    || die "Invalid firmware version in device release manifest"
+  manifest_hash="$(sha256sum "${manifest}" | cut -d' ' -f1)"
+  release_id="${firmware_version}-${manifest_hash:0:12}"
+  INSTALLED_RELEASE="${RELEASES_DIR}/${release_id}"
+
+  log "Installing versioned runtime ${release_id}"
+  if (( DRY_RUN )); then
+    log "Would install ${SCRIPT_DIR} at ${INSTALLED_RELEASE}"
+  else
+    run_user "${NODE_BIN}" "${SCRIPT_DIR}/scripts/install-device-release.mjs" \
+      "${SCRIPT_DIR}" "${INSTALLED_RELEASE}"
+    run_user "${NODE_BIN}" "${INSTALLED_RELEASE}/scripts/verify-device-release.mjs" \
+      "${INSTALLED_RELEASE}"
+  fi
+}
+
+rollback_release() {
+  local current_release previous_release current_tmp previous_tmp release_path
+  [[ -L "${CURRENT_LINK}" ]] || die "No active device release exists at ${CURRENT_LINK}"
+  [[ -L "${PREVIOUS_LINK}" ]] || die "No previous device release is available at ${PREVIOUS_LINK}"
+  current_release="$(readlink -f "${CURRENT_LINK}")"
+  previous_release="$(readlink -f "${PREVIOUS_LINK}")"
+  [[ "${current_release}" != "${previous_release}" ]] \
+    || die "Current and previous symlinks point to the same release"
+  for release_path in "${current_release}" "${previous_release}"; do
+    [[ "${release_path}" == "${RELEASES_DIR}/"* ]] \
+      || die "Release symlink escapes ${RELEASES_DIR}: ${release_path}"
+    [[ -f "${release_path}/device-release-manifest.json" ]] \
+      || die "Installed release manifest is missing: ${release_path}"
+  done
+  if (( DRY_RUN )); then
+    log "Would roll back from ${current_release} to ${previous_release}"
+    return
+  fi
+
+  run_user "${NODE_BIN}" "${previous_release}/scripts/verify-device-release.mjs" "${previous_release}"
+  current_tmp="${CURRENT_LINK}.tmp-$$"
+  previous_tmp="${PREVIOUS_LINK}.tmp-$$"
+  run_user ln -s "${previous_release}" "${current_tmp}"
+  run_user ln -s "${current_release}" "${previous_tmp}"
+  run_user mv -Tf "${previous_tmp}" "${PREVIOUS_LINK}"
+  run_user mv -Tf "${current_tmp}" "${CURRENT_LINK}"
+  run_root systemctl restart "${SERVICE_NAME}.service"
+  verify_service
+  log "Rolled back to ${previous_release}"
 }
 
 stop_existing_service() {
@@ -398,7 +519,7 @@ stop_existing_service() {
 install_device_project() {
   RUNTIME_PATH="$(dirname "${NODE_BIN}"):${USER_HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
   log "Installing only device collector and operational-wallet dependencies"
-  run_user "${NPM_BIN}" ci \
+  run_user "${NPM_BIN}" --prefix "${INSTALLED_RELEASE}" ci \
     --workspace @midnight-demo/edge-agent \
     --workspace @midnight-demo/device-wallet-agent \
     --include-workspace-root=false \
@@ -408,8 +529,8 @@ install_device_project() {
     --cache "${USER_HOME}/.npm"
   if (( RUN_EDGE_TESTS )); then
     log "Running device-only boundary and unit tests"
-    run_user "${NPM_BIN}" run test -w @midnight-demo/edge-agent
-    run_user "${NPM_BIN}" run test -w @midnight-demo/device-wallet-agent
+    run_user "${NPM_BIN}" --prefix "${INSTALLED_RELEASE}" run test -w @midnight-demo/edge-agent
+    run_user "${NPM_BIN}" --prefix "${INSTALLED_RELEASE}" run test -w @midnight-demo/device-wallet-agent
   fi
 }
 
@@ -427,11 +548,13 @@ install_systemd_service() {
   local unit_file="/etc/systemd/system/${SERVICE_NAME}.service"
   local staged_unit="${TMP_DIR}/${SERVICE_NAME}.service"
   local repo_path home_path path_value exec_path cli_path
-  repo_path="$(systemd_escape_value "${SCRIPT_DIR}")"
+  repo_path="$(systemd_escape_value "${CURRENT_LINK}")"
   home_path="$(systemd_escape_value "${USER_HOME}")"
   path_value="$(systemd_escape_value "${RUNTIME_PATH}")"
   exec_path="$(systemd_escape_value "${NODE_BIN}")"
-  cli_path="$(systemd_escape_value "${SCRIPT_DIR}/apps/device/edge-agent/src/cli.ts")"
+  cli_path="$(systemd_escape_value "${CURRENT_LINK}/apps/device/edge-agent/src/cli.ts")"
+  local env_path
+  env_path="$(systemd_escape_value "${ENV_FILE}")"
 
   cat > "${staged_unit}" <<EOF
 [Unit]
@@ -450,7 +573,7 @@ WorkingDirectory=${repo_path}
 Environment=HOME=${home_path}
 Environment=PATH=${path_value}
 Environment=MIDNIGHT_HOST_ROLE=device
-EnvironmentFile=${repo_path}/.env.device
+EnvironmentFile=${env_path}
 ExecStart=${exec_path} --import=tsx ${cli_path}
 Restart=on-failure
 RestartSec=10s
@@ -480,7 +603,7 @@ CapabilityBoundingSet=
 WantedBy=multi-user.target
 EOF
 
-  if [[ -d "${SCRIPT_DIR}/node_modules/tsx" ]] && command -v systemd-analyze >/dev/null 2>&1; then
+  if [[ -d "${CURRENT_LINK}/node_modules/tsx" ]] && command -v systemd-analyze >/dev/null 2>&1; then
     print_command systemd-analyze verify "${staged_unit}"
     systemd-analyze verify "${staged_unit}"
   elif (( ! DRY_RUN )); then
@@ -500,13 +623,13 @@ EOF
 install_persistent_forensics() {
   (( INSTALL_FORENSICS )) || return 0
   log "Enabling persistent journal and connectivity/resource snapshots"
-  run_root "${SCRIPT_DIR}/ops/pi-forensics/install.sh"
+  run_root "${CURRENT_LINK}/ops/pi-forensics/install.sh"
 }
 
 verify_service() {
   (( DRY_RUN || ! START_SERVICE )) && return
   local port health_url
-  port="$(env_value AGENT_PORT "${SCRIPT_DIR}/.env.device")"
+  port="$(env_value AGENT_PORT "${ENV_FILE}")"
   port="${port:-8788}"
   health_url="http://127.0.0.1:${port}/health"
   for _ in {1..20}; do
@@ -524,30 +647,45 @@ verify_service() {
 main() {
   parse_args "$@"
   resolve_service_identity
+  resolve_device_layout
   if (( ! DRY_RUN )); then
     [[ -d /run/systemd/system ]] || die "systemd is not running as PID 1"
   fi
+
+  if (( ROLLBACK_ONLY )); then
+    discover_node || die "Node.js >= ${NODE_MIN_VERSION} is required to verify the previous release"
+    RUNTIME_PATH="$(dirname "${NODE_BIN}"):${USER_HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    rollback_release
+    exit 0
+  fi
+
   TMP_DIR="$(mktemp -d)"
   chmod 0755 "${TMP_DIR}"
 
   log "Role boundary: device collection/submission only; Compact/prover/deployment commands are disabled here"
-  log "Repository: ${SCRIPT_DIR}"
+  log "Release source: ${SCRIPT_DIR}"
+  log "Device home: ${DEVICE_HOME}"
   log "Service user: ${SERVICE_USER}"
   install_system_packages
   install_node
   RUNTIME_PATH="$(dirname "${NODE_BIN}"):${USER_HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
   verify_device_release
+  prepare_device_home
   configure_environment
-  mark_device_host
-  prepare_device_wallet_home
+  install_device_release
   verify_device_artifacts
-  stop_existing_service
   install_device_project
+  stop_existing_service
+  activate_release "${INSTALLED_RELEASE}"
   install_systemd_service
   install_persistent_forensics
   verify_service
 
   log "Device runtime installation complete"
+  log "Runtime: ${CURRENT_LINK}"
+  log "Config:  ${ENV_FILE}"
+  log "Wallet:  ${DEVICE_HOME}/device-wallet"
+  log "Rollback: ${CURRENT_LINK}/installer.sh --rollback"
   log "Status: sudo systemctl status ${SERVICE_NAME}"
   log "Logs:   sudo journalctl -u ${SERVICE_NAME} -f"
   log "Prior boot report: sudo pi-forensics-report -1"

@@ -15,8 +15,11 @@ test('device wallet recovery material lives below ~/.midnight and never in env',
   const state = source('apps/device/wallet-agent/src/state.ts');
 
   assert.match(config, /['"]\.midnight['"]/);
-  assert.match(config, /['"]\.env\.device['"]/);
+  assert.match(config, /['"]config['"]/);
+  assert.match(config, /['"]device\.env['"]/);
+  assert.match(config, /MIDNIGHT_DEVICE_ENV_FILE/);
   assert.match(state, /credentials\.json/);
+  assert.match(source('scripts/require-device-host.mjs'), /device-release-manifest\.json/);
   assert.doesNotMatch(state, /process\.env\.[A-Z_]*WALLET/);
   assert.doesNotMatch(state, /DEVELOPMENT_WALLET|MIDNIGHT_WALLET/);
 });

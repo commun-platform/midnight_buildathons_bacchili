@@ -22,9 +22,17 @@ test('device installer is scoped to operational workspaces', () => {
   const installer = fs.readFileSync(path.join(repoRoot, 'device-installer.sh'), 'utf8');
   assert.match(installer, /--workspace @midnight-demo\/edge-agent/);
   assert.match(installer, /--workspace @midnight-demo\/device-wallet-agent/);
-  assert.match(installer, /EnvironmentFile=.*\.env\.device/);
+  assert.match(installer, /DEVICE_HOME=.*\.midnight\/midnight-cloudflare-demo/);
+  assert.match(installer, /CONFIG_DIR=.*config/);
+  assert.match(installer, /ENV_FILE=.*device\.env/);
+  assert.match(installer, /RELEASES_DIR=.*releases/);
+  assert.match(installer, /CURRENT_LINK=.*current/);
+  assert.match(installer, /PREVIOUS_LINK=.*previous/);
+  assert.match(installer, /EnvironmentFile=\$\{env_path\}/);
   assert.match(installer, /MIDNIGHT_HOST_ROLE=device/);
   assert.match(installer, /ExecStart=.*--import=tsx/);
+  assert.match(installer, /--rollback/);
+  assert.match(installer, /rollback_release/);
   assert.doesNotMatch(installer, /apps\/development|apps\/proof-gateway|contracts\//);
   assert.doesNotMatch(installer, /run_user[^\n]*(compact|wrangler|docker|midnight:)/i);
 });
@@ -40,6 +48,7 @@ test('development packaging produces an installer-rooted device archive', () => 
   assert.match(packaging, /installer\.sh/);
   assert.match(packaging, /\.tar\.gz/);
   assert.match(packaging, /sha256sum/);
+  assert.match(builder, /install-device-release\.mjs/);
   const sourceEntries = builder.match(/const sourceEntries = \[([\s\S]*?)\n\];/)?.[1] ?? '';
   assert.doesNotMatch(sourceEntries, /apps\/development/);
   assert.doesNotMatch(sourceEntries, /apps\/proof-gateway/);

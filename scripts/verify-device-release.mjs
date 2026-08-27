@@ -83,6 +83,7 @@ for (const required of [
   'package.json',
   'package-lock.json',
   '.env.device.example',
+  'scripts/install-device-release.mjs',
   'apps/device/edge-agent/src/cli.ts',
   'apps/device/wallet-agent/src/cli.ts',
   'runtime/device-artifacts/sensor-registry/manifest.json',

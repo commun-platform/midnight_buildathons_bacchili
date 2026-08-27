@@ -17,14 +17,18 @@ export interface NetworkConfig {
 }
 
 export const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
-loadEnv({ path: path.join(repoRoot, '.env.device'), quiet: true });
-
-export const deviceWalletHome = path.join(
+export const deviceHome = path.join(
   os.homedir(),
   '.midnight',
   'midnight-cloudflare-demo',
-  'device-wallet',
 );
+const configuredDeviceEnvFile = process.env.MIDNIGHT_DEVICE_ENV_FILE?.trim();
+export const deviceEnvPath = configuredDeviceEnvFile
+  ? path.resolve(configuredDeviceEnvFile)
+  : path.join(deviceHome, 'config', 'device.env');
+loadEnv({ path: deviceEnvPath, quiet: true });
+
+export const deviceWalletHome = path.join(deviceHome, 'device-wallet');
 export const stateDir = path.join(deviceWalletHome, 'state');
 export const dataDir = path.join(deviceWalletHome, 'data');
 export const contractArtifactsPath = path.join(
@@ -74,7 +78,7 @@ export function proofServerHeaders(): Record<string, string> {
 export function deviceContractAddress(explicit?: string): string {
   const address = explicit?.trim() || process.env.DEVICE_CONTRACT_ADDRESS?.trim();
   if (!address) {
-    throw new Error('DEVICE_CONTRACT_ADDRESS is required in .env.device or --contract');
+    throw new Error(`DEVICE_CONTRACT_ADDRESS is required in ${deviceEnvPath} or --contract`);
   }
   return address;
 }
