@@ -1,0 +1,103 @@
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+export struct SensorLeaf {
+    timestamp: Uint<64>;
+    temperatureCentiOffset: Uint<32>;
+    humidityDeci: Uint<32>;
+}
+
+export struct DatasetPublicState {
+    deviceCommitment: Bytes<32>;
+    periodStart: Uint<64>;
+    periodEnd: Uint<64>;
+    sampleCount: Uint<32>;
+    verified: Boolean;
+    schemaVersion: Uint<16>;
+}
+
+export ledger datasets: Map<Field, DatasetPublicState>;
+export ledger registrationCount: Counter;
+export ledger verificationCount: Counter;
+export ledger lastVerifiedRoot: Field;
+export ledger verificationResult: Boolean;
+
+constructor() {
+    registrationCount.increment(0);
+    verificationCount.increment(0);
+    verificationResult = false;
+}
+
+witness privateSensorLeaf(datasetRoot: Field): SensorLeaf;
+witness privateSensorNonce(datasetRoot: Field): Bytes<32>;
+witness privateThresholdMin(datasetRoot: Field): Uint<32>;
+witness privateThresholdMax(datasetRoot: Field): Uint<32>;
+witness privateMerklePath(datasetRoot: Field): MerkleTreePath<11, Bytes<32>>;
+
+export circuit registerDataset(
+    datasetRoot: Field,
+    deviceCommitment: Bytes<32>,
+    periodStart: Uint<64>,
+    periodEnd: Uint<64>,
+    sampleCount: Uint<32>,
+    schemaVersion: Uint<16>
+): [] {
+    const publicRoot = disclose(datasetRoot);
+    assert(periodStart <= periodEnd, "periodStart must be before periodEnd");
+    assert(sampleCount > 0 && sampleCount <= 2048, "sampleCount is outside the tree capacity");
+    assert(!datasets.member(publicRoot), "dataset root already registered");
+
+    datasets.insert(
+        publicRoot,
+        disclose(DatasetPublicState {
+            deviceCommitment: deviceCommitment,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            sampleCount: sampleCount,
+            verified: false,
+            schemaVersion: schemaVersion
+        })
+    );
+    registrationCount.increment(1);
+}
+
+export circuit verifySensorValue(datasetRoot: Field): [] {
+    const publicRoot = disclose(datasetRoot);
+    assert(datasets.member(publicRoot), "dataset root is not registered");
+
+    const sample = privateSensorLeaf(publicRoot);
+    const nonce = privateSensorNonce(publicRoot);
+    const thresholdMin = privateThresholdMin(publicRoot);
+    const thresholdMax = privateThresholdMax(publicRoot);
+    const path = privateMerklePath(publicRoot);
+    const commitment = persistentCommit<SensorLeaf>(sample, nonce);
+    const computedRoot = merkleTreePathRoot<11, Bytes<32>>(path).field;
+
+    assert(disclose(path.leaf == commitment), "private sample commitment mismatch");
+    assert(disclose(computedRoot == publicRoot), "Merkle inclusion proof mismatch");
+    assert(disclose(thresholdMin <= thresholdMax), "private threshold is invalid");
+    assert(
+        disclose(
+            sample.temperatureCentiOffset >= thresholdMin &&
+            sample.temperatureCentiOffset <= thresholdMax
+        ),
+        "private sensor value is outside the allowed range"
+    );
+
+    const current = datasets.lookup(publicRoot);
+    datasets.insert(
+        publicRoot,
+        DatasetPublicState {
+            deviceCommitment: current.deviceCommitment,
+            periodStart: current.periodStart,
+            periodEnd: current.periodEnd,
+            sampleCount: current.sampleCount,
+            verified: true,
+            schemaVersion: current.schemaVersion
+        }
+    );
+    lastVerifiedRoot = publicRoot;
+    verificationResult = true;
+    verificationCount.increment(1);
+}
