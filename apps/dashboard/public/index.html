@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#000080">
-    <meta name="description" content="A clear public-sector dashboard for measurement data and Midnight ZKP verification">
-    <title>Measurement Data Authenticity Proof System</title>
+    <meta name="description" content="BACCHIRI!━━Verifiable Measurement Layer summaries and Midnight zero-knowledge proof verification">
+    <title>BACCHIRI!━━Verifiable Measurement Layer Console</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -14,31 +14,36 @@
       <header class="system-header">
         <div class="system-mark" aria-hidden="true">ZKP</div>
         <div>
-          <h1 id="system-title">Measurement Data Authenticity Proof System</h1>
-          <p id="system-subtitle">MEASUREMENT DATA AUTHENTICITY PROOF / MIDNIGHT PREPROD</p>
+          <h1 id="system-title">BACCHIRI!━━Verifiable Measurement Layer</h1>
+          <p id="system-subtitle">PRIVATE SENSOR VALUE / PUBLIC MIDNIGHT CLAIM</p>
         </div>
-        <label class="language-control" for="language-select">
-          <span id="language-label">Language</span>
-          <select id="language-select">
-            <option value="auto">System</option>
-            <option value="en">English</option>
-            <option value="ja">日本語</option>
-          </select>
-        </label>
-        <div class="header-status" id="header-status" aria-live="polite">CHECKING...</div>
+        <div class="header-controls">
+          <label class="language-control" for="language-select">
+            <span id="language-label">Language</span>
+            <select id="language-select">
+              <option value="auto">System</option>
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
+          </label>
+          <div class="header-status" id="header-status" aria-live="polite">CHECKING...</div>
+          <button type="button" class="wallet-connect-button" id="wallet-connect-button" aria-controls="main-content">
+            Connect Midnight Wallet
+          </button>
+        </div>
       </header>
 
       <nav class="menu-bar" id="main-nav" aria-label="Main navigation">
-        <a href="#/dashboard" data-nav="dashboard" id="nav-dashboard">Project Overview</a>
-        <a href="#/readings" data-nav="readings" id="nav-readings">Time-Series Data</a>
-        <a href="#/attestations" data-nav="attestations" id="nav-attestations">Daily Proof History</a>
+        <a href="#/device" data-nav="device" id="nav-device">Device Workflow</a>
+        <a href="#/admin" data-nav="admin" id="nav-admin">Administrator</a>
+        <a href="#/verify" data-nav="verify" id="nav-verify">Third-Party Verification</a>
         <span class="menu-spacer"></span>
         <button type="button" id="reload-button">Refresh</button>
       </nav>
 
       <div class="location-bar">
         <strong id="location-label">Location:</strong>
-        <span id="breadcrumb">Project Overview</span>
+        <span id="breadcrumb">Administrator</span>
       </div>
 
       <main id="main-content" tabindex="-1">
@@ -50,7 +55,7 @@
 
       <footer class="system-footer">
         <span id="footer-source">Data source: checking</span>
-        <span id="footer-privacy">Private values are not stored on the Midnight Public Ledger</span>
+        <span id="footer-privacy">Sensor values remain private; the current threshold policy is public on ledger</span>
         <span id="footer-clock">----/--/-- --:--:--</span>
       </footer>
     </div>

@@ -1,0 +1,41 @@
+{
+  "name": "@midnight-demo/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/prepare-zk-assets.mjs && vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@midnight-demo/sensor-registry-contract": "*",
+    "@midnight-demo/shared": "*",
+    "@midnight-ntwrk/dapp-connector-api": "4.0.1",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-fetch-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "assert": "^2.1.0",
+    "buffer": "^6.0.3",
+    "isomorphic-ws": "5.0.0",
+    "process": "^0.11.10",
+    "semver": "^7.7.4"
+  },
+  "devDependencies": {
+    "@types/semver": "^7.7.1",
+    "@types/ws": "^8.18.1",
+    "fake-indexeddb": "^6.2.5",
+    "rollup": "^4.52.5",
+    "typescript": "^6.0.3",
+    "vite": "8.2.2",
+    "vite-plugin-wasm": "^3.5.0",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  }
+}
