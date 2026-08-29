@@ -15,6 +15,11 @@ coverage/
 
 # Compact and proving-key output
 contracts/*/src/managed/
+apps/dashboard/public/assets/
+apps/dashboard/public/device-flow.js
+apps/dashboard/public/device-flow.js.map
+apps/dashboard/public/keys/
+apps/dashboard/public/zkir/
 contracts/*/src/generated/
 .benchmark-cache/
 
@@ -44,6 +49,7 @@ midnight-level-db/
 # Generated device release packages
 .device-release/
 .edge-release/
+.demo-output/
 
 # Cloudflare and local development state
 .wrangler/
