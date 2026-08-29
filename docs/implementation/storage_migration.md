@@ -1,10 +1,10 @@
 # D1 to Turso Storage Migration Design
 
-[日本語版](ja/storage_migration.md)
+[日本語版](../ja/implementation/storage_migration.md)
 
 ## Approach
 
-D1 is the only implemented operational store. API and scheduled code use the storage port so a future Turso/libSQL adapter can replace D1 without changing their domain logic. The browser consumes HTTP responses and has no direct database dependency. No external Attestation Agent implementation is included.
+D1 is the only implemented operational store. API and scheduled code use the storage port so a future Turso/libSQL adapter can replace D1 without changing their domain logic. The browser consumes HTTP responses and has no direct database dependency. The current workflow uses D1-backed Proof Jobs and the operator-invoked Wallet Agent; the retired Attestation Agent tables and endpoints are not part of the Wave 1 data path.
 
 ```text
 Worker API / Scheduled Handler
@@ -27,7 +27,7 @@ Worker API / Scheduled Handler
 | `batch` | Preserves order and commits all statements or rolls back all |
 | `kind` | Returns `d1` or `turso` for diagnostics |
 
-Parameters are limited to `string | number | null`. Timestamps use UTC ISO 8601. Daily buckets use `YYYY-MM-DD` in the project timezone. IDs use UUIDs or deterministic Attestation IDs.
+Parameters are limited to `string | number | null`. Timestamps use UTC ISO 8601. Daily buckets use `YYYY-MM-DD` in the project timezone. Retryable operations use stable `batchId`, `eventId`, `proofJobId`, or `transactionJobId` values.
 
 ## Schema Compatibility
 
@@ -48,9 +48,9 @@ Parameters are limited to `string | number | null`. Timestamps use UTC ISO 8601.
 ## Cutover
 
 1. Apply every migration to Turso.
-2. Pause ingestion briefly and export a D1 snapshot.
-3. Import Project, Device, Attestation, then Reading rows.
-4. Compare table counts, primary keys, daily sample counts, roots, and transaction IDs.
+2. Pause API writes and Proof Job dispatch briefly, then export a D1 snapshot.
+3. Import projects and devices first, followed by Device Identity/Session, measurement-window, anomaly, `threshold_policies`, `policy_assignments`, `daily_proof_jobs`, transaction, and lease tables in foreign-key order. Migrate legacy `readings`, `attestations`, and `proof_jobs` only if their retained history is still required.
+4. Compare table counts, primary keys, measurement-window counts, policy/assignment keys, attestation commitments, Proof Job states, and transaction IDs.
 5. Run read, write, batch, and scheduled-handler tests in staging.
 6. Set `DATA_BACKEND=turso` and resume ingestion.
 7. On failure, stop writes and switch back to D1. Retain D1 during the validation window.

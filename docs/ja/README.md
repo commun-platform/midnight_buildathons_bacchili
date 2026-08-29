@@ -1,187 +1,184 @@
-# 計測データ真贋性証明システム
+# BACCHIRI!━━Verifiable Measurement Layer
+
+> センサー値を見せず、しきい値の範囲内かどうかを証明する。
+
+## 審査成果物
+
+[Wave 1審査成果物設計](submission/deliverables_plan.md)に、必須提出物、審査配点、スライド、実演、検証証拠、制作順序、完了条件をまとめています。
 
 [English documentation](../../README.md)
 
-Edge Deviceの温度実測値をCloudflare D1へ保存するシステムです。デバイス運用Wallet CLIは、準備済みDatasetをMidnightの`sensor-registry`へ登録し、選択した1件のPrivate SampleについてMerkle inclusionと範囲を検証できます。Workerは日次Attestation workflow recordも作成しますが、そのrecordとデバイスWallet送信を接続する常駐Agentはまだ含まれていません。開発とデバイス運用はworkspace、配布物、Walletのすべてを分離します。
+![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-## 実行境界
+現行ソースは、6つの証明回路のコンパイル、182件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
 
-```text
-開発サーバ                                     Raspberry Pi／デバイス運用
-  Compact compile・proving key生成               センサー収集・認証付き送信
-  全テスト・Proof benchmark                      明示的なDataset Transaction送信
-  Cloudflare・Contract deploy                    独立したデバイス運用Wallet
-  開発・deploy用Wallet                           localhost health・永続診断ログ
-             │                                             │
-             └──── Cloudflare Worker + Proof Container ────┘
-                                      │
-                                Midnight Preprod
-```
+| 審査成果物 | 文書 |
+| --- | --- |
+| 提出文 | [Wave 1提出文](submission/submission_copy.md) |
+| 編集用スライド | [日本語PPTX](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) |
+| 閲覧用スライド | [日本語PDF](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
+| Cloudflare UC別技術補足 | [説明](architecture/cloudflare_use_cases.md)・[PPTX](submission/deck/cloudflare-use-cases-ja.pptx)・[PDF](submission/deck/cloudflare-use-cases-ja.pdf) |
+| 主張と検証証拠 | [証拠対応表](submission/evidence_matrix.md) |
+| Wave進捗 | [Wave 1進捗](submission/wave1_progress.md) |
+| 想定質問 | [審査員向けQ&A](submission/judge_qa.md) |
+| 最終画面の動画 | [録画台本と撮影条件](submission/demo_script.md) — 画面実装後に録画 |
 
-| ホスト | 実行する処理 | 実行禁止の処理 |
+## 製品と最初のユースケース
+
+顧客へ提供する価値はシンプルです。**センサー値を第三者に見せず、登録済みしきい値の範囲内かどうかを証明します**。
+
+BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、クラウドシステムを使う既存の計測業務へ、値を隠したまま判定を確認できる証明層を追加します。計測機器や既存システムを置き換えません。
+
+最初の事業ユースケースとして協議しているのは、建設現場の計測結果検証です。騒音、振動、温度などの帳票は、機器提供会社、レンタル会社、施工会社、発注者、監査者など複数組織をまたぎます。Wave 1で検証済みなのは温度計測の経路です。ほかの計測種別には、対応するしきい値定義、入力形式、検査規則の追加が必要であり、現行機能としては主張しません。
+
+既存の計測機器と販売・レンタル網を使う現場実証に向け、業界事業者との協議を進めています。これは事業化の進捗であり、完了済みの技術検証ではありません。
+
+このシステムの要点は、**生のセンサー値を公開せず、提出された時間別の最小値・最大値が、運用開始前に登録したしきい値の範囲内かどうかだけを証明する**ことです。エッジデバイスは生のセンサー値と署名鍵を保持し、画面は公開情報だけを表示し、バックエンドは認証・受付判定・証明処理を担います。第三者が判定の根拠として確認するのは、Midnightに記録された公開しきい値、対象デバイスとの紐付け、確定済み証明記録です。
+
+![センサー値を1時間ごとの最小値・最大値へまとめ、値を隠したまま判定する](assets/review/hourly-extrema-zkp-ja.png)
+
+審査時は、まず[正確に証明すること・しないこと](architecture/wave1_spec.md#3-正確なproof-claimと非claim)、次に[システム構成](architecture/system_architecture.md)、最後に[日次運用手順](operations/demo_runbook.md)を確認してください。
+
+文書は目的別に分類しています。
+
+審査提出用の提出文、日英スライド、検証証拠、Wave 1進捗、提出前確認、Q&A、最終画面の録画台本は[submission/](submission/)に集約しています。
+
+| 分類 | 内容 |
+| --- | --- |
+| [`architecture/`](architecture/) | 製品仕様、4領域の構成、Cloudflare UC別構成、24個の時間枠を使う日次証明 |
+| [`security/`](security/) | 非公開情報の境界、鍵と認証、複数デバイスの管理 |
+| [`operations/`](operations/) | 開発環境、配備・確認手順、デバイス用ソフトウェアの導入・復旧 |
+| [`implementation/`](implementation/) | 仕様と実装の対応、6つの運用ZK回路、将来機能バックログ、DUST送信手数料のスポンサー、ウォレット同期中のトランザクション保留、費用実測、保存先の移行設計 |
+
+日本語のスライド図版は[`assets/review/`](assets/review/)、文書専用図版は[`assets/guides/`](assets/guides/)に集約し、英語図版とは分離しています。
+
+本リポジトリは、温度データ証明システムのWave 1を実装します。エッジデバイスは個々の測定値を内部に保持し、1時間ごとの集計と異常状態の変化をバックエンドへ送ります。1日分は24個の時間枠にそろえ、各時間の最小値・最大値を非公開入力として1件の証明にします。Midnightに記録するのは測定値ではなく、事前登録したしきい値、対象デバイス、判定結果、取引記録です。
+
+運用コントラクト`sensor-registry`は、観測された全時間帯の最小値・最大値が、運用前にMidnightへ登録したしきい値の範囲内であるか、少なくとも1時間が範囲外であるかを、値を隠したまま証明します。公開される「範囲内／範囲外」の結果から測定値は分かりません。測定値がない時間は、合格や不正とは扱わず「停止（`STOPPED`）」として区別します。この証明だけでは、センサー自体の正確さ、連続して測定した事実、測定漏れがないこと、デバイス側の集計が正しいことまでは保証しません。
+
+## 基本用語
+
+| 用語 | 本リポジトリでの意味 |
+| --- | --- |
+| Wave 1 | `wave1_spec.md`で定義する、現在の対応範囲です。 |
+| Cloudflare | API、D1データベース、証明処理の受付、画面、証明生成サーバーを動かすバックエンドです。現状では信頼対象です。 |
+| Midnight | コントラクトの取引を検証し、しきい値・対象デバイス・判定結果などの公開記録を保持するネットワークです。 |
+| エッジデバイス | センサー収集、API認証、Midnight取引への署名を行う現場側の実行環境です。 |
+| 生の測定値 | 日時、温度、湿度を含む個々の実測値です。エッジデバイス内に保持します。 |
+| 1時間ごとの集計／状態変化 | 1時間単位の要約と、正常・異常が切り替わった時点の通知です。個々の測定値そのものではありません。 |
+| 1日分の非公開入力 | 観測済みまたは停止の24個の時間枠です。観測済みの枠には最小値、最大値、測定件数が入ります。 |
+| コミットメント | 1日分の非公開入力と証明用乱数を、元の値を逆算できない形で結び付けた値です。 |
+| しきい値 | 判定方法、上下限、単位、センサー種別、版番号を含む公開設定です。運用開始前にMidnightへ登録し、証明時にデバイスが別の値へ変更することはできません。 |
+| デバイスへのしきい値設定 | どのデバイスにどのしきい値を適用するかと、その有効期間を運用開始前に登録したものです。 |
+| ゼロ知識証明 | 各時間の最小値・最大値と証明用乱数を公開せず、観測された全時間が登録済みしきい値を満たすか検査する証明です。 |
+| Compact／`sensor-registry` | CompactはMidnightのコントラクト言語です。`sensor-registry`は本リポジトリの運用コントラクトです。 |
+| Cloudflare D1 | デバイス登録、APIセッション、集計、証明処理、取引状態を保存するSQLデータベースです。生の測定値は保存しません。 |
+| 証明処理 | 非公開入力の送信許可から、証明生成、取引結果までを管理する一連の処理です。 |
+| 証明生成サーバー | コントラクト用の証明を生成するCloudflare上のサーバーです。デバイスの署名鍵は持ちません。 |
+| API認証鍵／Midnight取引署名鍵 | 用途が異なる2つの鍵です。前者はCloudflare APIへの認証、後者はデバイスがMidnight取引を承認したことの署名に使います。 |
+| 送信手数料用ウォレット | デバイスが署名済みの取引へ、送信手数料に必要なDUSTだけを追加するバックエンド専用ウォレットです。署名済み内容は変更できません。 |
+| 証明記録 | 公開する判定内容と、それを裏付ける証明・取引をまとめた記録です。別コントラクト`daily-attestation`は費用実験用であり、通常の運用経路ではありません。 |
+
+## 推奨する読書順
+
+| 順序 | 文書 | 目的 |
 | --- | --- | --- |
-| 開発サーバ | Compact compile、proving key生成、全テスト、benchmark、Wrangler、開発Wallet同期、Contract deploy、デバイス配布物生成 | 常時センサー収集、デバイスWallet利用 |
-| Raspberry Pi／デバイス | センサー読取り・送信、独立した運用Walletによる準備済みDatasetの明示的Tx、loopback health、障害解析ログ | Compact compiler、proving key生成、ローカルProof Server、Docker、Contract deploy、開発Wallet、全workspace test |
-| Cloudflare | Worker API、D1、SPA、日次pending record作成、実行時Proof Server Container | 開発Wallet／デバイスWalletの復旧情報 |
+| 1 | 本README | 製品目的、証明内容、リポジトリ構成、現在状態を把握します。 |
+| 2 | [Wave 1仕様](architecture/wave1_spec.md)と[複数デバイスの登録](security/device_registry.md) | デバイス、しきい値、運用担当者の信頼境界を確認します。 |
+| 3 | [システム構成](architecture/system_architecture.md) | 各構成要素とデータ保存先を確認します。 |
+| 4 | [非公開情報の境界](security/private_spec.md) | 非公開入力、管理者向け情報、第三者への公開情報を区別します。 |
+| 5 | [仕様と実装の対応](implementation/implement_spec.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、各証明回路、DUSTだけを負担する権限を確認します。 |
+| 6 | [デバイス認証](security/device_authentication.md)と[デバイス用ソフトウェア](operations/device_firmware.md) | 初期登録、APIセッション、導入、復旧を理解します。 |
+| 7 | [開発環境](operations/development_environment.md)と[実演手順](operations/demo_runbook.md) | 準備後、順番に配備して動作確認します。 |
+| 8 | [費用実測](implementation/cost_benchmark.md) | 標準1,440件／日の実測と10,000台の計画値を確認します。 |
+| 9 | [将来機能バックログ](implementation/future_features.md) | コントラクトを先に変更する項目と、後から追加する運用機能を区別します。 |
+| 10 | [保存先の移行設計](implementation/storage_migration.md) | 将来D1からTursoへ切り替える設計を確認します。 |
 
-Proof ServerがTxごとに行う証明生成と、Compact compilerが事前に行う回路・key生成は別処理です。どちらもPiでは実行しません。
+## システム境界の要約
 
-## Monorepo
+![エッジデバイス、画面、バックエンド、Midnightの責任分担](assets/review/wave1-system-overview-ja.png)
+
+| 領域 | 主な責任 | 明確な境界 |
+| --- | --- | --- |
+| エッジデバイス | センサー収集、生の測定値の保持、24時間分の集計、API認証、Midnight取引への署名 | 生の測定値、時間別の最小値・最大値、証明用入力、署名鍵を内部に保持 |
+| 画面 | 認証が必要な管理者画面と、第三者が見る公開画面 | 許可された集計または公開情報だけを受け取り、秘密値を扱わない |
+| バックエンド | 認証、API入力検査、処理状態の保存、同時実行数の制限、証明生成 | 証明生成中は非公開入力を扱う信頼対象だが、デバイスの代理署名はできない |
+| Midnight | しきい値、対象デバイス、コミットメント、確定済み判定の記録 | 第三者が確認する公開記録を保持し、生のセンサー値は保存しない |
+
+詳細な信頼境界とデータの流れは[システム構成](architecture/system_architecture.md)を参照してください。
+
+## Midnightとの連携
+
+運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の時間枠からなる非公開入力を検査し、範囲内または範囲外の結果をMidnightへ記録します。デバイスが取引内容を承認して署名し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、デバイスが署名した内容を変更できません。
+
+ブラウザには、Laceを使うデバイス管理画面、管理者向けの処理状況、第三者向けの公開画面があります。公開画面は、コントラクトで確定した対象日・しきい値・判定結果・Midnight取引識別子を表示します。ただし現状では、ブラウザ自身がMidnightへ直接問い合わせてゼロ知識証明を再検証するわけではありません。独立検証はWave 2の計画です。
+
+## リポジトリ構成
 
 ```text
 apps/development/operator-cli/  開発Wallet・deploy・benchmark
-apps/device/edge-agent/         Raspberry Pi用温度Collector
+apps/device/device-auth/         デバイス専用P-256 Identity・短命Session
+apps/device/edge-agent/         Edge Device用温度Collector
 apps/device/wallet-agent/       デバイス運用Wallet・submit・status
 apps/dashboard/public/          Worker配信の2言語SPA
 apps/proof-gateway/             Worker API・D1 migration・Proof Container
+apps/sponsor-wallet/            Fee専用Midnight Sponsor Wallet Container
 contracts/                      Compact Contract・生成Profile・テスト
-packages/shared/                Commitment・Merkle utility・fixture
-ops/pi-forensics/               永続journal・Pi health snapshot
+packages/shared/                Daily Commitment・Hourly集計・Legacy Merkle utility・fixture
 docs/                           英語の正本文書
 docs/ja/                        日本語訳
 ```
 
-## 開発サーバ
+## 運用手順
 
-このホストにはNode.js `22.15.0`以上、Compact Developer Tools `0.5.2`とtoolchain `0.31.1`、Wrangler認証、deploy用のfund済み開発Walletが必要です。
+個別の運用手順は、概要文書から次へ分離しています。
+
+| 手順 | 文書 |
+| --- | --- |
+| 開発前提条件、コンパイル、検証、配布物の生成 | [開発環境](operations/development_environment.md) |
+| エッジデバイス用パッケージ、導入、更新、復旧、ウォレット、稼働確認 | [デバイス用ソフトウェア](operations/device_firmware.md) |
+| 配備、初期登録、証明処理、取引、確認の実行順序 | [配備・確認手順](operations/demo_runbook.md) |
+| DUST送信手数料、ウォレットの非同期同期、トランザクション保留、再試行 | [送信手数料のスポンサー](implementation/fee_sponsorship.md) |
+| コンパイルと証明処理の実測、費用計画 | [費用実測](implementation/cost_benchmark.md) |
+
+## 審査員向けの短時間検証
+
+ソースコードの検証には、デバイスの秘密情報やMidnight事前公開ネットワーク用ウォレットは不要です。
 
 ```bash
 npm ci
-compact update 0.31.1
-cp .env.development.example .env.development
-cp apps/proof-gateway/.dev.vars.example apps/proof-gateway/.dev.vars
-
-# Contract artifactとproving keyはここで生成する。Edgeでは実行しない
 npm run contract:compile
-npm run verify
+TMPDIR=/tmp npm run verify
 ```
 
-開発Walletの復旧元は`.env.development`です。`npm run development:wallet`の初回実行時にmnemonicをmode `0600`でatomicに保存します。このファイルを暗号化またはオフラインで必ずバックアップしてください。`.state/development/`は同期・deployの再開用cacheであり、Wallet backupではありません。旧混在構成からは、開発サーバ上で新Walletを作る前に`npm run development:wallet:migrate`を実行します。
-
-実験的な日次Attestation固定Profileも開発サーバだけでコンパイルします。これはbenchmark CLI用であり、`npm run verify`、デバイスF/W、現在の`sensor-registry`送信経路には含まれません。Profileごとに別のkeyが必要です。
-
-```bash
-ATTESTATION_SAMPLE_COUNTS=24 npm run attestation:compile
-```
-
-### 初回deployとデバイス配布物
-
-Compile、deploy、配布物生成は開発サーバで行います。Contractまたはruntime code／artifactを変更した場合だけ再実行します。
-
-```bash
-npm run cloudflare:deploy
-npm run cloudflare:secret
-npm run secret:ingest -w @midnight-demo/proof-gateway
-npm run secret:attestation -w @midnight-demo/proof-gateway
-
-npm run development:wallet
-npm run development:funding
-npm run development:deploy
-npm run cloudflare:config:network
-npm run cloudflare:config:contract
-npm run development:status
-
-# 上のpromptで公開network名とdeploy済みContract addressを設定する。
-# 値はWorker環境bindingでありrepositoryへcommitしない。
-# その後、Compile済みartifactを内部exportして秘密情報を含まないF/W archiveを作る。
-./package_archive.sh
-```
-
-`PROOF_GATEWAY_TOKEN`はProof request、`INGEST_API_TOKEN`はsensor upload、`ATTESTATION_API_TOKEN`は内部claim／result APIを保護します。最後のtokenは外部Attestation Agentを接続する場合だけ必要であり、そのpolling Agentはこのrepositoryに実装されていません。
-
-Piへ渡すのは`.device-release/archives/midnight-sensor-device-fw-<version>.tar.gz`と`.sha256`だけです。Archiveは単一のtop-level directoryを持ち、rootに実行可能な`installer.sh`を含みます。Manifest検証により開発workspace、Compact source、dev tool、秘密fileの混入を拒否します。開発checkout全体、`.env.development`、`.dev.vars`、`.state/development/`、開発Wallet、Private開発inputはPiへ置かず、Gitにもcommitしません。
-
-## Raspberry Pi／Edge導入
-
-展開したArchiveの`.env.device`は導入Inputとしてだけ使用します。Installerはこれを`~/.midnight/midnight-cloudflare-demo/config/device.env`へ移し、Version別Runtimeを`releases/`配下へ導入して、有効Releaseを`current`で参照します。Wallet復旧情報はenvから一切読み込まず、同じRootの`device-wallet/`へowner-only権限で保存します。このWalletは開発・deploy用Walletとは別物です。
-
-開発サーバ側でWorkerのingestion secretを設定し、一致するingestion URLとtokenだけをPiへ渡します。
-
-```bash
-sha256sum -c midnight-sensor-device-fw-<version>.tar.gz.sha256
-tar -xzf midnight-sensor-device-fw-<version>.tar.gz
-cd midnight-sensor-device-fw-<version>
-cp .env.device.example .env.device
-chmod 600 .env.device
-# deploy済みContract address、remote proof URL/token、ingestion資格情報、
-# sensor設定を記入し、mnemonic/seed項目は追加しない。
-
-./installer.sh
-```
-
-URLはinstaller引数でも設定できます。
-
-```bash
-./installer.sh --ingest-url https://<worker>.workers.dev/api/v1/readings
-```
-
-Edge installerが行うのは次だけです。
-
-- 運用専用配布物と開発サーバ生成済みContract artifactのintegrityを検証
-- 検証済みReleaseを`~/.midnight/midnight-cloudflare-demo/releases/<version>-<manifest-hash>/`へ導入
-- staging用`.env.device`を`~/.midnight/midnight-cloudflare-demo/config/device.env`へ移動
-- dependency導入とDevice Test成功後だけ`current`をatomicに更新し、旧Targetを`previous`として保存
-- device collectorとdevice wallet workspaceだけの依存関係を導入
-- 小さなdevice単体テストだけを実行
-- リソース上限付き`measurement-edge-agent.service`を登録
-- journald永続化と1分ごとの接続／リソースsnapshotを有効化
-
-旧`--proof-server-url`、`--skip-compact-install`、`--skip-verify`は明示的に拒否します。`compact`、`contract:compile`、全体`verify`、Wrangler、Docker、deploy、Wallet初期化は一切呼びません。Device Release Manifestとsystemdの`MIDNIGHT_HOST_ROLE=device`により、開発・Contract commandを処理開始前に拒否します。
-
-Upgrade成功後は、次のCommandで1つ前のReleaseへ戻せます。
-
-```bash
-~/.midnight/midnight-cloudflare-demo/current/installer.sh --rollback
-```
-
-`previous`を検証し、`current`と`previous`のSymlinkを入れ替え、Collectorを再起動してHealthを確認します。Release Directoryは、OperatorがInactive Versionを明示的に削除するまで保持します。
-
-運用Walletはservice userとして明示的に初期化し、表示されたaddressへfundした後、実測値からDatasetを準備した場合にだけ明示的に送信します。
-
-```bash
-cd ~/.midnight/midnight-cloudflare-demo/current
-npm run device:wallet
-npm run device:funding
-npm run device:submit -- --input data/<prepared-real-dataset>.json
-npm run device:status
-```
-
-`device:submit`は`PreparedDataset` JSONまたは実測`SensorRecord[]`を受け取ります。配列の場合、Private Range Proofの入力は`--min`、`--max`、`--selected-index`で選択し、既定値は`10`、`35`、中央のrecordです。`--verify-only`はDataset登録を省略します。このcommandは疑似計測値を生成せず、WorkerのAttestation recordも自動更新しません。`config/device.env`と`device-wallet/`は、開発側の`.env.development`とは別系統でバックアップします。
-
-```bash
-sudo systemctl status measurement-edge-agent
-sudo journalctl -u measurement-edge-agent -f
-curl http://127.0.0.1:8788/health
-```
-
-強制再起動後は直前bootを確認できます。
-
-```bash
-sudo pi-forensics-report -1
-```
-
-Reportにはkernelの電源／温度／OOM／Storage event、Network／SSH event、定期health snapshotが含まれます。Wi-Fi識別子、認証情報、Wallet、Rawセンサー値、Application Secretは記録しません。
-
-systemdを使わないEdge単体開発は次だけです。
-
-```bash
-npm run edge:test
-npm run edge:serve
-```
+期待結果は、運用する6つの証明回路のコンパイル、182件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 
-- End-to-end実装済み: 認証付き温度送信、D1参照、日次pending record作成、2言語dashboard、remote Proof Gateway、開発Walletによるdeploy、デバイスWalletによる明示的な`registerDataset`／`verifySensorValue` Tx。
-- 開発用実験として実装済み: 24／96／1,440件の固定日次回路、署名付き時間Evidence、追記型Outlier Reason Hash。
-- 未接続: Workerのpending recordをclaimし、対応するPrivate Inputを組み立て、`device:submit`を実行して結果をWorkerへ返す常駐Attestation Agent。これがない間、dashboardの`confirmed`は信頼するAgentがD1へ報告した状態であり、BrowserがMidnightを独立照会した結果ではありません。
+- スポンサー負担経路をMidnight事前公開ネットワークで一連確認済みです。P-256によるAPI認証、公開しきい値とDevice-bound Assignment、標準1,440件を固定24時間枠へまとめた証明、CloudflareでのProof生成、FeeなしDevice承認、専用Sponsor WalletによるDUST追加、Block確定、同一バイト列での冪等復旧、第三者向け非公開化Resultまで確認しました。[同期中のトランザクション保留](implementation/fee_sponsorship.md#現在の連携境界)と[費用実測](implementation/cost_benchmark.md#標準1440件preprod-e2ecost実測)に記録しています。
+- 日次提出には運用担当者の操作が必要です。`device:submit`は証明処理を要求して状態を確認しますが、デバイス用ウォレットは常時自動送信する仕組みではありません。
+- 24件、96件、1,440件の入力で同じ固定形状の回路を使えること、時刻情報への署名、外れ値理由を追記保存する仕組みは開発用実験として実装済みです。
+- ブラウザはD1に保存した処理状況とMidnight取引識別子を表示しますが、Midnightへ直接問い合わせて証明を独立検証するものではありません。
 
-## Security Boundary
+## 3段階の展開
 
-開発Walletは`.env.development`だけを復旧元とし、暗号化／オフラインbackupを保持します。独立したデバイスWalletは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。導入後の運用設定は`config/device.env`で、staging用`.env.device`は削除され、Wallet mnemonic／seedを含みません。Piへ渡すのはcompile済みruntime artifactであり、Compact sourceやkey生成toolchainは渡しません。Browser APIにも秘密値を公開しません。
+![技術実証から建設現場への導入までを示す3 Wave Roadmap](assets/review/three-wave-roadmap-ja.png)
 
-詳細は[`system_architecture.md`](system_architecture.md)、[`private_spec.md`](private_spec.md)、[`demo_runbook.md`](demo_runbook.md)を参照してください。
+- Wave 1 — 検証済み: デバイス承認の日次証明、24個の時間枠の最小値・最大値、事前公開ネットワークでの範囲内／範囲外、管理者／第三者画面、`submitDailyAttestation`。
+- Wave 2 — 計画: ブラウザからの独立検証、署名付きのデータ来歴、運用自動化、復旧手順、複数デバイスの監視。
+- Wave 3 — 計画: 校正済みデバイスの証明、校正記録、ファームウェア識別情報、セキュアハードウェア連携、組織をまたぐ監査。
 
-## References
+導入経路は、技術実証、建設現場での実証実験、既存の販売・レンタル商流への組み込みです。Wave 2とWave 3は現行機能ではなく計画です。
+
+## 秘密情報の管理境界
+
+開発用ウォレットは`.env.development`だけを復旧元とし、暗号化したオフラインバックアップを保持します。デバイス用ウォレットは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。導入後の運用設定は`config/device.env`で、準備用の`.env.device`は削除され、復旧用単語列や秘密鍵の種は含みません。エッジデバイスへ渡すのはコンパイル済みの実行物だけで、Compactのソースや鍵生成ツールは渡しません。ブラウザ向けAPIにも秘密値を公開しません。
+
+詳細は[`system_architecture.md`](architecture/system_architecture.md)、[`private_spec.md`](security/private_spec.md)、[`demo_runbook.md`](operations/demo_runbook.md)を参照してください。
+
+## 参考資料
+
+本Repositoryは[Apache License 2.0](../../LICENSE)で提供します。
 
 - [Midnight developer documentation](https://docs.midnight.network/)
 - [Cloudflare Workers documentation](https://developers.cloudflare.com/workers/)

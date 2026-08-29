@@ -1,10 +1,10 @@
 # D1 → Turso Storage Migration設計
 
-[English](../storage_migration.md)
+[English](../../implementation/storage_migration.md)
 
 ## 方針
 
-実装済みの運用StoreはD1だけです。APIとScheduled CodeはStorage Portを使用するため、将来のTurso／libSQL AdapterはDomain Logicを変更せずD1を置き換えられます。BrowserはHTTP Responseを使用し、Databaseへ直接依存しません。外部Attestation Agentの実装は含まれていません。
+実装済みの運用StoreはD1だけです。APIとScheduled CodeはStorage Portを使用するため、将来のTurso／libSQL AdapterはDomain Logicを変更せずD1を置き換えられます。BrowserはHTTP Responseを使用し、Databaseへ直接依存しません。現行WorkflowはD1-backed Proof JobとOperator起動のWallet Agentを使い、廃止済みAttestation AgentのTable／EndpointはWave 1 Data Pathに含めません。
 
 ```text
 Worker API / Scheduled Handler
@@ -27,7 +27,7 @@ Worker API / Scheduled Handler
 | `batch` | 順序を保持し、全StatementをCommitするかすべてRollbackする |
 | `kind` | 診断用に`d1`または`turso`を返す |
 
-Parameterは`string | number | null`に制限します。TimestampにはUTC ISO 8601、日次BucketにはProject Timezoneの`YYYY-MM-DD`、IDにはUUIDまたは決定的Attestation IDを使用します。
+Parameterは`string | number | null`に制限します。TimestampにはUTC ISO 8601、日次BucketにはProject Timezoneの`YYYY-MM-DD`を使用します。Retry可能な処理にはStableな`batchId`、`eventId`、`proofJobId`、`transactionJobId`を使用します。
 
 ## Schema互換ルール
 
@@ -48,9 +48,9 @@ Parameterは`string | number | null`に制限します。TimestampにはUTC ISO 
 ## Cutover
 
 1. TursoへすべてのMigrationを適用します。
-2. Ingestionを短時間停止し、D1 SnapshotをExportします。
-3. Project、Device、Attestation、Readingの順にImportします。
-4. Table件数、Primary Key、日次Sample Count、Root、Transaction IDを照合します。
+2. API WriteとProof Job Dispatchを短時間停止し、D1 SnapshotをExportします。
+3. Project／Deviceを先にImportし、続いてDevice Identity／Session、Measurement Window、Anomaly、`threshold_policies`、`policy_assignments`、`daily_proof_jobs`、Transaction、Lease TableをForeign Key順にImportします。旧`readings`／`attestations`／`proof_jobs`は保持済み履歴が必要な場合だけ移行します。
+4. Table件数、Primary Key、Measurement Window Count、Policy／Assignment Key、Attestation Commitment、Proof Job State、Transaction IDを照合します。
 5. StagingでRead、Write、Batch、Scheduled HandlerのTestを実行します。
 6. `DATA_BACKEND=turso`を設定し、Ingestionを再開します。
 7. 失敗時はWriteを停止してD1へ戻します。検証期間中はD1を保持します。
