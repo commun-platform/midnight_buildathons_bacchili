@@ -97,7 +97,6 @@ let lines = fs.readFileSync(examplePath, 'utf8').split(/\r?\n/);
 for (const key of [
   'MIDNIGHT_NETWORK',
   'MIDNIGHT_PROOF_SERVER_URL',
-  'MIDNIGHT_PROOF_SERVER_TOKEN',
   'MIDNIGHT_SYNC_TIMEOUT_MS',
   'MIDNIGHT_DUST_TIMEOUT_MS',
   'MIDNIGHT_DUST_BATCH_SIZE',

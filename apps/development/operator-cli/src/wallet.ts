@@ -129,7 +129,7 @@ export async function createWallet(
     new NodeZkConfigProvider(contractArtifactsPath),
     {
       timeout: 900_000,
-      headers: proofServerHeaders(),
+      headers: proofServerHeaders(networkConfig.proofServer),
     },
   );
 
@@ -283,6 +283,49 @@ export async function ensureDust(context: WalletContext, faucet: string): Promis
       coin.meta?.registeredForDustGeneration !== true,
   );
   if (unregistered.length > 0) {
+    process.stdout.write('Waiting for complete DUST wallet sync before registration...\n');
+    let lastDustSyncLog = 0;
+    await Rx.firstValueFrom(
+      context.wallet.state().pipe(
+        Rx.tap((next) => {
+          const now = Date.now();
+          if (now - lastDustSyncLog < 15_000) return;
+          lastDustSyncLog = now;
+          process.stdout.write(
+            `DUST registration sync: ${next.dust.progress.appliedIndex}/` +
+            `${next.dust.progress.highestRelevantWalletIndex}\n`,
+          );
+        }),
+        Rx.filter(
+          (next) =>
+            next.unshielded.progress.isStrictlyComplete()
+            && next.dust.progress.isStrictlyComplete(),
+        ),
+        Rx.timeout({
+          first: dustTimeoutMs,
+          with: () => Rx.throwError(
+            () => new Error(`Timed out syncing DUST wallet after ${dustTimeoutMs}ms`),
+          ),
+        }),
+      ),
+    );
+
+    const { fee, dustGenerationEstimations } =
+      await context.wallet.estimateRegistration(unregistered);
+    const generatedNow = dustGenerationEstimations.reduce(
+      (sum, item) => sum + item.dust.generatedNow,
+      0n,
+    );
+    process.stdout.write(
+      `DUST registration readiness: fee=${fee} generatedNow=${generatedNow}\n`,
+    );
+    if (generatedNow < fee) {
+      process.stdout.write('Waiting for the registration UTXOs to generate the required DUST...\n');
+    }
+    await context.wallet.waitForGeneratedDust(unregistered, fee, {
+      timeoutMs: dustTimeoutMs,
+    });
+
     process.stdout.write(`Registering ${unregistered.length} NIGHT UTXO(s) for DUST generation...\n`);
     const recipe = await context.wallet.registerNightUtxosForDustGeneration(
       unregistered,
@@ -297,7 +340,7 @@ export async function ensureDust(context: WalletContext, faucet: string): Promis
     process.stdout.write('All NIGHT UTXOs are already registered for DUST generation.\n');
   }
 
-  if (balance.dust === 0n || unregistered.length > 0) {
+  if (state.dust.availableCoins.length === 0 || unregistered.length > 0) {
     process.stdout.write('Waiting for spendable DUST...\n');
     let lastDustLog = 0;
     await Rx.firstValueFrom(
@@ -309,10 +352,11 @@ export async function ensureDust(context: WalletContext, faucet: string): Promis
           process.stdout.write(
             `DUST sync: ${next.dust.progress.appliedIndex}/` +
             `${next.dust.progress.highestRelevantWalletIndex} ` +
-            `balance=${next.dust.balance(new Date())}\n`,
+            `balance=${next.dust.balance(new Date())} ` +
+            `spendableCoins=${next.dust.availableCoins.length}\n`,
           );
         }),
-        Rx.filter((next) => next.dust.balance(new Date()) > 0n),
+        Rx.filter((next) => next.dust.availableCoins.length > 0),
         Rx.timeout({
           first: dustTimeoutMs,
           with: () => Rx.throwError(

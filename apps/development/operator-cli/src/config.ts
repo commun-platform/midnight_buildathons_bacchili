@@ -58,9 +58,16 @@ export function resolveNetwork(value?: string): NetworkConfig {
   };
 }
 
-export function proofServerHeaders(): Record<string, string> {
-  const token = process.env.MIDNIGHT_PROOF_SERVER_TOKEN?.trim();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+export function proofServerHeaders(proofServer: string): Record<string, string> {
+  const url = new URL(proofServer);
+  if (['localhost', '127.0.0.1', '::1'].includes(url.hostname)) return {};
+  const token = process.env.DEVELOPMENT_PROOF_ACCESS_TOKEN?.trim();
+  if (!token) {
+    throw new Error(
+      'Remote development proving requires an ephemeral Operator Proof Lease; use development:deploy:cloudflare',
+    );
+  }
+  return { Authorization: `Bearer ${token}` };
 }
 
 export function privateStatePassword(): string {

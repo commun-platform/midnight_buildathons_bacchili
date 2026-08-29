@@ -46,7 +46,6 @@ import {
   type HourSignaturePayload,
 } from './device-evidence.js';
 import {
-  proofServerHeaders,
   repoRoot,
   resolveNetwork,
   stateDir,
@@ -396,7 +395,6 @@ async function main(): Promise<void> {
   const metrics: RequestMetric[] = [];
   const remote = httpClientProvingProvider(network.proofServer, zkConfigProvider, {
     timeout: 60 * 60_000,
-    headers: proofServerHeaders(),
   });
   const measuredProvider = {
     async check(serializedPreimage: Uint8Array, keyLocation: string) {

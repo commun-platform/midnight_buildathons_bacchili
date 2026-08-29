@@ -13,8 +13,47 @@ export interface WalletCredentials {
 }
 
 export interface DeploymentRecord {
+  contractSchemaVersion: 3;
   contractAddress: string;
+  deploymentTxId: string;
   deployerAddress: string;
+  operatorAuthority: string;
+  /** Initial device retained as a flattened deployment summary. */
+  deviceAuthority: string;
+  deviceCommitment: string;
+  deviceId: string;
+  policyId: string;
+  policyKey: string;
+  assignmentId: string;
+  assignmentKey: string;
+  policyMode: 'closed-range' | 'upper-bound' | 'lower-bound';
+  thresholdMinimum: number;
+  thresholdMaximum: number;
+  valueScale: number;
+  sensorTypeCode: number;
+  unitCode: number;
+  policyVersion: number;
+  policyRegisteredTxId: string;
+  assignmentVersion: number;
+  validFrom: string | null;
+  validUntil: string | null;
+  devices: Array<{
+    deviceId: string;
+    deviceAuthority: string;
+    deviceCommitment: string;
+    registrationVersion: number;
+    status: 'registered' | 'disabled';
+    registeredTxId: string;
+    authorityTxId: string;
+    disabledTxId: string | null;
+    policyId: string;
+    assignmentId: string;
+    assignmentKey: string;
+    assignmentVersion: number;
+    assignmentRegisteredTxId: string;
+    validFrom: string | null;
+    validUntil: string | null;
+  }>;
   deployedAt: string;
 }
 
