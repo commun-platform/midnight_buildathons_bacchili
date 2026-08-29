@@ -1,0 +1,16 @@
+*
+!package.json
+!package-lock.json
+!tsconfig.base.json
+!apps/
+apps/*
+!apps/sponsor-wallet/
+!apps/sponsor-wallet/**
+!contracts/
+contracts/*
+!contracts/sensor-registry/
+contracts/sensor-registry/*
+!contracts/sensor-registry/src/
+contracts/sensor-registry/src/*
+!contracts/sensor-registry/src/managed/
+!contracts/sensor-registry/src/managed/**

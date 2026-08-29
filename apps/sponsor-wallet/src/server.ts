@@ -1,0 +1,523 @@
+import crypto from 'node:crypto';
+import http from 'node:http';
+
+import { decryptCheckpoint, encryptCheckpoint } from './checkpoint.js';
+import { uploadShutdownCheckpoint } from './checkpoint-upload.js';
+import {
+  diagnosticError,
+  diagnosticLog,
+  safeErrorCauses,
+  sponsorWalletBootId,
+} from './diagnostics.js';
+import {
+  deserializeFinalizedTransaction,
+  preservedContractTransactionId,
+  transactionMetrics,
+  validateSponsorTransaction,
+} from './transaction.js';
+import { SponsorWalletRuntime, type SponsorSerializedState } from './wallet.js';
+
+const configuredPort = Number(process.env.SPONSOR_WALLET_SERVICE_PORT ?? 8789);
+if (!Number.isSafeInteger(configuredPort) || configuredPort < 1 || configuredPort > 65_535) {
+  throw new Error('SPONSOR_WALLET_SERVICE_PORT must be a valid TCP port');
+}
+const port = configuredPort;
+const maxTransactionBytes = 4 * 1024 * 1024;
+const maxCheckpointBytes = 128 * 1024 * 1024;
+const gracefulOperationWaitMs = 60_000;
+const walletStopWaitMs = 45_000;
+const forcedShutdownMs = 14 * 60_000;
+const seedHex = process.env.SPONSOR_WALLET_SEED?.trim() ?? '';
+let sponsor: SponsorWalletRuntime | null = null;
+let mutation = Promise.resolve();
+let initialization: Promise<void> | null = null;
+let initializationStatus: 'not-started' | 'running' | 'succeeded' | 'failed' = 'not-started';
+let initializationStartedAt: string | null = null;
+let initializationCompletedAt: string | null = null;
+let initializationError: string | null = null;
+let shuttingDown = false;
+let shutdownPromise: Promise<void> | null = null;
+
+function requireSponsor(): SponsorWalletRuntime {
+  sponsor ??= new SponsorWalletRuntime(seedHex);
+  return sponsor;
+}
+
+function startInitialization(state: SponsorSerializedState): void {
+  if (initialization) {
+    diagnosticLog('sponsor_wallet_initialization_request_deduplicated', {
+      initializationStatus,
+    });
+    return;
+  }
+  initializationStatus = 'running';
+  initializationStartedAt = new Date().toISOString();
+  initializationCompletedAt = null;
+  initializationError = null;
+  initialization = requireSponsor().initialize(state).then(() => {
+    initializationStatus = 'succeeded';
+    initializationCompletedAt = new Date().toISOString();
+    diagnosticLog('sponsor_wallet_initialization_succeeded', {
+      initializationStartedAt,
+      initializationCompletedAt,
+    });
+  });
+  void initialization.catch((error) => {
+    initializationStatus = 'failed';
+    initializationCompletedAt = new Date().toISOString();
+    initializationError = error instanceof Error ? error.message : String(error);
+    diagnosticLog('sponsor_wallet_initialization_failed', {
+      initializationStartedAt,
+      initializationCompletedAt,
+      ...diagnosticError(error),
+    }, 'error');
+    void requestShutdown('wallet-initialization-failed', 1);
+  });
+}
+
+async function initializedSponsor(): Promise<SponsorWalletRuntime> {
+  if (!initialization) throw new Error('Sponsor Wallet restore must run before this operation');
+  await initialization;
+  return requireSponsor();
+}
+
+function serviceStatus() {
+  const runtime = requireSponsor();
+  return {
+    ...runtime.status(),
+    bootId: sponsorWalletBootId,
+    initialization: {
+      status: initializationStatus,
+      startedAt: initializationStartedAt,
+      completedAt: initializationCompletedAt,
+      error: initializationError,
+    },
+    shuttingDown,
+  };
+}
+
+function responseJson(
+  response: http.ServerResponse,
+  status: number,
+  value: unknown,
+): void {
+  const body = Buffer.from(JSON.stringify(value), 'utf8');
+  response.writeHead(status, {
+    'Cache-Control': 'no-store',
+    'Content-Length': body.length,
+    'Content-Type': 'application/json; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  response.end(body);
+}
+
+async function readBody(request: http.IncomingMessage, maximum: number): Promise<Buffer> {
+  const declared = Number(request.headers['content-length'] ?? 0);
+  if (Number.isFinite(declared) && declared > maximum) {
+    throw new Error('Request body is too large');
+  }
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of request) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += bytes.length;
+    if (total > maximum) throw new Error('Request body is too large');
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+function requiredHeader(request: http.IncomingMessage, name: string, maximum = 256): string {
+  const value = request.headers[name.toLowerCase()];
+  if (typeof value !== 'string' || !value || value.length > maximum) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
+}
+
+function serializedSha256(bytes: Uint8Array): string {
+  return crypto.createHash('sha256').update(bytes).digest('hex');
+}
+
+async function exclusive<T>(operation: () => Promise<T>): Promise<T> {
+  const result = mutation.then(operation, operation);
+  mutation = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+async function handleRestore(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  const checkpoint = await readBody(request, maxCheckpointBytes);
+  let restored: SponsorSerializedState = {};
+  let checkpointAccepted = false;
+  if (checkpoint.length > 0) {
+    try {
+      restored = decryptCheckpoint(seedHex, checkpoint) as SponsorSerializedState;
+      checkpointAccepted = true;
+      diagnosticLog('sponsor_wallet_checkpoint_decrypted', {
+        bytes: checkpoint.length,
+      });
+    } catch (error) {
+      diagnosticLog('sponsor_wallet_checkpoint_rejected', {
+        bytes: checkpoint.length,
+        fallback: 'fresh-wallet-state',
+        ...diagnosticError(error),
+      }, 'error');
+    }
+  } else {
+    diagnosticLog('sponsor_wallet_checkpoint_missing', {
+      fallback: 'fresh-wallet-state',
+    }, 'warn');
+  }
+  startInitialization(restored);
+  responseJson(response, 200, {
+    restored: checkpointAccepted,
+    checkpointBytes: checkpoint.length,
+    status: serviceStatus(),
+  });
+}
+
+async function handlePrepare(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  const contractAddress = requiredHeader(request, 'X-Sponsor-Contract-Address', 128);
+  const expectedSerializedHash = requiredHeader(request, 'X-Device-Transaction-Hash', 64);
+  const bytes = await readBody(request, maxTransactionBytes);
+  if (serializedSha256(bytes) !== expectedSerializedHash) {
+    throw new Error('Device transaction hash does not match its serialized bytes');
+  }
+  const original = deserializeFinalizedTransaction(bytes);
+  const originalPolicy = validateSponsorTransaction(original, contractAddress, false);
+  const runtime = await initializedSponsor();
+  await runtime.waitUntilReady();
+  const recipe = await runtime.wallet.balanceFinalizedTransaction(
+    original,
+    {
+      shieldedSecretKeys: runtime.shieldedSecretKeys,
+      dustSecretKey: runtime.dustSecretKey,
+    },
+    {
+      ttl: new Date(Date.now() + 30 * 60 * 1000),
+      tokenKindsToBalance: ['dust'],
+    },
+  );
+  const finalized = await runtime.wallet.finalizeRecipe(recipe);
+  const finalPolicy = validateSponsorTransaction(finalized, contractAddress, true);
+  const contractTransactionId = preservedContractTransactionId(
+    originalPolicy.transactionIdentifiers,
+    finalPolicy.transactionIdentifiers,
+  );
+  const serialized = finalized.serialize();
+  const metrics = transactionMetrics(finalized);
+  diagnosticLog('sponsor_wallet_prepare_completed', {
+    deviceTransactionBytes: bytes.byteLength,
+    sponsoredTransactionBytes: metrics.transactionBytes,
+    deviceIdentifiers: originalPolicy.transactionIdentifiers.length,
+    sponsoredIdentifiers: finalPolicy.transactionIdentifiers.length,
+    feeSpecks: metrics.feeSpecks,
+  });
+  response.writeHead(200, {
+    'Cache-Control': 'no-store',
+    'Content-Length': serialized.byteLength,
+    'Content-Type': 'application/octet-stream',
+    'X-Contract-Transaction-Id': contractTransactionId,
+    'X-Sponsor-Transaction-Hash': finalPolicy.transactionHash,
+    'X-Sponsor-Serialized-Sha256': serializedSha256(serialized),
+    'X-Sponsor-Fee-Specks': metrics.feeSpecks,
+    'X-Sponsor-Transaction-Bytes': String(metrics.transactionBytes),
+    'X-Content-Type-Options': 'nosniff',
+  });
+  response.end(Buffer.from(serialized));
+}
+
+async function handleSubmit(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  const contractAddress = requiredHeader(request, 'X-Sponsor-Contract-Address', 128);
+  const expectedContractTransactionId = requiredHeader(
+    request,
+    'X-Contract-Transaction-Id',
+    256,
+  );
+  const expectedSerializedHash = requiredHeader(request, 'X-Sponsor-Serialized-Sha256', 64);
+  const bytes = await readBody(request, maxTransactionBytes);
+  if (serializedSha256(bytes) !== expectedSerializedHash) {
+    throw new Error('Sponsored transaction hash does not match its serialized bytes');
+  }
+  const transaction = deserializeFinalizedTransaction(bytes);
+  const policy = validateSponsorTransaction(transaction, contractAddress, true);
+  if (!policy.transactionIdentifiers.includes(expectedContractTransactionId)) {
+    throw new Error('Sponsored transaction does not contain the expected Device identifier');
+  }
+  const runtime = await initializedSponsor();
+  const submittedIdentifier = await runtime.submitPreparedTransaction(transaction);
+  const metrics = transactionMetrics(transaction);
+  responseJson(response, 200, {
+    contractTransactionId: expectedContractTransactionId,
+    sponsorTransactionId: String(submittedIdentifier),
+    transactionHash: policy.transactionHash,
+    serializedSha256: expectedSerializedHash,
+    feeSpecks: metrics.feeSpecks,
+    transactionBytes: metrics.transactionBytes,
+    submittedAt: new Date().toISOString(),
+  });
+}
+
+async function handleRelease(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  const contractAddress = requiredHeader(request, 'X-Sponsor-Contract-Address', 128);
+  const expectedSerializedHash = requiredHeader(request, 'X-Sponsor-Serialized-Sha256', 64);
+  const bytes = await readBody(request, maxTransactionBytes);
+  if (serializedSha256(bytes) !== expectedSerializedHash) {
+    throw new Error('Sponsored transaction hash does not match its serialized bytes');
+  }
+  const transaction = deserializeFinalizedTransaction(bytes);
+  validateSponsorTransaction(transaction, contractAddress, true);
+  const runtime = await initializedSponsor();
+  await runtime.releasePreparedTransaction(transaction);
+  responseJson(response, 200, {
+    released: true,
+    serializedSha256: expectedSerializedHash,
+    releasedAt: new Date().toISOString(),
+  });
+}
+
+async function handleCheckpoint(response: http.ServerResponse): Promise<void> {
+  const runtime = await initializedSponsor();
+  const checkpoint = encryptCheckpoint(seedHex, await runtime.serializeState());
+  response.writeHead(200, {
+    'Cache-Control': 'no-store',
+    'Content-Length': checkpoint.byteLength,
+    'Content-Type': 'application/octet-stream',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  response.end(Buffer.from(checkpoint));
+}
+
+const server = http.createServer((request, response) => {
+  const startedAt = performance.now();
+  const pathname = new URL(request.url ?? '/', 'http://sponsor.internal').pathname;
+  const requestId = crypto.randomUUID();
+  diagnosticLog('sponsor_wallet_request_started', {
+    requestId,
+    method: request.method,
+    pathname,
+    declaredBytes: request.headers['content-length'] ?? null,
+  });
+  response.once('finish', () => {
+    diagnosticLog('sponsor_wallet_request_completed', {
+      requestId,
+      method: request.method,
+      pathname,
+      status: response.statusCode,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+  });
+  const run = async (): Promise<void> => {
+    if (shuttingDown) {
+      responseJson(response, 503, { error: 'Sponsor Wallet is shutting down' });
+      return;
+    }
+    if (request.method === 'POST' && pathname === '/restore') {
+      await handleRestore(request, response);
+      return;
+    }
+    if (request.method === 'GET' && pathname === '/health') {
+      const runtime = requireSponsor();
+      runtime.startActivation();
+      const status = serviceStatus();
+      responseJson(response, 200, status);
+      if (status.phase === 'error' && initializationStatus === 'succeeded') {
+        void requestShutdown('wallet-runtime-error', 1);
+      }
+      return;
+    }
+    if (request.method === 'POST' && pathname === '/prepare') {
+      await exclusive(() => handlePrepare(request, response));
+      return;
+    }
+    if (request.method === 'POST' && pathname === '/submit') {
+      await exclusive(() => handleSubmit(request, response));
+      return;
+    }
+    if (request.method === 'POST' && pathname === '/release') {
+      await exclusive(() => handleRelease(request, response));
+      return;
+    }
+    if (request.method === 'GET' && pathname === '/checkpoint') {
+      await exclusive(() => handleCheckpoint(response));
+      return;
+    }
+    responseJson(response, 404, { error: 'Unknown Sponsor Wallet endpoint' });
+  };
+  void run().catch((error) => {
+    diagnosticLog('sponsor_wallet_request_failed', {
+      requestId,
+      pathname,
+      durationMs: Math.round(performance.now() - startedAt),
+      ...diagnosticError(error),
+    }, 'error');
+    if (!response.headersSent) {
+      responseJson(response, 503, {
+        error: error instanceof Error ? error.message : 'Sponsor Wallet operation failed',
+        causes: safeErrorCauses(error),
+      });
+    } else {
+      response.destroy();
+    }
+  });
+});
+
+server.listen(port, '0.0.0.0', () => {
+  diagnosticLog('sponsor_wallet_service_started', {
+    port,
+    seedConfigured: /^(?:[0-9a-f]{2}){32}$/u.test(seedHex),
+    nodeVersion: process.version,
+    walletSdkVersion: '1.2.0',
+    midnightJsVersion: '4.1.1',
+  });
+});
+
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function persistShutdownCheckpoint(reason: string): Promise<void> {
+  if (!sponsor?.canSerializeState()) {
+    diagnosticLog('sponsor_wallet_shutdown_checkpoint_skipped', {
+      reason,
+      initializationStatus,
+      skipReason: 'serializable-state-unavailable',
+    }, 'warn');
+    return;
+  }
+  try {
+    await withTimeout(
+      mutation,
+      gracefulOperationWaitMs,
+      'Timed out waiting for an active Sponsor Wallet mutation',
+    );
+  } catch (error) {
+    diagnosticLog('sponsor_wallet_shutdown_mutation_wait_failed', {
+      reason,
+      ...diagnosticError(error),
+    }, 'warn');
+  }
+  const serialized = await withTimeout(
+    sponsor.serializeState(),
+    gracefulOperationWaitMs,
+    'Timed out serializing Sponsor Wallet state during shutdown',
+  );
+  const checkpoint = encryptCheckpoint(seedHex, serialized);
+  if (checkpoint.byteLength > maxCheckpointBytes) {
+    throw new Error('Shutdown checkpoint exceeds the maximum size');
+  }
+  await uploadShutdownCheckpoint(checkpoint, reason);
+}
+
+async function shutdown(reason: string, exitCode: number): Promise<void> {
+  shuttingDown = true;
+  diagnosticLog('sponsor_wallet_shutdown_started', { reason, exitCode });
+  const forcedShutdownTimer = setTimeout(() => {
+    diagnosticLog('sponsor_wallet_forced_shutdown_deadline_reached', { reason }, 'error');
+    process.exit(1);
+  }, forcedShutdownMs);
+  server.close();
+  if (initializationStatus === 'running' && initialization) {
+    try {
+      await withTimeout(
+        initialization,
+        gracefulOperationWaitMs,
+        'Timed out waiting for Sponsor Wallet initialization during shutdown',
+      );
+    } catch (error) {
+      diagnosticLog('sponsor_wallet_shutdown_initialization_wait_failed', {
+        reason,
+        ...diagnosticError(error),
+      }, 'warn');
+    }
+  }
+  try {
+    await persistShutdownCheckpoint(reason);
+  } catch (error) {
+    diagnosticLog('sponsor_wallet_shutdown_checkpoint_failed', {
+      reason,
+      ...diagnosticError(error),
+    }, 'error');
+  }
+  try {
+    if (sponsor) {
+      await withTimeout(
+        sponsor.close(),
+        walletStopWaitMs,
+        'Timed out stopping Sponsor Wallet SDK after checkpoint persistence',
+      );
+    }
+  } catch (error) {
+    const timedOut = error instanceof Error
+      && error.message === 'Timed out stopping Sponsor Wallet SDK after checkpoint persistence';
+    diagnosticLog(timedOut
+      ? 'sponsor_wallet_shutdown_stop_timed_out'
+      : 'sponsor_wallet_shutdown_stop_failed', {
+        reason,
+        checkpointAlreadyPersisted: true,
+        ...diagnosticError(error),
+      }, timedOut ? 'warn' : 'error');
+  }
+  diagnosticLog('sponsor_wallet_shutdown_completed', { reason, exitCode });
+  clearTimeout(forcedShutdownTimer);
+  process.exitCode = exitCode;
+  setTimeout(() => process.exit(exitCode), 100);
+}
+
+function requestShutdown(reason: string, exitCode: number): Promise<void> {
+  shutdownPromise ??= shutdown(reason, exitCode);
+  return shutdownPromise;
+}
+
+const heartbeat = setInterval(() => {
+  const status = sponsor?.status();
+  diagnosticLog('sponsor_wallet_process_heartbeat', {
+    initializationStatus,
+    phase: status?.phase ?? 'not-created',
+    lastStateAt: status?.lastStateAt ?? null,
+    shuttingDown,
+  });
+}, 60_000);
+heartbeat.unref();
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  diagnosticLog('sponsor_wallet_uncaught_exception', {
+    origin,
+    ...diagnosticError(error),
+  }, 'error');
+});
+process.on('unhandledRejection', (reason) => {
+  diagnosticLog('sponsor_wallet_unhandled_rejection', {
+    ...diagnosticError(reason),
+  }, 'error');
+});
+process.once('SIGTERM', () => void requestShutdown('SIGTERM', 0));
+process.once('SIGINT', () => void requestShutdown('SIGINT', 0));
+process.once('beforeExit', (code) => {
+  diagnosticLog('sponsor_wallet_process_before_exit', { code });
+});
+process.once('exit', (code) => {
+  diagnosticLog('sponsor_wallet_process_exit', { code });
+});

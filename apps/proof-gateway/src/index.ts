@@ -1,9 +1,36 @@
 import { Container, getContainer } from '@cloudflare/containers';
 
-import { handleApi, scheduleDailyAttestations } from './api.js';
+export { ContainerProxy } from '@cloudflare/containers';
+
+import { handleApi } from './api.js';
+import {
+  applyDeviceRateLimits,
+  authorizeDeviceRequest,
+  handleDeviceAuth,
+  type DevicePrincipal,
+} from './device-auth.js';
+import { corsPreflightResponse, withDevelopmentCors } from './cors.js';
+import {
+  authorizeProofJob,
+  dispatchProofJobs,
+  handleJobQueue,
+  markProofReady,
+} from './jobs.js';
+import { authorizeOperatorProofRequest } from './operator-proof.js';
+import {
+  parseSponsorCheckpointUpload,
+  sponsorCheckpointKey,
+  sponsorCheckpointRecoveryKey,
+  storeSponsorCheckpoint,
+} from './sponsor-checkpoint.js';
+import {
+  dispatchSponsorJobs,
+  handleSponsorQueue,
+  sponsorProofTransaction,
+  warmSponsorWallet,
+} from './sponsor.js';
 
 const instanceName = 'midnight-proof-server';
-const textEncoder = new TextEncoder();
 const maxProofBodyBytes = 95 * 1024 * 1024;
 const securityHeaders = {
   'Cross-Origin-Resource-Policy': 'same-site',
@@ -16,9 +43,369 @@ export class ProofServerContainer extends Container {
   defaultPort = 6300;
   requiredPorts = [6300];
   sleepAfter = '2m';
+  // A fresh proof-server image fetches and verifies public proving parameters
+  // from srs.midnight.network before it begins listening on the HTTP port. The
+  // SDK egress proxy keeps every other destination blocked.
   enableInternet = false;
-  entrypoint = ['midnight-proof-server'];
+  interceptHttps = true;
+  allowedHosts = ['srs.midnight.network'];
+  envVars = {
+    SSL_CERT_FILE: '/etc/cloudflare/certs/cloudflare-containers-ca.crt',
+  };
+  entrypoint = ['midnight-proof-server', '--port', '6300'];
+
+  async fetch(request: Request): Promise<Response> {
+    const requestId = crypto.randomUUID();
+    const pathname = new URL(request.url).pathname;
+    const startedAt = performance.now();
+    const stateBefore = await this.getState();
+    const runtime = this.ctx.container;
+    const requiresStartOrPortCheck = !runtime?.running || stateBefore.status !== 'healthy';
+    console.log(JSON.stringify({
+      message: 'proof_server_container_request_started',
+      requestId,
+      pathname,
+      stateBefore,
+      runtimeRunning: runtime?.running ?? false,
+      requiresStartOrPortCheck,
+    }));
+    try {
+      if (requiresStartOrPortCheck) {
+        await this.startAndWaitForPorts({
+          startOptions: {
+            enableInternet: false,
+          },
+          ports: this.defaultPort,
+          cancellationOptions: {
+            abort: request.signal,
+            instanceGetTimeoutMS: 60_000,
+            portReadyTimeoutMS: 10 * 60_000,
+            waitInterval: 500,
+          },
+        });
+      }
+      const response = await this.containerFetch(request, this.defaultPort);
+      console.log(JSON.stringify({
+        message: 'proof_server_container_request_completed',
+        requestId,
+        pathname,
+        status: response.status,
+        requiredStartOrPortCheck: requiresStartOrPortCheck,
+        durationMs: Math.round(performance.now() - startedAt),
+      }));
+      return response;
+    } catch (error) {
+      console.error(JSON.stringify({
+        message: 'proof_server_container_request_failed',
+        requestId,
+        pathname,
+        stateBefore,
+        runtimeRunning: runtime?.running ?? false,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+      throw error;
+    }
+  }
+
+  onStart(): void {
+    console.log(JSON.stringify({
+      message: 'proof_server_container_started',
+      port: this.defaultPort,
+    }));
+  }
+
+  onStop({ exitCode, reason }: { exitCode: number; reason: string }): void {
+    console.error(JSON.stringify({
+      message: 'proof_server_container_stopped',
+      exitCode,
+      reason,
+    }));
+  }
+
+  onError(error: unknown): void {
+    console.error(JSON.stringify({
+      message: 'proof_server_container_error',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    }));
+  }
 }
+
+export class SponsorWalletContainer extends Container {
+  defaultPort = 8789;
+  requiredPorts = [8789];
+  // Wallet synchronization is a continuous process. The development Cron
+  // checks it every minute, while this hook also prevents an idle shutdown.
+  sleepAfter = '10m';
+  // The official Wallet SDK requires native TLS/WebSocket connections to the
+  // public Indexer and RPC services. Container HTTPS interception cancels the
+  // GraphQL WSS upgrades, so TLS uses native egress. Plain HTTP remains
+  // restricted to the Worker-routed internal Proof Server host.
+  enableInternet = true;
+  interceptHttps = false;
+  allowedHosts = [
+    'proof.internal',
+    'state.internal',
+    'indexer.preprod.midnight.network',
+    'rpc.preprod.midnight.network',
+  ];
+  pingEndpoint = 'sponsor-wallet/health';
+
+  private async runtimeDiagnostics(): Promise<Record<string, unknown>> {
+    const state = await this.getState();
+    const runtime = this.ctx.container;
+    if (!runtime?.running) {
+      return { containerRunning: false, state };
+    }
+    const script = [
+      "import { readFile } from 'node:fs/promises';",
+      "const readText = async (path) => { try { return await readFile(path, 'utf8'); } catch { return null; } };",
+      "const parseStats = (value) => Object.fromEntries((value ?? '').trim().split('\\n').filter(Boolean).map((line) => { const [key, raw] = line.trim().split(/\\s+/, 2); return [key, Number(raw)]; }));",
+      "const result = { pidOne: 'unavailable', pidOneStatus: null, stageLogTail: null, healthStatus: null, healthBody: null, healthError: null, cpu: null, memory: null, pressure: null, loadAverage: null };",
+      "try { result.pidOne = (await readFile('/proc/1/cmdline', 'utf8')).replaceAll('\\0', ' ').slice(0, 256); } catch {}",
+      "const statusText = await readText('/proc/1/status'); result.pidOneStatus = statusText?.split('\\n').filter((line) => /^(?:State|VmRSS|Threads):/u.test(line)).join('; ') ?? null;",
+      "const stageLog = await readText('/tmp/sponsor-wallet-diagnostics.jsonl'); result.stageLogTail = stageLog?.slice(-6000) ?? null;",
+      "const healthPromise = (async () => { try { const response = await fetch('http://127.0.0.1:8789/health', { signal: AbortSignal.timeout(5000) }); result.healthStatus = response.status; result.healthBody = (await response.text()).slice(0, 4096); } catch (error) { result.healthError = error instanceof Error ? `${error.name}: ${error.message}` : String(error); } })();",
+      "const sampleStartedAt = performance.now(); const before = parseStats(await readText('/sys/fs/cgroup/cpu.stat'));",
+      "const [cpuMaxText, memoryCurrentText, memoryMaxText, memoryEventsText, cpuPressure, memoryPressure, loadAverage] = await Promise.all([readText('/sys/fs/cgroup/cpu.max'), readText('/sys/fs/cgroup/memory.current'), readText('/sys/fs/cgroup/memory.max'), readText('/sys/fs/cgroup/memory.events'), readText('/proc/pressure/cpu'), readText('/proc/pressure/memory'), readText('/proc/loadavg')]);",
+      "await new Promise((resolve) => setTimeout(resolve, 1000)); const after = parseStats(await readText('/sys/fs/cgroup/cpu.stat')); const elapsedMs = performance.now() - sampleStartedAt;",
+      "const [quotaRaw, periodRaw] = (cpuMaxText ?? 'max 100000').trim().split(/\\s+/, 2); const quotaCores = quotaRaw === 'max' ? null : Number(quotaRaw) / Number(periodRaw); const usageDeltaUsec = (after.usage_usec ?? 0) - (before.usage_usec ?? 0); const usedCores = usageDeltaUsec / (elapsedMs * 1000);",
+      "result.cpu = { sampleMs: Math.round(elapsedMs), quotaCores, usedCores: Number(usedCores.toFixed(3)), allocationUtilizationPct: quotaCores ? Number((usedCores / quotaCores * 100).toFixed(1)) : null, throttledEventsDelta: (after.nr_throttled ?? 0) - (before.nr_throttled ?? 0), throttledUsecDelta: (after.throttled_usec ?? 0) - (before.throttled_usec ?? 0) };",
+      "const memoryCurrentBytes = Number((memoryCurrentText ?? '0').trim()); const memoryMaxRaw = (memoryMaxText ?? 'max').trim(); const memoryMaxBytes = memoryMaxRaw === 'max' ? null : Number(memoryMaxRaw); result.memory = { currentBytes: memoryCurrentBytes, maxBytes: memoryMaxBytes, utilizationPct: memoryMaxBytes ? Number((memoryCurrentBytes / memoryMaxBytes * 100).toFixed(1)) : null, events: parseStats(memoryEventsText) };",
+      "result.pressure = { cpu: cpuPressure?.trim() ?? null, memory: memoryPressure?.trim() ?? null }; result.loadAverage = loadAverage?.trim() ?? null; await healthPromise;",
+      'process.stdout.write(JSON.stringify(result));',
+    ].join('\n');
+    const process = await runtime.exec([
+      '/usr/local/bin/node',
+      '--input-type=module',
+      '-e',
+      script,
+    ]);
+    const output = await process.output();
+    const decoder = new TextDecoder();
+    return {
+      containerRunning: true,
+      state,
+      exitCode: output.exitCode,
+      stdout: decoder.decode(output.stdout).slice(0, 16_384),
+      stderr: decoder.decode(output.stderr).slice(0, 4096),
+    };
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const requestId = crypto.randomUUID();
+    const pathname = new URL(request.url).pathname;
+    const startedAt = performance.now();
+    const seed = this.env.SPONSOR_WALLET_SEED?.trim();
+    if (!seed) return json(503, { error: 'Sponsor Wallet is not configured' });
+    const stateBefore = await this.getState();
+    if (pathname === '/maintenance/replay-dust') {
+      if (
+        request.method !== 'POST'
+        || request.headers.get('X-Sponsor-Maintenance') !== 'replay-dust-from-chain'
+      ) return json(404, { error: 'Not found' });
+      const runtime = this.ctx.container;
+      if (runtime?.running) {
+        await this.stop('SIGTERM');
+        const deadline = Date.now() + 3 * 60_000;
+        let state = await this.getState();
+        while (!['stopped', 'stopped_with_code'].includes(state.status) && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          state = await this.getState();
+        }
+        if (!['stopped', 'stopped_with_code'].includes(state.status)) {
+          return json(503, { error: 'Sponsor Wallet did not stop before DUST replay' });
+        }
+      }
+      // The graceful shutdown first stores the latest encrypted checkpoint.
+      // Replace it only after the process has stopped, so a late shutdown
+      // upload cannot overwrite the selected pre-reservation recovery point.
+      const recovery = await this.env.SPONSOR_STATE.get(sponsorCheckpointRecoveryKey);
+      if (recovery) {
+        await this.env.SPONSOR_STATE.put(sponsorCheckpointKey, recovery.body, {
+          httpMetadata: { contentType: 'application/octet-stream' },
+          customMetadata: {
+            format: 'vsp-sponsor-checkpoint-v1',
+            updatedAt: new Date().toISOString(),
+            source: 'operator-recovery',
+          },
+        });
+        await this.env.SPONSOR_STATE.delete(sponsorCheckpointRecoveryKey);
+      } else {
+        await this.env.SPONSOR_STATE.delete(sponsorCheckpointKey);
+      }
+      console.log(JSON.stringify({
+        message: 'sponsor_wallet_dust_replay_scheduled',
+        requestId,
+        recoveryCheckpointRestored: recovery !== null,
+      }));
+      return new Response(null, { status: 204 });
+    }
+    if (pathname === '/runtime-diagnostics') {
+      if (request.method !== 'GET') return json(405, { error: 'Method not allowed' });
+      try {
+        const diagnostics = await this.runtimeDiagnostics();
+        console.log(JSON.stringify({
+          message: 'sponsor_wallet_runtime_diagnostics',
+          requestId,
+          ...diagnostics,
+        }));
+        return json(200, diagnostics);
+      } catch (error) {
+        console.error(JSON.stringify({
+          message: 'sponsor_wallet_runtime_diagnostics_failed',
+          requestId,
+          stateBefore,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }));
+        return json(503, { error: 'Sponsor Wallet runtime diagnostics failed' });
+      }
+    }
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_container_request_started',
+      requestId,
+      pathname,
+      stateBefore,
+    }));
+    try {
+      const runtime = this.ctx.container;
+      const requiresStartOrPortCheck = !runtime?.running || stateBefore.status !== 'healthy';
+      if (requiresStartOrPortCheck) {
+        await this.startAndWaitForPorts({
+          startOptions: {
+            envVars: {
+              SPONSOR_WALLET_SEED: seed,
+              SPONSOR_ZK_CONFIG_PATH: '/app/contracts/sensor-registry/src/managed',
+            },
+            enableInternet: true,
+          },
+          ports: this.defaultPort,
+          cancellationOptions: {
+            abort: request.signal,
+            instanceGetTimeoutMS: 60_000,
+            portReadyTimeoutMS: 10 * 60_000,
+            waitInterval: 500,
+          },
+        });
+      }
+      const response = await this.containerFetch(request, this.defaultPort);
+      console.log(JSON.stringify({
+        message: 'sponsor_wallet_container_request_completed',
+        requestId,
+        pathname,
+        status: response.status,
+        requiredStartOrPortCheck: requiresStartOrPortCheck,
+        durationMs: Math.round(performance.now() - startedAt),
+      }));
+      return response;
+    } catch (error) {
+      console.error(JSON.stringify({
+        message: 'sponsor_wallet_container_request_failed',
+        requestId,
+        pathname,
+        stateBefore,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+      throw error;
+    }
+  }
+
+  onStart(): void {
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_container_started',
+      port: this.defaultPort,
+    }));
+  }
+
+  async onActivityExpired(): Promise<void> {
+    // Sponsor Wallet synchronization is a 24-hour service. Do not call
+    // stop()/destroy() here; the one-minute development Cron also recovers the
+    // instance after a crash or rollout.
+    this.renewActivityTimeout();
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_container_keepalive_renewed',
+    }));
+  }
+
+  onStop({ exitCode, reason }: { exitCode: number; reason: string }): void {
+    console.error(JSON.stringify({
+      message: 'sponsor_wallet_container_stopped',
+      exitCode,
+      reason,
+    }));
+  }
+
+  onError(error: unknown): void {
+    console.error(JSON.stringify({
+      message: 'sponsor_wallet_container_error',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    }));
+  }
+}
+
+// Assign through the SDK's inherited setter. A static class field would shadow
+// that setter and install interception without registering these handlers.
+SponsorWalletContainer.outboundByHost = {
+  'proof.internal': async (request: Request, env: Env): Promise<Response> => {
+    const startedAt = performance.now();
+    const upstreamUrl = new URL(request.url);
+    upstreamUrl.protocol = 'http:';
+    upstreamUrl.hostname = 'proof-server';
+    upstreamUrl.port = '';
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_proof_egress_started',
+      pathname: upstreamUrl.pathname,
+    }));
+    const container = getContainer(env.PROOF_SERVER, instanceName);
+    const response = await container.fetch(new Request(upstreamUrl, request));
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_proof_egress_completed',
+      pathname: upstreamUrl.pathname,
+      status: response.status,
+      durationMs: Math.round(performance.now() - startedAt),
+    }));
+    return response;
+  },
+  'state.internal': async (
+    request: Request,
+    env: Env,
+    context: { containerId: string; className: string },
+  ): Promise<Response> => {
+    const startedAt = performance.now();
+    try {
+      const checkpoint = parseSponsorCheckpointUpload(request);
+      await storeSponsorCheckpoint(env, checkpoint.body, checkpoint.bytes, {
+        source: 'graceful-shutdown',
+        bootId: checkpoint.bootId,
+        reason: checkpoint.reason,
+      });
+      console.log(JSON.stringify({
+        message: 'sponsor_wallet_graceful_checkpoint_stored',
+        containerId: context.containerId,
+        bootId: checkpoint.bootId,
+        reason: checkpoint.reason,
+        bytes: checkpoint.bytes,
+        durationMs: Math.round(performance.now() - startedAt),
+      }));
+      return new Response(null, { status: 204 });
+    } catch (error) {
+      console.error(JSON.stringify({
+        message: 'sponsor_wallet_graceful_checkpoint_rejected',
+        containerId: context.containerId,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+      return json(400, { error: 'Sponsor Wallet checkpoint was rejected' });
+    }
+  },
+};
 
 function json(status: number, value: unknown): Response {
   return Response.json(value, {
@@ -40,23 +427,109 @@ function validProofRequest(request: Request): boolean {
   return Number.isSafeInteger(bytes) && bytes >= 0 && bytes <= maxProofBodyBytes;
 }
 
-async function constantTimeEqual(left: string, right: string): Promise<boolean> {
-  const [leftHash, rightHash] = await Promise.all([
-    crypto.subtle.digest('SHA-256', textEncoder.encode(left)),
-    crypto.subtle.digest('SHA-256', textEncoder.encode(right)),
-  ]);
+async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const url = new URL(request.url);
+  const authResponse = await handleDeviceAuth(request, env);
+  if (authResponse) return authResponse;
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (
+    request.method === 'POST'
+    && parts.length === 5
+    && parts[0] === 'api'
+    && parts[1] === 'v1'
+    && parts[2] === 'proof-jobs'
+    && parts[3]
+    && parts[4] === 'sponsor'
+  ) return sponsorProofTransaction(request, env, parts[3], ctx);
+  const apiResponse = await handleApi(request, env);
+  if (apiResponse) return apiResponse;
+  if (url.pathname === '/health') {
+    return json(200, {
+      ok: true,
+      service: 'midnight-edge-attestation-cloud',
+      container: 'scale-to-zero',
+      gui: 'worker-spa',
+    });
+  }
 
-  return crypto.subtle.timingSafeEqual(leftHash, rightHash);
+  if (url.pathname === '/ready') {
+    if (request.method !== 'GET') return json(405, { error: 'Method not allowed' });
+    const access = await authorizeProofAccess(request, env, false);
+    if (!access.ok) return access.response;
+    const upstream = await forwardToProofServer(request, env, true);
+    return json(upstream.status < 500 ? 200 : 502, {
+      ok: upstream.status < 500,
+      upstreamStatus: upstream.status,
+    });
+  }
+
+  if (
+    url.pathname === '/check'
+    || url.pathname === '/prove'
+    || url.pathname === '/proof/check'
+    || url.pathname === '/proof/prove'
+  ) {
+    if (request.method !== 'POST') return json(405, { error: 'Method not allowed' });
+    const access = await authorizeProofAccess(request, env, true);
+    if (!access.ok) return access.response;
+    if (!validProofRequest(request)) {
+      return json(415, { error: 'Expected application/octet-stream within the configured size limit' });
+    }
+    if (
+      access.kind === 'device'
+      && !(await applyDeviceRateLimits(env.PROOF_RATE_LIMITER, request, access.principal))
+    ) {
+      return new Response(JSON.stringify({ error: 'Proof API rate limit exceeded' }), {
+        status: 429,
+        headers: { ...securityHeaders, 'Cache-Control': 'no-store', 'Retry-After': '60' },
+      });
+    }
+    const response = await forwardToProofServer(request, env);
+    if (
+      response.ok
+      && access.proofJobId
+      && (url.pathname === '/prove' || url.pathname === '/proof/prove')
+    ) {
+      await markProofReady(env, access.proofJobId);
+    }
+    return response;
+  }
+
+  if (url.pathname.startsWith('/proof/')) return json(404, { error: 'Unknown proof endpoint' });
+  return env.ASSETS.fetch(request);
 }
 
-async function authorized(request: Request, env: Env): Promise<boolean> {
-  const expected = env.PROOF_GATEWAY_TOKEN?.trim();
-  if (!expected) return false;
-  const authorization = request.headers.get('Authorization') ?? '';
-  return constantTimeEqual(authorization, `Bearer ${expected}`);
+async function authorizeProofAccess(
+  request: Request,
+  env: Env,
+  startProving: boolean,
+): Promise<
+  | { ok: true; kind: 'operator'; proofJobId: null }
+  | { ok: true; kind: 'device'; proofJobId: string; principal: DevicePrincipal }
+  | { ok: false; response: Response }
+> {
+  const operator = await authorizeOperatorProofRequest(request, env);
+  if (operator.kind === 'authorized') return { ok: true, kind: 'operator', proofJobId: null };
+  if (operator.kind === 'denied') return { ok: false, response: operator.response };
+  const authorization = await authorizeDeviceRequest(request, env, 'proof:generate');
+  if (!authorization.ok) return authorization;
+  const proofJob = await authorizeProofJob(request, env, authorization.principal, startProving);
+  if (!proofJob.ok) return proofJob;
+  return {
+    ok: true,
+    kind: 'device',
+    proofJobId: proofJob.job.id,
+    principal: authorization.principal,
+  };
 }
 
 async function forwardToProofServer(request: Request, env: Env, ready = false): Promise<Response> {
+  const startedAt = performance.now();
+  const contentLength = request.headers.get('Content-Length');
+  const parsedContentLength = contentLength === null ? null : Number(contentLength);
+  const requestBytes = parsedContentLength !== null && Number.isSafeInteger(parsedContentLength)
+    ? parsedContentLength
+    : null;
   const upstreamUrl = new URL(request.url);
   upstreamUrl.pathname = ready ? '/' : upstreamUrl.pathname.replace(/^\/proof/, '');
   upstreamUrl.searchParams.delete('token');
@@ -70,13 +543,40 @@ async function forwardToProofServer(request: Request, env: Env, ready = false): 
     redirect: 'manual',
   });
   const container = getContainer(env.PROOF_SERVER, instanceName);
-  const response = await container.fetch(upstreamRequest);
+  let response: Response;
+  try {
+    response = await container.fetch(upstreamRequest);
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: 'proof_gateway_upstream',
+      endpoint: ready ? 'ready' : upstreamUrl.pathname.slice(1),
+      requestBytes,
+      durationMs: Math.round(performance.now() - startedAt),
+      outcome: 'exception',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    }));
+    throw error;
+  }
+  const responseBody = request.method === 'HEAD' ? null : await response.arrayBuffer();
+  const durationMs = Math.round(performance.now() - startedAt);
+  const responseBytes = responseBody?.byteLength ?? 0;
+  console.log(JSON.stringify({
+    message: 'proof_gateway_upstream',
+    endpoint: ready ? 'ready' : upstreamUrl.pathname.slice(1),
+    requestBytes,
+    responseBytes,
+    durationMs,
+    outcome: response.ok ? 'ok' : 'upstream-error',
+    upstreamStatus: response.status,
+  }));
   const responseHeaders = new Headers(response.headers);
   responseHeaders.set('Cache-Control', 'no-store');
+  responseHeaders.set('Content-Length', String(responseBytes));
   responseHeaders.set('X-Proof-Server', 'midnight-8.1.0');
+  responseHeaders.set('Server-Timing', `proof-server;dur=${durationMs}`);
   responseHeaders.delete('Set-Cookie');
   for (const [name, value] of Object.entries(securityHeaders)) responseHeaders.set(name, value);
-  return new Response(response.body, {
+  return new Response(responseBody, {
     status: response.status,
     statusText: response.statusText,
     headers: responseHeaders,
@@ -84,58 +584,31 @@ async function forwardToProofServer(request: Request, env: Env, ready = false): 
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    const apiResponse = await handleApi(request, env);
-    if (apiResponse) return apiResponse;
-    if (url.pathname === '/health') {
-      return json(200, {
-        ok: true,
-        service: 'midnight-edge-attestation-cloud',
-        container: 'scale-to-zero',
-        gui: 'worker-spa',
-      });
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const preflight = corsPreflightResponse(request);
+    if (preflight) {
+      const headers = new Headers(preflight.headers);
+      for (const [name, value] of Object.entries(securityHeaders)) headers.set(name, value);
+      return new Response(null, { status: preflight.status, headers });
     }
-
-    if (url.pathname === '/ready') {
-      if (request.method !== 'GET') return json(405, { error: 'Method not allowed' });
-      if (!env.PROOF_GATEWAY_TOKEN) return json(503, { error: 'Gateway token is not configured' });
-      if (!(await authorized(request, env))) return json(401, { error: 'Unauthorized' });
-      const upstream = await forwardToProofServer(request, env, true);
-      return json(upstream.status < 500 ? 200 : 502, {
-        ok: upstream.status < 500,
-        upstreamStatus: upstream.status,
-      });
-    }
-
-    if (
-      url.pathname === '/check' ||
-      url.pathname === '/prove' ||
-      url.pathname === '/proof/check' ||
-      url.pathname === '/proof/prove'
-    ) {
-      if (request.method !== 'POST') return json(405, { error: 'Method not allowed' });
-      if (!env.PROOF_GATEWAY_TOKEN) return json(503, { error: 'Gateway token is not configured' });
-      if (!(await authorized(request, env))) return json(401, { error: 'Unauthorized' });
-      if (!validProofRequest(request)) {
-        return json(415, { error: 'Expected application/octet-stream within the configured size limit' });
-      }
-      if (url.pathname.endsWith('/prove')) {
-        const limit = await env.PROOF_RATE_LIMITER.limit({ key: 'global-proof-generation' });
-        if (!limit.success) {
-          return new Response(JSON.stringify({ error: 'Proof generation rate limit exceeded' }), {
-            status: 429,
-            headers: { ...securityHeaders, 'Cache-Control': 'no-store', 'Retry-After': '60' },
-          });
-        }
-      }
-      return forwardToProofServer(request, env);
-    }
-
-    if (url.pathname.startsWith('/proof/')) return json(404, { error: 'Unknown proof endpoint' });
-    return env.ASSETS.fetch(request);
+    return withDevelopmentCors(request, await routeRequest(request, env, ctx));
   },
   scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(scheduleDailyAttestations(env, controller.scheduledTime));
+    ctx.waitUntil(Promise.all([
+      dispatchProofJobs(env, controller.scheduledTime),
+      dispatchSponsorJobs(env, controller.scheduledTime),
+      warmSponsorWallet(env),
+    ]).then(() => undefined));
+  },
+  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    if (batch.queue === 'midnight-proof-jobs') {
+      await handleJobQueue(batch, env);
+      return;
+    }
+    if (batch.queue === 'midnight-sponsor-jobs') {
+      await handleSponsorQueue(batch, env);
+      return;
+    }
+    batch.retryAll({ delaySeconds: 60 });
   },
 } satisfies ExportedHandler<Env>;
