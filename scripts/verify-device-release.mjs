@@ -32,6 +32,10 @@ const ignoredRuntimeEntries = new Set([
   '.host-role',
 ]);
 
+function sha256File(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
 function filesUnder(directory, prefix = '') {
   const result = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -84,8 +88,10 @@ for (const required of [
   'package-lock.json',
   '.env.device.example',
   'scripts/install-device-release.mjs',
+  'apps/device/device-auth/src/cli.ts',
   'apps/device/edge-agent/src/cli.ts',
   'apps/device/wallet-agent/src/cli.ts',
+  'contracts/sensor-registry/src/managed/sensor-registry/contract/index.js',
   'runtime/device-artifacts/sensor-registry/manifest.json',
 ]) {
   if (!manifestPaths.has(required)) throw new Error(`Required device release file is missing: ${required}`);
@@ -115,10 +121,18 @@ if (releasePackage.version !== manifest.firmwareVersion) {
 const allowedScripts = new Set([
   'test',
   'device:artifacts:verify',
-  'device:funding',
+  'device:auth:generate',
+  'device:auth:refresh-enrollment',
+  'device:auth:show',
+  'device:auth:session',
+  'device:authority:generate',
+  'device:authority:show',
+  'device:configure',
+  'device:benchmark',
   'device:wallet',
   'device:submit',
   'device:status',
+  'edge:demo-seed',
   'edge:serve',
   'edge:test',
 ]);
@@ -126,6 +140,7 @@ for (const script of Object.keys(releasePackage.scripts ?? {})) {
   if (!allowedScripts.has(script)) throw new Error(`Non-device npm script in release: ${script}`);
 }
 const workspacePackages = [
+  'apps/device/device-auth/package.json',
   'apps/device/edge-agent/package.json',
   'apps/device/wallet-agent/package.json',
   'contracts/sensor-registry/package.json',
@@ -139,6 +154,18 @@ for (const relative of workspacePackages) {
       throw new Error(`Development script ${forbiddenScript} exists in device release: ${relative}`);
     }
   }
+}
+
+const witnessContractModule = path.join(
+  releaseRoot,
+  'contracts/sensor-registry/src/managed/sensor-registry/contract/index.js',
+);
+const runtimeContractModule = path.join(
+  releaseRoot,
+  'runtime/device-artifacts/sensor-registry/contract/index.js',
+);
+if (sha256File(witnessContractModule) !== sha256File(runtimeContractModule)) {
+  throw new Error('Witness pure-circuit module differs from the verified runtime contract module');
 }
 
 const lock = JSON.parse(fs.readFileSync(path.join(releaseRoot, 'package-lock.json'), 'utf8'));

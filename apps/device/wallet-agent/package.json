@@ -4,15 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "authority:generate": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts authority-generate",
+    "authority:show": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts authority-show",
+    "benchmark": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts benchmark",
     "build": "tsc -p tsconfig.json",
+    "configure": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts configure",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "funding": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts funding",
     "wallet": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts wallet",
     "submit": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts submit",
     "status": "node ../../../scripts/require-device-host.mjs && tsx src/cli.ts status",
     "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
+    "@midnight-demo/device-auth": "*",
     "@midnight-demo/sensor-registry-contract": "*",
     "@midnight-demo/shared": "*",
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -28,6 +32,7 @@
     "@midnight-ntwrk/wallet-sdk": "1.2.0",
     "@scure/bip39": "2.2.0",
     "dotenv": "^17.2.1",
+    "effect": "3.22.1",
     "rxjs": "^7.8.2",
     "tsx": "^4.23.1",
     "ws": "^8.21.1"

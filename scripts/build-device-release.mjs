@@ -36,6 +36,7 @@ const sourceEntries = [
   'device-installer.sh',
   'edge-installer.sh',
   'installer.sh',
+  'apps/device/device-auth',
   'apps/device/edge-agent',
   'apps/device/wallet-agent',
   'packages/shared',
@@ -137,26 +138,44 @@ function writeRuntimePackageFiles() {
     ...(rootPackage.overrides ? { overrides: rootPackage.overrides } : {}),
     ...(Object.keys(rootDependencies).length > 0 ? { dependencies: rootDependencies } : {}),
     scripts: {
-      test: 'npm run test -w @midnight-demo/edge-agent && npm run test -w @midnight-demo/device-wallet-agent',
+      test: 'npm run test -w @midnight-demo/device-auth && npm run test -w @midnight-demo/edge-agent && npm run test -w @midnight-demo/device-wallet-agent',
       'device:artifacts:verify': 'node scripts/verify-device-artifacts.mjs',
-      'device:funding': 'npm run funding -w @midnight-demo/device-wallet-agent --',
+      'device:auth:generate': 'npm run generate -w @midnight-demo/device-auth --',
+      'device:auth:refresh-enrollment': 'npm run refresh-enrollment -w @midnight-demo/device-auth --',
+      'device:auth:show': 'npm run show -w @midnight-demo/device-auth --',
+      'device:auth:session': 'npm run session -w @midnight-demo/device-auth --',
+      'device:authority:generate': 'npm run authority:generate -w @midnight-demo/device-wallet-agent --',
+      'device:authority:show': 'npm run authority:show -w @midnight-demo/device-wallet-agent --',
+      'device:configure': 'npm run configure -w @midnight-demo/device-wallet-agent --',
+      'device:benchmark': 'npm run benchmark -w @midnight-demo/device-wallet-agent --',
       'device:wallet': 'npm run wallet -w @midnight-demo/device-wallet-agent --',
       'device:submit': 'npm run submit -w @midnight-demo/device-wallet-agent --',
       'device:status': 'npm run status -w @midnight-demo/device-wallet-agent --',
+      'edge:demo-seed': 'npm run demo-seed -w @midnight-demo/edge-agent --',
       'edge:serve': 'npm run serve -w @midnight-demo/edge-agent --',
       'edge:test': 'npm run test -w @midnight-demo/edge-agent',
     },
     engines: rootPackage.engines,
   });
   writeJson(
+    'apps/device/device-auth/package.json',
+    runtimeWorkspacePackage(
+      'apps/device/device-auth/package.json',
+      ['generate', 'refresh-enrollment', 'show', 'session', 'test'],
+    ),
+  );
+  writeJson(
     'apps/device/edge-agent/package.json',
-    runtimeWorkspacePackage('apps/device/edge-agent/package.json', ['serve', 'test']),
+    runtimeWorkspacePackage('apps/device/edge-agent/package.json', ['demo-seed', 'serve', 'test']),
   );
   writeJson(
     'apps/device/wallet-agent/package.json',
     runtimeWorkspacePackage(
       'apps/device/wallet-agent/package.json',
-      ['funding', 'wallet', 'submit', 'status', 'test'],
+      [
+        'authority:generate', 'authority:show', 'benchmark', 'configure',
+        'wallet', 'submit', 'status', 'test',
+      ],
     ),
   );
   writeJson(
@@ -172,18 +191,18 @@ function writeRuntimePackageFiles() {
 if (fs.existsSync(outputDir)) throw new Error(`Refusing to overwrite existing device release: ${outputDir}`);
 const artifactManifest = path.join(artifactSource, 'manifest.json');
 if (!fs.existsSync(artifactManifest)) {
-  throw new Error('Export device artifacts first with npm run device:artifacts:export on the development server');
+  throw new Error('Export device artifacts first with npm run device:artifacts:export in the build environment');
 }
 fs.mkdirSync(temporary, { recursive: true });
 try {
   for (const relative of sourceEntries) copyEntry(relative);
   fs.copyFileSync(
-    path.join(repoRoot, 'docs', 'device_firmware.md'),
+    path.join(repoRoot, 'docs', 'operations', 'device_firmware.md'),
     path.join(temporary, 'README.md'),
   );
   fs.chmodSync(path.join(temporary, 'README.md'), 0o644);
   fs.copyFileSync(
-    path.join(repoRoot, 'docs', 'ja', 'device_firmware.md'),
+    path.join(repoRoot, 'docs', 'ja', 'operations', 'device_firmware.md'),
     path.join(temporary, 'README.ja.md'),
   );
   fs.chmodSync(path.join(temporary, 'README.ja.md'), 0o644);
@@ -191,6 +210,16 @@ try {
   const artifactDestination = path.join(temporary, 'runtime/device-artifacts/sensor-registry');
   fs.mkdirSync(path.dirname(artifactDestination), { recursive: true });
   fs.cpSync(artifactSource, artifactDestination, { recursive: true, errorOnExist: true });
+  // witnesses.ts imports Compact's pure circuits through its development-tree
+  // relative path. Keep a manifest-covered copy of only that generated runtime
+  // module at the same path in firmware; proving keys remain in the canonical
+  // runtime/device-artifacts bundle and are not duplicated.
+  const witnessContractModule = path.join(
+    temporary,
+    'contracts/sensor-registry/src/managed/sensor-registry/contract/index.js',
+  );
+  fs.mkdirSync(path.dirname(witnessContractModule), { recursive: true });
+  fs.copyFileSync(path.join(artifactSource, 'contract/index.js'), witnessContractModule);
 
   execFileSync(
     process.env.npm_execpath || 'npm',
@@ -244,4 +273,4 @@ try {
   throw error;
 }
 
-process.stdout.write(`Built operational-only Raspberry Pi release at ${outputDir}\n`);
+process.stdout.write(`Built operational-only Edge Device release at ${outputDir}\n`);

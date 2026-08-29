@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+  deviceAuthorizationHeaders,
+  fetchDeviceOperationConfiguration,
+  type DeviceOperationConfiguration,
+} from '@midnight-demo/device-auth';
+
 export type NetworkId = 'preview' | 'preprod';
 
 export interface NetworkConfig {
@@ -70,9 +76,167 @@ export function resolveNetwork(value?: string): NetworkConfig {
   };
 }
 
-export function proofServerHeaders(): Record<string, string> {
-  const token = process.env.MIDNIGHT_PROOF_SERVER_TOKEN?.trim();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+export function isLocalProofServer(proofServer: string): boolean {
+  const url = new URL(proofServer);
+  return ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+}
+
+export function deviceProofAuthConfig(proofServer: string) {
+  return {
+    deviceId: process.env.SENSOR_DEVICE_ID?.trim() || 'edge-temp-001',
+    projectId: process.env.SENSOR_PROJECT_ID?.trim() || 'measurement-authenticity-01',
+    serviceUrl: proofServer,
+    authHome: process.env.DEVICE_AUTH_HOME?.trim() || undefined,
+  };
+}
+
+export async function proofServerHeaders(
+  proofServer: string,
+  proofJobId?: string,
+): Promise<Record<string, string>> {
+  if (isLocalProofServer(proofServer)) return {};
+  const headers = await deviceAuthorizationHeaders(deviceProofAuthConfig(proofServer), 'proof:generate');
+  return proofJobId ? { ...headers, 'X-Proof-Job-Id': proofJobId } : headers;
+}
+
+const managedOperationKeys = [
+  'MIDNIGHT_NETWORK',
+  'DEVICE_CONTRACT_ADDRESS',
+  'MIDNIGHT_CONTRACT_SCHEMA_VERSION',
+  'THRESHOLD_POLICY_VERSION',
+  'THRESHOLD_POLICY_KEY',
+  'POLICY_ASSIGNMENT_ID',
+  'POLICY_ASSIGNMENT_KEY',
+  'DEVICE_CONFIGURATION_VERSION',
+  'DEVICE_CONFIGURATION_UPDATED_AT',
+  'DEVICE_CONFIGURATION_FINGERPRINT',
+] as const;
+
+function operationConfigurationFingerprint(configuration: DeviceOperationConfiguration): string {
+  return crypto.createHash('sha256').update([
+    String(configuration.schemaVersion),
+    String(configuration.configurationVersion),
+    configuration.device.deviceId,
+    configuration.device.projectId,
+    configuration.midnight.network,
+    configuration.midnight.contractAddress,
+    String(configuration.midnight.contractSchemaVersion),
+    String(configuration.midnight.registrationVersion),
+    configuration.policy.id,
+    configuration.policy.key,
+    configuration.policy.mode,
+    String(configuration.policy.minimum),
+    String(configuration.policy.maximum),
+    String(configuration.policy.valueScale),
+    String(configuration.policy.sensorTypeCode),
+    String(configuration.policy.unitCode),
+    String(configuration.policy.version),
+    configuration.assignment.id,
+    configuration.assignment.key,
+    String(configuration.assignment.version),
+  ].join('\n')).digest('hex');
+}
+
+function environmentValue(contents: string, key: string): string | undefined {
+  const matches = contents.split(/\r?\n/u).filter((line) => (
+    new RegExp(`^\\s*(?:export\\s+)?${key}=`).test(line)
+  ));
+  if (matches.length > 1) throw new Error(`Duplicate ${key} entries in ${deviceEnvPath}`);
+  return matches[0]?.replace(new RegExp(`^\\s*(?:export\\s+)?${key}=`), '').trim();
+}
+
+function updatedEnvironment(contents: string, updates: Record<string, string>): string {
+  const remaining = new Set(Object.keys(updates));
+  const lines = contents.split(/\r?\n/u).map((line) => {
+    for (const key of managedOperationKeys) {
+      if (!new RegExp(`^\\s*(?:export\\s+)?${key}=`).test(line)) continue;
+      if (!remaining.delete(key)) throw new Error(`Duplicate ${key} entries in ${deviceEnvPath}`);
+      return `${key}=${updates[key]}`;
+    }
+    return line;
+  });
+  while (lines.at(-1) === '') lines.pop();
+  if (remaining.size > 0) {
+    lines.push('', '# Authenticated public operation configuration from Cloudflare Worker.');
+    for (const key of managedOperationKeys) {
+      if (remaining.has(key)) lines.push(`${key}=${updates[key]}`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+export function applyDeviceOperationConfiguration(
+  configuration: DeviceOperationConfiguration,
+  envFile = deviceEnvPath,
+): { changed: boolean; configurationVersion: number; contractAddress: string } {
+  const expectedDeviceId = process.env.SENSOR_DEVICE_ID?.trim() || 'edge-temp-001';
+  const expectedProjectId = process.env.SENSOR_PROJECT_ID?.trim() || 'measurement-authenticity-01';
+  if (
+    configuration.device.deviceId !== expectedDeviceId
+    || configuration.device.projectId !== expectedProjectId
+  ) throw new Error('Refusing operation configuration for another Device or Project');
+  if (!fs.existsSync(envFile)) throw new Error(`Device environment file does not exist: ${envFile}`);
+  const metadata = fs.lstatSync(envFile);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    throw new Error(`Device environment path must be a regular file: ${envFile}`);
+  }
+  const contents = fs.readFileSync(envFile, 'utf8');
+  const currentVersionRaw = environmentValue(contents, 'DEVICE_CONFIGURATION_VERSION');
+  const currentVersion = currentVersionRaw === undefined || currentVersionRaw === ''
+    ? 0
+    : Number(currentVersionRaw);
+  if (!Number.isSafeInteger(currentVersion) || currentVersion < 0) {
+    throw new Error('Installed DEVICE_CONFIGURATION_VERSION is invalid');
+  }
+  if (currentVersion > configuration.configurationVersion) {
+    throw new Error('Refusing to downgrade Device operation configuration');
+  }
+  const fingerprint = operationConfigurationFingerprint(configuration);
+  const currentFingerprint = environmentValue(contents, 'DEVICE_CONFIGURATION_FINGERPRINT');
+  if (
+    currentVersion === configuration.configurationVersion
+    && currentFingerprint
+    && currentFingerprint !== fingerprint
+  ) throw new Error('Refusing inconsistent Device operation configuration at the same version');
+  const updates: Record<(typeof managedOperationKeys)[number], string> = {
+    MIDNIGHT_NETWORK: configuration.midnight.network,
+    DEVICE_CONTRACT_ADDRESS: configuration.midnight.contractAddress,
+    MIDNIGHT_CONTRACT_SCHEMA_VERSION: String(configuration.midnight.contractSchemaVersion),
+    THRESHOLD_POLICY_VERSION: configuration.policy.id,
+    THRESHOLD_POLICY_KEY: configuration.policy.key,
+    POLICY_ASSIGNMENT_ID: configuration.assignment.id,
+    POLICY_ASSIGNMENT_KEY: configuration.assignment.key,
+    DEVICE_CONFIGURATION_VERSION: String(configuration.configurationVersion),
+    DEVICE_CONFIGURATION_UPDATED_AT: configuration.updatedAt,
+    DEVICE_CONFIGURATION_FINGERPRINT: fingerprint,
+  };
+  const nextContents = updatedEnvironment(contents, updates);
+  if (nextContents !== contents) {
+    const temporary = `${envFile}.tmp-${process.pid}-${Date.now()}`;
+    fs.writeFileSync(temporary, nextContents, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+    fs.renameSync(temporary, envFile);
+  }
+  fs.chmodSync(envFile, 0o600);
+  for (const [key, value] of Object.entries(updates)) process.env[key] = value;
+  return {
+    changed: nextContents !== contents,
+    configurationVersion: configuration.configurationVersion,
+    contractAddress: configuration.midnight.contractAddress,
+  };
+}
+
+export async function synchronizeDeviceOperationConfiguration(
+  proofServer: string,
+  expectedNetwork?: NetworkId,
+): Promise<DeviceOperationConfiguration> {
+  const configuration = await fetchDeviceOperationConfiguration(
+    deviceProofAuthConfig(proofServer),
+  );
+  if (expectedNetwork && configuration.midnight.network !== expectedNetwork) {
+    throw new Error('Cloudflare Device configuration does not match --network');
+  }
+  applyDeviceOperationConfiguration(configuration);
+  return configuration;
 }
 
 export function deviceContractAddress(explicit?: string): string {

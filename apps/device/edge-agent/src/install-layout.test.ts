@@ -63,6 +63,7 @@ test('legacy settings migrate directly into the consolidated config directory', 
     execFileSync(process.execPath, [migrateEnvironment, source, destination]);
     const migrated = fs.readFileSync(destination, 'utf8');
     assert.match(migrated, /^SENSOR_DEVICE_ID=edge-test-001$/m);
+    assert.doesNotMatch(migrated, /INGEST_API_TOKEN|test-ingest-token/);
     assert.doesNotMatch(migrated, /MIDNIGHT_WALLET_MNEMONIC|must-not-migrate/);
     assert.equal(fs.statSync(destination).mode & 0o777, 0o600);
   } finally {

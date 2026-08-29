@@ -161,6 +161,7 @@ main() {
 
   log "Checking that the production lockfile is installable"
   npm ci --dry-run \
+    --workspace @midnight-demo/device-auth \
     --workspace @midnight-demo/edge-agent \
     --workspace @midnight-demo/device-wallet-agent \
     --include-workspace-root=false \

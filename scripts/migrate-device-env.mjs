@@ -5,17 +5,16 @@ import { fileURLToPath } from 'node:url';
 const deviceConfigKeys = [
   'MIDNIGHT_NETWORK',
   'MIDNIGHT_PROOF_SERVER_URL',
-  'MIDNIGHT_PROOF_SERVER_TOKEN',
   'DEVICE_CONTRACT_ADDRESS',
   'MIDNIGHT_SYNC_TIMEOUT_MS',
   'MIDNIGHT_DUST_TIMEOUT_MS',
   'MIDNIGHT_DUST_BATCH_SIZE',
   'CLOUDFLARE_INGEST_URL',
-  'INGEST_API_TOKEN',
   'TEMPERATURE_SENSOR_PATH',
   'SENSOR_INTERVAL_SECONDS',
   'SENSOR_PROJECT_ID',
   'SENSOR_DEVICE_ID',
+  'DEVICE_AUTH_HOME',
   'AGENT_PORT',
 ];
 
@@ -65,12 +64,8 @@ for (const key of deviceConfigKeys) {
 }
 
 const ingestUrl = unquote(selected.get('CLOUDFLARE_INGEST_URL') ?? '');
-const ingestToken = unquote(selected.get('INGEST_API_TOKEN') ?? '');
 if (!ingestUrl || ingestUrl.includes('<your-subdomain>')) {
   throw new Error('Legacy CLOUDFLARE_INGEST_URL is not configured');
-}
-if (!ingestToken || ingestToken.startsWith('replace-with-')) {
-  throw new Error('Legacy INGEST_API_TOKEN is not configured');
 }
 
 const contents = [

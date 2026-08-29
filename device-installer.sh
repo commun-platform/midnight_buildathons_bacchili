@@ -56,7 +56,7 @@ contracts, generates proving keys, runs a proof server, or deploys.
 Options:
   --user USER              Run the systemd service as USER (default: repo owner)
   --service-name NAME      systemd unit name (default: measurement-edge-agent)
-  --ingest-url URL         Set the Worker URL ending in /api/v1/readings
+  --ingest-url URL         Set the Worker base URL for ingestion, authentication, and proving
   --no-start               Enable the unit without starting it
   --skip-node-install      Require an existing Node.js >= 22.15.0
   --skip-edge-tests        Skip the small device-only boundary/unit tests
@@ -65,9 +65,15 @@ Options:
   --dry-run                Print privileged/install actions without changing files
   -h, --help               Show this help
 
-Set INGEST_API_TOKEN in staged .env.device before running, or export it for this command.
+Before changing Device configuration, releases, keys, or services, the installer
+checks every command required by installation, systemd activation, health checks,
+and the enabled persistent-forensics runtime. Missing OS packages are installed
+first on supported Debian-family systems; the complete check then runs again.
+
 The installer moves that configuration, versioned releases, and wallet state below
-~/.midnight/midnight-cloudflare-demo/. Wallet recovery material never enters env files.
+~/.midnight/midnight-cloudflare-demo/. It preserves a complete existing P-256 Device
+Identity or creates one when none exists. Register only enrollment.json from a
+development host. Wallet recovery material and Device private keys never enter env files.
 EOF
 }
 
@@ -118,6 +124,97 @@ version_at_least() {
   local actual="${1#v}"
   local required="${2#v}"
   [[ "$(printf '%s\n%s\n' "${required}" "${actual}" | sort -V | head -n 1)" == "${required}" ]]
+}
+
+require_commands() {
+  local phase="$1"
+  shift
+  local command_name missing=()
+  for command_name in "$@"; do
+    if ! command -v "${command_name}" >/dev/null 2>&1; then
+      missing+=("${command_name}")
+    fi
+  done
+  if (( ${#missing[@]} > 0 )); then
+    local missing_list
+    missing_list="$(IFS=,; printf '%s' "${missing[*]}")"
+    die "${phase} is missing required commands: ${missing_list}"
+  fi
+}
+
+preflight_bootstrap() {
+  require_commands "Installer bootstrap" \
+    bash cut dirname getent id mktemp pwd stat
+  if (( EUID != 0 )); then
+    require_commands "Privilege escalation" sudo
+  fi
+}
+
+require_sudo_commands() {
+  (( EUID != 0 )) || return 0
+  local command_name command_path denied=()
+  for command_name in "$@"; do
+    if [[ "${command_name}" == /* ]]; then
+      command_path="${command_name}"
+    else
+      command_path="$(command -v "${command_name}" 2>/dev/null || true)"
+    fi
+    [[ -n "${command_path}" ]] || {
+      denied+=("${command_name}")
+      continue
+    }
+    if sudo -n -l "${command_path}" >/dev/null 2>&1; then
+      continue
+    fi
+    if [[ -t 0 ]] && sudo -l "${command_path}" >/dev/null; then
+      continue
+    fi
+    denied+=("${command_path}")
+  done
+  if (( ${#denied[@]} > 0 )); then
+    local denied_list
+    denied_list="$(IFS=,; printf '%s' "${denied[*]}")"
+    die "sudo does not authorize required commands: ${denied_list}"
+  fi
+}
+
+preflight_privileged_commands() {
+  local required=(install journalctl systemctl)
+  if (( INSTALL_FORENSICS )); then
+    required+=("${CURRENT_LINK}/ops/pi-forensics/install.sh")
+  fi
+  require_sudo_commands "${required[@]}"
+  if (( EUID != 0 )); then
+    log "Privilege preflight passed (${#required[@]} commands)"
+  fi
+}
+
+preflight_system_commands() {
+  local required=(
+    awk basename bash cat chmod chown cmp curl cut date df dirname env getent grep
+    head id install ip journalctl ln mkdir mktemp mv ping ps readlink rm sed
+    sha256sum sleep sort stat systemctl systemd-analyze tar tr uname xz
+  )
+  if (( EUID == 0 )) && [[ "$(id -un)" != "${SERVICE_USER}" ]]; then
+    required+=(runuser)
+  elif (( EUID != 0 )); then
+    required+=(sudo)
+  fi
+  require_commands "Device installation preflight" "${required[@]}"
+  log "System command preflight passed (${#required[@]} commands)"
+}
+
+preflight_node_commands() {
+  [[ -x "${NODE_BIN}" ]] || die "Resolved Node.js executable is unavailable: ${NODE_BIN}"
+  [[ -x "${NPM_BIN}" ]] || die "Resolved npm executable is unavailable: ${NPM_BIN}"
+  local node_version npm_version
+  node_version="$(${NODE_BIN} --version 2>/dev/null || true)"
+  npm_version="$(${NPM_BIN} --version 2>/dev/null || true)"
+  version_at_least "${node_version}" "${NODE_MIN_VERSION}" \
+    || die "Node.js >= ${NODE_MIN_VERSION} is required; found ${node_version:-unknown}"
+  [[ "${npm_version}" =~ ^[0-9]+([.][0-9]+){1,2}([+-].*)?$ ]] \
+    || die "npm did not return a valid version: ${npm_version:-unknown}"
+  log "Node runtime preflight passed (Node ${node_version}, npm ${npm_version})"
 }
 
 parse_args() {
@@ -201,18 +298,68 @@ resolve_service_identity() {
 }
 
 install_system_packages() {
-  local required=(curl ca-certificates xz-utils coreutils tar systemd iproute2 iputils-ping iw)
-  local missing=0
-  for command_name in curl sha256sum tar xz systemctl ip ping; do
+  local command_name
+  local -A command_packages=(
+    [awk]=gawk
+    [basename]=coreutils
+    [cat]=coreutils
+    [chmod]=coreutils
+    [chown]=coreutils
+    [cmp]=diffutils
+    [curl]=curl
+    [cut]=coreutils
+    [date]=coreutils
+    [df]=coreutils
+    [dirname]=coreutils
+    [env]=coreutils
+    [getent]=libc-bin
+    [grep]=grep
+    [head]=coreutils
+    [id]=coreutils
+    [install]=coreutils
+    [ip]=iproute2
+    [journalctl]=systemd
+    [ln]=coreutils
+    [mkdir]=coreutils
+    [mktemp]=coreutils
+    [mv]=coreutils
+    [ping]=iputils-ping
+    [ps]=procps
+    [readlink]=coreutils
+    [rm]=coreutils
+    [sed]=sed
+    [sha256sum]=coreutils
+    [sleep]=coreutils
+    [sort]=coreutils
+    [stat]=coreutils
+    [systemctl]=systemd
+    [systemd-analyze]=systemd
+    [tar]=tar
+    [tr]=coreutils
+    [uname]=coreutils
+    [xz]=xz-utils
+  )
+  local -A selected_packages=()
+  for command_name in "${!command_packages[@]}"; do
     if ! command -v "${command_name}" >/dev/null 2>&1; then
-      missing=1
+      selected_packages["${command_packages[${command_name}]}"]=1
     fi
   done
-  if (( ! missing )); then
+  if (( EUID == 0 )) && [[ "$(id -un)" != "${SERVICE_USER}" ]] \
+    && ! command -v runuser >/dev/null 2>&1; then
+    selected_packages[util-linux]=1
+  fi
+  if ! command -v curl >/dev/null 2>&1 \
+    || [[ ! -s /etc/ssl/certs/ca-certificates.crt ]]; then
+    selected_packages[ca-certificates]=1
+  fi
+  if (( ${#selected_packages[@]} == 0 )); then
     return
   fi
+  local required=("${!selected_packages[@]}")
   command -v apt-get >/dev/null 2>&1 || die "Missing prerequisites and apt-get is unavailable"
-  log "Installing device operating-system prerequisites"
+  require_sudo_commands apt-get
+  log "Installing only missing operating-system prerequisites: ${required[*]}"
   run_root apt-get update
   run_root apt-get install -y --no-install-recommends "${required[@]}"
 }
@@ -246,6 +393,8 @@ install_node() {
     return
   fi
   (( INSTALL_NODE )) || die "Node.js >= ${NODE_MIN_VERSION} is required"
+
+  require_sudo_commands mkdir tar ln
 
   local architecture archive base_url install_dir checksum_file
   architecture="$(node_architecture)"
@@ -307,11 +456,10 @@ set_env_value() {
 }
 
 configure_environment() {
-  local configured_url configured_token remove_staged_env=0
+  local configured_url remove_staged_env=0
 
   if [[ -n "${INGEST_URL}" ]]; then
     [[ "${INGEST_URL}" == http://* || "${INGEST_URL}" == https://* ]] || die "Ingest URL must use HTTP(S)"
-    [[ "${INGEST_URL}" == */api/v1/readings* ]] || die "Ingest URL must target /api/v1/readings"
   fi
   if (( DRY_RUN )); then
     log "Would create or preserve ${ENV_FILE} with mode 0600"
@@ -345,20 +493,13 @@ configure_environment() {
 
   if [[ -n "${INGEST_URL}" ]]; then
     set_env_value CLOUDFLARE_INGEST_URL "${INGEST_URL}" "${ENV_FILE}"
+    set_env_value MIDNIGHT_PROOF_SERVER_URL "${INGEST_URL}" "${ENV_FILE}"
   fi
-  if [[ -n "${INGEST_API_TOKEN:-}" && "${INGEST_API_TOKEN}" != replace-with-* ]]; then
-    set_env_value INGEST_API_TOKEN "${INGEST_API_TOKEN}" "${ENV_FILE}"
-  fi
-
   configured_url="$(env_value CLOUDFLARE_INGEST_URL "${ENV_FILE}")"
-  configured_token="$(env_value INGEST_API_TOKEN "${ENV_FILE}")"
   [[ -n "${configured_url}" && "${configured_url}" != *'<your-subdomain>'* ]] \
     || die "Configure CLOUDFLARE_INGEST_URL in ${ENV_FILE} or pass --ingest-url"
-  [[ "${configured_url}" == */api/v1/readings* ]] \
-    || die "CLOUDFLARE_INGEST_URL must target /api/v1/readings"
-  [[ -n "${configured_token}" && "${configured_token}" != replace-with-* ]] \
-    || die "Configure INGEST_API_TOKEN in ${ENV_FILE} or export it before installation"
-
+  [[ "${configured_url}" == http://* || "${configured_url}" == https://* ]] \
+    || die "CLOUDFLARE_INGEST_URL must use HTTP(S)"
   if (( remove_staged_env )); then
     log "Removing staged .env.device after installing the protected configuration"
     run_user rm -f "${SCRIPT_DIR}/.env.device"
@@ -371,13 +512,64 @@ prepare_device_home() {
     return
   fi
   local wallet_home="${USER_HOME}/.midnight/midnight-cloudflare-demo/device-wallet"
+  local auth_home="${USER_HOME}/.midnight/midnight-cloudflare-demo/device-auth"
   log "Preparing the consolidated device home at ${DEVICE_HOME}"
-  run_user mkdir -p "${CONFIG_DIR}" "${RELEASES_DIR}" "${wallet_home}"
+  run_user mkdir -p "${CONFIG_DIR}" "${RELEASES_DIR}" "${wallet_home}" "${auth_home}"
   run_user chmod 0700 "${USER_HOME}/.midnight" \
     "${DEVICE_HOME}" \
     "${CONFIG_DIR}" \
     "${RELEASES_DIR}" \
-    "${wallet_home}"
+    "${wallet_home}" \
+    "${auth_home}"
+}
+
+ensure_device_identity() {
+  local auth_home
+  auth_home="$(env_value DEVICE_AUTH_HOME "${ENV_FILE}")"
+  auth_home="${auth_home:-${DEVICE_HOME}/device-auth}"
+  [[ "${auth_home}" == "${DEVICE_HOME}"/* ]] \
+    || die "DEVICE_AUTH_HOME must remain below ${DEVICE_HOME}"
+  local identity_file="${auth_home}/identity.json"
+  local enrollment_file="${auth_home}/enrollment.json"
+  local private_key_file="${auth_home}/device-private-key.pk8"
+  local device_id project_id present=0
+
+  device_id="$(env_value SENSOR_DEVICE_ID "${ENV_FILE}")"
+  project_id="$(env_value SENSOR_PROJECT_ID "${ENV_FILE}")"
+  [[ -n "${device_id}" ]] || die "SENSOR_DEVICE_ID is required in ${ENV_FILE}"
+  [[ -n "${project_id}" ]] || die "SENSOR_PROJECT_ID is required in ${ENV_FILE}"
+
+  for file in "${identity_file}" "${enrollment_file}" "${private_key_file}"; do
+    [[ -e "${file}" ]] && present=$((present + 1))
+  done
+  if (( present > 0 && present < 3 )); then
+    die "Device Identity under ${auth_home} is incomplete; do not rotate or repair it implicitly"
+  fi
+  if (( DRY_RUN )); then
+    log "Would preserve a complete Device Identity or generate one under ${auth_home}"
+    return
+  fi
+  if (( present == 3 )); then
+    log "Preserving and validating the existing Device Identity"
+    run_user chmod 0700 "${auth_home}"
+    run_user chmod 0600 "${identity_file}" "${enrollment_file}" "${private_key_file}"
+    run_user "${NPM_BIN}" --prefix "${CURRENT_LINK}" run device:auth:refresh-enrollment -- \
+      --device-id "${device_id}" \
+      --project-id "${project_id}" \
+      --auth-home "${auth_home}"
+    run_user "${NPM_BIN}" --prefix "${CURRENT_LINK}" run device:auth:show -- \
+      --auth-home "${auth_home}"
+    return
+  fi
+
+  log "Generating a new device-local P-256 Device Identity"
+  run_user "${NPM_BIN}" --prefix "${CURRENT_LINK}" run device:auth:generate -- \
+    --device-id "${device_id}" \
+    --project-id "${project_id}" \
+    --auth-home "${auth_home}" \
+    --confirm-device-key-generation
+  run_user chmod 0700 "${auth_home}"
+  run_user chmod 0600 "${identity_file}" "${enrollment_file}" "${private_key_file}"
 }
 
 resolve_device_layout() {
@@ -520,6 +712,7 @@ install_device_project() {
   RUNTIME_PATH="$(dirname "${NODE_BIN}"):${USER_HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
   log "Installing only device collector and operational-wallet dependencies"
   run_user "${NPM_BIN}" --prefix "${INSTALLED_RELEASE}" ci \
+    --workspace @midnight-demo/device-auth \
     --workspace @midnight-demo/edge-agent \
     --workspace @midnight-demo/device-wallet-agent \
     --include-workspace-root=false \
@@ -529,6 +722,7 @@ install_device_project() {
     --cache "${USER_HOME}/.npm"
   if (( RUN_EDGE_TESTS )); then
     log "Running device-only boundary and unit tests"
+    run_user "${NPM_BIN}" --prefix "${INSTALLED_RELEASE}" run test -w @midnight-demo/device-auth
     run_user "${NPM_BIN}" --prefix "${INSTALLED_RELEASE}" run test -w @midnight-demo/edge-agent
     run_user "${NPM_BIN}" --prefix "${INSTALLED_RELEASE}" run test -w @midnight-demo/device-wallet-agent
   fi
@@ -547,12 +741,13 @@ systemd_escape_value() {
 install_systemd_service() {
   local unit_file="/etc/systemd/system/${SERVICE_NAME}.service"
   local staged_unit="${TMP_DIR}/${SERVICE_NAME}.service"
-  local repo_path home_path path_value exec_path cli_path
+  local repo_path home_path path_value exec_path cli_path device_home_path
   repo_path="$(systemd_escape_value "${CURRENT_LINK}")"
   home_path="$(systemd_escape_value "${USER_HOME}")"
   path_value="$(systemd_escape_value "${RUNTIME_PATH}")"
   exec_path="$(systemd_escape_value "${NODE_BIN}")"
   cli_path="$(systemd_escape_value "${CURRENT_LINK}/apps/device/edge-agent/src/cli.ts")"
+  device_home_path="$(systemd_escape_value "${DEVICE_HOME}")"
   local env_path
   env_path="$(systemd_escape_value "${ENV_FILE}")"
 
@@ -591,6 +786,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=read-only
 ProtectSystem=full
+ReadWritePaths=${device_home_path}
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -646,6 +842,7 @@ verify_service() {
 
 main() {
   parse_args "$@"
+  preflight_bootstrap
   resolve_service_identity
   resolve_device_layout
   if (( ! DRY_RUN )); then
@@ -655,6 +852,9 @@ main() {
   if (( ROLLBACK_ONLY )); then
     discover_node || die "Node.js >= ${NODE_MIN_VERSION} is required to verify the previous release"
     RUNTIME_PATH="$(dirname "${NODE_BIN}"):${USER_HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    preflight_system_commands
+    require_sudo_commands systemctl
+    preflight_node_commands
     rollback_release
     exit 0
   fi
@@ -667,7 +867,10 @@ main() {
   log "Device home: ${DEVICE_HOME}"
   log "Service user: ${SERVICE_USER}"
   install_system_packages
+  preflight_system_commands
+  preflight_privileged_commands
   install_node
+  preflight_node_commands
   RUNTIME_PATH="$(dirname "${NODE_BIN}"):${USER_HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
   verify_device_release
   prepare_device_home
@@ -677,6 +880,7 @@ main() {
   install_device_project
   stop_existing_service
   activate_release "${INSTALLED_RELEASE}"
+  ensure_device_identity
   install_systemd_service
   install_persistent_forensics
   verify_service
@@ -685,6 +889,9 @@ main() {
   log "Runtime: ${CURRENT_LINK}"
   log "Config:  ${ENV_FILE}"
   log "Wallet:  ${DEVICE_HOME}/device-wallet"
+  log "Identity: ${DEVICE_HOME}/device-auth"
+  log "Enroll:   copy only ${DEVICE_HOME}/device-auth/enrollment.json to the development host"
+  log "Configure after enrollment: cd ${CURRENT_LINK} && npm run device:configure"
   log "Rollback: ${CURRENT_LINK}/installer.sh --rollback"
   log "Status: sudo systemctl status ${SERVICE_NAME}"
   log "Logs:   sudo journalctl -u ${SERVICE_NAME} -f"

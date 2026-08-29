@@ -33,7 +33,7 @@ function sha256(file) {
 }
 
 if (!fs.existsSync(path.join(sourceDir, 'contract', 'index.js'))) {
-  throw new Error('Compiled sensor-registry artifacts are missing; run npm run contract:compile on the development server');
+  throw new Error('Compiled sensor-registry artifacts are missing; run npm run contract:compile in the build environment');
 }
 if (fs.existsSync(outputDir)) throw new Error(`Refusing to overwrite existing export: ${outputDir}`);
 
