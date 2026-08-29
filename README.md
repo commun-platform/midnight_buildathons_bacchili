@@ -1,187 +1,181 @@
-# Measurement Data Authenticity Proof System
+# BACCHIRI!━━Verifiable Measurement Layer
+
+> Prove threshold compliance without disclosing sensor values.
 
 [日本語版](docs/ja/README.md)
 
-This monorepo collects real temperature readings from an Edge Device and stores them in Cloudflare D1. Its operational device-wallet CLI can register a prepared dataset and verify one private sample against the deployed Midnight `sensor-registry` contract. The Worker also creates daily Attestation workflow records, but the repository does not yet include the always-on agent that connects those records to device-wallet submissions. Development and device operation use separate workspaces and separate wallets.
+[Documentation by category](docs/README.md)
 
-## Runtime boundaries
+![Prove threshold compliance while keeping sensor values private](docs/assets/review/privacy-value-proposition-en.png)
 
-```text
-Development server                            Raspberry Pi / device runtime
-  Compact compile + proving keys                sensor collection + HTTPS ingestion
-  tests and proof benchmarks                    operator-invoked dataset submission
-  Cloudflare and contract deployment            separate operational wallet
-  development/deployer wallet                   localhost health + diagnostics
-              │                                            │
-              └──── Cloudflare Worker + Proof Container ───┘
-                                      │
-                                Midnight Preprod
-```
+## Judge review
 
-| Host | Allowed responsibilities | Must not run |
+The current review tree compiles all 6 operational proof circuits and passes 182 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
+
+| Review artifact | Link |
+| --- | --- |
+| Submission copy | [Wave 1 submission](docs/submission/submission_copy.md) |
+| Editable slide deck | [English PPTX](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) |
+| Review slide deck | [English PDF](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) |
+| Claim-to-evidence map | [Evidence matrix](docs/submission/evidence_matrix.md) |
+| Wave progress | [Wave 1 progress](docs/submission/wave1_progress.md) |
+| Judge questions | [Judge Q&A](docs/submission/judge_qa.md) |
+| Final GUI video | [Script and capture gate](docs/submission/demo_script.md) — recording follows the final GUI implementation |
+
+## Product and initial use case
+
+The customer value is intentionally simple: **show a third party that submitted sensor values are within the registered threshold without disclosing the sensor values**.
+
+BACCHIRI!━━Verifiable Measurement Layer adds that cryptographic verification layer to measurement workflows that already use dashboards, CSV files, reports, or cloud systems. It does not replace the measurement equipment or its operational software.
+
+The first commercial use case under discussion is construction-site measurement verification. Noise, vibration, temperature, and environmental reports can move between equipment providers, rental companies, contractors, project owners, and auditors. Wave 1 proves the implemented temperature-policy path; support for other measurement types requires corresponding policy, input, and validation work and is not claimed as complete.
+
+The team is discussing a field proof of concept with an industry partner using equipment and sales or rental channels that already exist. This is commercialization progress, not completed technical validation.
+
+The central idea is to prove whether submitted hourly minimum and maximum values are within a threshold registered before operation, without publishing the sensor values. The Edge Device retains raw data and signing keys, the Frontend displays public information only, the Backend handles authentication, request admission, and proof processing, and Midnight holds the public threshold, its target Device, and the confirmed result record that a third party checks.
+
+![Sensor values are reduced to hourly minimum and maximum values, checked privately, and exposed only as a public result](docs/assets/review/hourly-extrema-zkp-en.png)
+
+For review, start with the [exact proof claim and non-claims](docs/architecture/wave1_spec.md#3-exact-proof-claim-and-non-claims), continue with the [system architecture](docs/architecture/system_architecture.md), and finish with the [deployment and review runbook](docs/operations/demo_runbook.md).
+
+The documentation is organized by purpose. Submission copy, English / Japanese decks, evidence, Wave 1 progress, pre-submission checks, Q&A, and the final-GUI recording script are collected under [`docs/submission/`](docs/submission/).
+
+| Category | Contents |
+| --- | --- |
+| [`docs/architecture/`](docs/architecture/) | Product specification, four-domain architecture, and the daily proof with 24 hourly slots |
+| [`docs/security/`](docs/security/) | Private-information boundary, keys and authentication, and multi-Device management |
+| [`docs/operations/`](docs/operations/) | Development environment, deployment and review procedure, and Edge Device software installation / rollback |
+| [`docs/implementation/`](docs/implementation/) | Specification-to-code map, six operational ZK circuits, future feature backlog, DUST fee sponsorship and Wallet-sync transaction hold, measured cost, and storage-migration design |
+
+English slide figures are under [`docs/assets/review/`](docs/assets/review/) and English document-specific figures are under [`docs/assets/guides/`](docs/assets/guides/). Japanese assets are kept separately below [`docs/ja/assets/`](docs/ja/assets/).
+
+This monorepo implements Wave 1 of a temperature-data proof system. The Edge Device keeps individual sensor readings locally, uploads hourly summaries and anomaly state changes to the Backend, and submits one private daily proof with 24 hourly slots. Midnight records the registered threshold, target Device, result, and transaction without publishing the hourly minimum / maximum values or raw readings.
+
+The operational `sensor-registry` contract proves either that the private minimum and maximum values for all observed hours are within the public threshold registered on Midnight before operation, or that at least one observed hour is outside it. The public WITHIN / OUTSIDE result reveals none of those values. An hour without readings is `STOPPED`, not fraud or a threshold failure. The contract does not prove physical sensor integrity, continuous sampling, completeness, or correct Device-side aggregation.
+
+## Core terms
+
+| Term | Meaning in this repository |
+| --- | --- |
+| Wave 1 | The current supported product scope defined by `docs/architecture/wave1_spec.md`. |
+| Cloudflare | The trusted backend running the API, D1 database, proof queue, GUI, and Proof Server Container. |
+| Midnight | The network that verifies Compact contract transactions and records their public state. |
+| Edge Device | The device runtime boundary containing the Edge Agent, Device Identity, and Wallet Agent. |
+| Raw sample | One timestamped temperature/humidity reading. It remains on the device. |
+| Hourly summary / anomaly transition | An aggregate uploaded once per hour, and an immediate event when the sensor changes between normal and anomalous states. Neither is the raw sample stream. |
+| Daily private input | A fixed private object with 24 observed / STOPPED hourly slots. Each observed slot has a minimum, maximum, and reported reading count. |
+| Commitment | A one-way binding to the complete private daily-extrema input using a nonce. |
+| Threshold policy | Immutable public Midnight state containing mode, bounds, scale, sensor/unit codes, and version. The device cannot provide alternate bounds at proof time. |
+| Policy assignment | Immutable policy binding and validity interval registered for the device before operation. |
+| Zero-knowledge proof | A proof that checks every submitted observed-hour minimum and maximum without publishing those values or the proof nonce. |
+| Compact / `sensor-registry` | Compact is Midnight's contract language. `sensor-registry` is this repository's operational contract. |
+| Cloudflare D1 | The managed SQL database for public device registrations, Sessions, summaries, Proof Jobs, and transaction status. It does not store raw samples. |
+| Proof Job | The D1 workflow record that controls when a device may send private proof input and tracks the resulting transactions. |
+| Proof Server | The Cloudflare Container that generates the contract proof. It holds no wallet key. |
+| Device Identity / Device transaction identity | Separate keys: P-256 authenticates Cloudflare API calls; the transaction identity binds the Device-authorized transaction without paying fees. |
+| Sponsor Wallet | A dedicated Backend Midnight wallet that synchronizes DUST, adds only the fee to an already Device-bound transaction, and submits it. |
+| Attestation | The public claim and evidence lifecycle. The separate `daily-attestation` contracts are development-only cost experiments, not the operational path. |
+
+## Recommended reading order
+
+| Step | Document | Purpose |
 | --- | --- | --- |
-| Development server | Compact compilation, proving-key generation, tests, benchmarks, Wrangler, development-wallet synchronization, contract deployment, and device-release creation | Always-on sensor collection or use of the device wallet |
-| Raspberry Pi/device | Read and upload sensor values, submit explicitly prepared datasets with its operational wallet, expose loopback health, and retain diagnostics | Compact/compiler, proving-key generation, local Proof Server, Docker, contract deployment, development wallet, or repository-wide tests |
-| Cloudflare | Worker APIs, D1, SPA, daily pending-record scheduling, and runtime Proof Server Container | Development or device wallet recovery material |
+| 1 | This README | Understand the product purpose, claim, repository structure, and current status. |
+| 2 | [Wave 1 specification](docs/architecture/wave1_spec.md) and [Fleet Device Registry](docs/security/device_registry.md) | Follow the normative lifecycle and operator-only multi-Device trust boundary. |
+| 3 | [System architecture](docs/architecture/system_architecture.md) | See where each runtime component and data store runs. |
+| 4 | [Privacy boundary](docs/security/private_spec.md) | Distinguish private input, administrator data, and public evidence. |
+| 5 | [Implementation map](docs/implementation/implement_spec.md), [ZK circuit specification](docs/implementation/zk_circuit_spec.md), and [Midnight fee sponsorship](docs/implementation/fee_sponsorship.md) | Map the design to code, understand each proof circuit, and review the DUST fee-payer boundary. |
+| 6 | [Device authentication](docs/security/device_authentication.md) and [device firmware](docs/operations/device_firmware.md) | Understand enrollment, Sessions, installation, and rollback. |
+| 7 | [Demo runbook](docs/operations/demo_runbook.md) | Deploy and exercise the system in order. |
+| 8 | [Cost benchmark](docs/implementation/cost_benchmark.md) | Review the standard 1,440-reading/day Cost measurement and 10,000-Device estimate. |
+| 9 | [Future feature backlog](docs/implementation/future_features.md) | Distinguish contract-first changes from later Backend, Frontend, and operational work. |
+| 10 | [Storage migration](docs/implementation/storage_migration.md) | Review the optional future D1-to-Turso adapter and cutover design. |
 
-The Proof Server generates a proof for each transaction. The Compact compiler generates matching circuit and key artifacts ahead of time on the development server. These are different operations; neither runs on the Pi.
+## System boundary summary
+
+![Wave 1 architecture across Edge Device, Frontend, Backend, and Midnight](docs/assets/review/wave1-system-overview-en.png)
+
+| Zone | Primary responsibility | Explicit boundary |
+| --- | --- | --- |
+| Edge Device | Sensor collection, local raw retention, private 24-hour aggregation, Device authentication, proof authorization, and transaction signing | Raw readings, hourly minimum / maximum values, proof input, and Device keys stay at the edge |
+| Frontend | Authenticated administrator view and public third-party view | Receives only authorized summaries or public evidence; no Device credentials or private proof values |
+| Backend | Authentication, API validation, D1 workflow state, bounded admission, proof generation, and fee sponsorship | Trusted for proving requests in transit; the Sponsor can add DUST but cannot alter or authorize the bound Device call |
+| Midnight | Public threshold, target Device, commitment, and confirmed result | Holds the public record a third party checks; does not store raw sensor readings |
+
+The detailed trust and data-flow model is in [System Architecture](docs/architecture/system_architecture.md).
+
+## Midnight integration
+
+The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the verified WITHIN or OUTSIDE result on Midnight. The Device authorizes and binds the contract call without fees; the dedicated Sponsor Wallet adds only DUST and submits it. The Sponsor cannot produce the Device Contract Authority proof or alter the bound call.
+
+The browser includes the guided Lace-backed Device workflow, administrator evidence, and the third-party public view. The third-party view displays the contract-confirmed result and Midnight identifiers; it does not independently execute the Compact verifier in the browser. Independent browser verification is a Wave 2 plan.
 
 ## Monorepo
 
 ```text
 apps/development/operator-cli/  development wallet, deploy, and benchmarks
-apps/device/edge-agent/         Raspberry Pi temperature collector
+apps/device/device-auth/         device-only P-256 identity and short-lived sessions
+apps/device/edge-agent/         Edge Device temperature collector
 apps/device/wallet-agent/       device operational wallet, submit, and status
 apps/dashboard/public/          Worker-hosted bilingual SPA
 apps/proof-gateway/             Worker API, D1 migrations, proof container
+apps/sponsor-wallet/            dedicated fee-only Midnight Sponsor Wallet container
 contracts/                      Compact contracts, generated profiles, tests
-packages/shared/                commitments, Merkle utilities, fixtures
-ops/pi-forensics/               persistent journal and Pi health snapshots
+packages/shared/                daily commitments, hourly aggregation, legacy Merkle utilities, fixtures
 docs/                           canonical English documentation
 docs/ja/                        Japanese translations
 ```
 
-## Development server
+## Operations
 
-This host requires Node.js `22.15.0` or later, Compact Developer Tools `0.5.2` with toolchain `0.31.1`, authenticated Wrangler access, and a funded Preprod development wallet for deployment.
+Operational procedures are intentionally kept outside this overview.
+
+| Procedure | Document |
+| --- | --- |
+| Development prerequisites, compilation, verification, and release creation | [Development Environment](docs/operations/development_environment.md) |
+| Edge Device package, installation, upgrade, rollback, wallet, and health checks | [Device Firmware](docs/operations/device_firmware.md) |
+| Ordered deployment, enrollment, Proof Job, transaction, and review workflow | [Deployment and Review Runbook](docs/operations/demo_runbook.md) |
+| DUST sponsorship, asynchronous Wallet synchronization, transaction retention, and retry semantics | [Midnight Fee Sponsorship](docs/implementation/fee_sponsorship.md) |
+| Measured compile/proof results and cost planning | [Cost Benchmark](docs/implementation/cost_benchmark.md) |
+
+## Quick judge verification
+
+The source-level gate requires no Device secrets or Midnight preproduction-network wallet:
 
 ```bash
 npm ci
-compact update 0.31.1
-cp .env.development.example .env.development
-cp apps/proof-gateway/.dev.vars.example apps/proof-gateway/.dev.vars
-
-# Generates contract artifacts and proving keys here, never on the Edge host
 npm run contract:compile
-npm run verify
+TMPDIR=/tmp npm run verify
 ```
 
-The development wallet recovery source is `.env.development`. On first `npm run development:wallet`, a mnemonic is written atomically with mode `0600`. Back up this file to encrypted/offline storage; `.state/development/` is only resumable synchronization and deployment cache. To migrate the old mixed layout on a development server, run `npm run development:wallet:migrate` before initializing a new wallet.
-
-Experimental full-day Attestation profiles are compiled only on the development server. They are used by the benchmark CLI and are not included in `npm run verify`, the device firmware, or the current `sensor-registry` submission path. Each fixed profile has separate keys:
-
-```bash
-ATTESTATION_SAMPLE_COUNTS=24 npm run attestation:compile
-```
-
-### One-time deployment and device release
-
-Run compilation, deployment, and release creation on the development server. Repeat them only when the contract or runtime code/artifacts change.
-
-```bash
-npm run cloudflare:deploy
-npm run cloudflare:secret
-npm run secret:ingest -w @midnight-demo/proof-gateway
-npm run secret:attestation -w @midnight-demo/proof-gateway
-
-npm run development:wallet
-npm run development:funding
-npm run development:deploy
-npm run cloudflare:config:network
-npm run cloudflare:config:contract
-npm run development:status
-
-# Enter the public network label and deployed Contract address at the prompts above.
-# They are Worker environment bindings and are not committed to this repository.
-# Then export the compiled artifacts internally and build a secret-free firmware archive.
-./package_archive.sh
-```
-
-`PROOF_GATEWAY_TOKEN` protects proof requests, `INGEST_API_TOKEN` protects sensor uploads, and `ATTESTATION_API_TOKEN` protects the internal claim/result endpoints. The last token is required only when an external Attestation Agent is connected; that polling agent is not implemented in this repository.
-
-Transfer `.device-release/archives/midnight-sensor-device-fw-<version>.tar.gz` and its `.sha256` file to the Pi, not the development checkout. The archive has a single top-level directory with executable `installer.sh`; its manifest rejects development workspaces, Compact source, dev tooling, and secret-bearing files. Keep `.env.development`, `.dev.vars`, `.state/development/`, development-wallet recovery material, and private development inputs off the Pi and out of Git.
-
-## Raspberry Pi / Edge installation
-
-The extracted archive uses `.env.device` only as installation input. The installer moves it to `~/.midnight/midnight-cloudflare-demo/config/device.env`, installs versioned runtime directories below `releases/`, and points `current` at the active release. Wallet recovery material is never read from environment files; it is created under the sibling `device-wallet/` directory with owner-only permissions. This wallet is independent of the development/deployer wallet.
-
-First configure the Worker ingestion token on the development server. Transfer only the matching ingestion URL and ingestion token to the Pi, then:
-
-```bash
-sha256sum -c midnight-sensor-device-fw-<version>.tar.gz.sha256
-tar -xzf midnight-sensor-device-fw-<version>.tar.gz
-cd midnight-sensor-device-fw-<version>
-cp .env.device.example .env.device
-chmod 600 .env.device
-# Set the deployed contract address, remote proof URL/token,
-# ingestion credentials, and sensor settings. Do not add mnemonic/seed fields.
-
-./installer.sh
-```
-
-Alternatively, set the URL during installation:
-
-```bash
-./installer.sh --ingest-url https://<worker>.workers.dev/api/v1/readings
-```
-
-The installer performs only these actions:
-
-- verifies the operational-only release and development-built contract artifacts;
-- installs the verified release under `~/.midnight/midnight-cloudflare-demo/releases/<version>-<manifest-hash>/`;
-- moves staged `.env.device` to `~/.midnight/midnight-cloudflare-demo/config/device.env`;
-- atomically updates `current` and preserves the old target as `previous` only after dependency installation and device tests pass;
-- installs only the device collector and device-wallet workspace dependencies;
-- runs small device-only tests;
-- installs a resource-limited `measurement-edge-agent.service`;
-- enables persistent journald storage and one-minute connectivity/resource snapshots.
-
-It explicitly rejects the old `--proof-server-url`, `--skip-compact-install`, and `--skip-verify` options. It never invokes `compact`, `contract:compile`, repository-wide `verify`, Wrangler, Docker, deployment, or wallet initialization. The device release manifest and systemd's `MIDNIGHT_HOST_ROLE=device` make development and contract commands fail before doing work.
-
-After a successful upgrade, roll back to the previously active release with:
-
-```bash
-~/.midnight/midnight-cloudflare-demo/current/installer.sh --rollback
-```
-
-The command verifies `previous`, swaps the `current` and `previous` symlinks, restarts the collector, and checks its health. Release directories are retained until an operator deliberately removes an inactive version.
-
-Initialize the operational wallet explicitly as the service user, fund its displayed address, then invoke submissions explicitly when a real dataset has been prepared:
-
-```bash
-cd ~/.midnight/midnight-cloudflare-demo/current
-npm run device:wallet
-npm run device:funding
-npm run device:submit -- --input data/<prepared-real-dataset>.json
-npm run device:status
-```
-
-`device:submit` accepts either a `PreparedDataset` JSON object or an array of real `SensorRecord` objects. For an array, `--min`, `--max`, and `--selected-index` select the private range proof input; defaults are `10`, `35`, and the middle record. `--verify-only` skips dataset registration. The command never synthesizes measurements and does not update the Worker's Attestation record automatically. Back up `config/device.env` and `device-wallet/` separately from the development `.env.development` backup.
-
-```bash
-sudo systemctl status measurement-edge-agent
-sudo journalctl -u measurement-edge-agent -f
-curl http://127.0.0.1:8788/health
-```
-
-After a forced reboot, inspect the preceding boot:
-
-```bash
-sudo pi-forensics-report -1
-```
-
-The report includes kernel power/thermal/OOM/storage events, network and SSH events, and the periodic health snapshots. It omits Wi-Fi identifiers, credentials, wallet data, raw sensor readings, and application secrets.
-
-For local Edge-only development without systemd:
-
-```bash
-npm run edge:test
-npm run edge:serve
-```
+The expected review result is 6 compiled operational proof circuits, 182 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 
-- Implemented end to end: authenticated temperature upload, D1 reads, daily pending-record creation, bilingual dashboard, remote proof gateway, development deployment, and manual device-wallet `registerDataset` / `verifySensorValue` transactions.
+- The Sponsor-funded path is verified end to end on the Midnight preproduction network: P-256 Device authentication, public threshold and Device-bound assignment, a standard 1,440-reading day reduced to one fixed 24-slot proof, Cloudflare proof generation, fee-free Device authorization, DUST added by the dedicated Sponsor Wallet, block confirmation, idempotent same-byte recovery, and the redacted third-party result. See the [Wallet-sync transaction hold](docs/implementation/fee_sponsorship.md#current-integration-boundary) and [cost evidence](docs/implementation/cost_benchmark.md#standard-1440-reading-preprod-e2e-and-cost-measurement). The 24- and 96-reading runs confirm only that the proof input shape remains fixed.
+- Operator action remains explicit: `device:submit` requests and polls its Proof Job, but the Wallet Agent is not a continuously running submission daemon.
 - Implemented as development-only experiments: fixed 24/96/1,440-sample daily circuits, signed hourly evidence, and append-only outlier-reason hashes.
-- Not yet connected: an always-on Attestation Agent that claims pending Worker records, builds the corresponding private input, invokes `device:submit`, and reports transaction results back to the Worker. Until that exists, a `confirmed` dashboard entry is agent-reported D1 state rather than an independent browser query of Midnight.
+- The third-party view presents public D1 workflow information and Midnight identifiers; it does not independently execute the zero-knowledge-proof verifier in the browser.
+
+## Three-wave delivery path
+
+![Three-wave delivery roadmap from technical proof to construction-site adoption](docs/assets/review/three-wave-roadmap-en.png)
+
+- Wave 1 — verified: Device-authenticated daily proof, one day normalized into 24 hourly slots, WITHIN / OUTSIDE on the Midnight preproduction network, administrator / third-party views, and `submitDailyAttestation`.
+- Wave 2 — planned: independent browser verification, signed provenance roots, operational automation, and recovery / fleet evidence.
+- Wave 3 — planned: calibrated-device proof, calibration records and firmware hashes, secure-hardware integration, and multi-organization audits.
+
+The adoption path is technical proof, then a construction-site PoC, then integration into existing sales and rental channels. Waves 2 and 3 are plans, not current capabilities.
 
 ## Security boundary
 
-The development wallet exists only in `.env.development`; its encrypted/offline backup is the recovery copy. The independent device wallet exists only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. Installed operational configuration is `config/device.env`; staged `.env.device` is removed after installation and never contains a wallet mnemonic or seed. The Pi receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
+The development wallet exists only in `.env.development`; its encrypted/offline backup is the recovery copy. Independent Device transaction identity and Compact private state exist only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. The dedicated Sponsor Wallet uses a separate deployment secret and encrypted synchronization checkpoint; its recovery source is never stored in D1, R2 plaintext, Worker source, or Device firmware. Installed operational configuration is `config/device.env`; staged `.env.device` is removed after installation and never contains a mnemonic or seed. The Edge Device receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
 
-See [system architecture](docs/system_architecture.md), [private-state specification](docs/private_spec.md), and the [deployment runbook](docs/demo_runbook.md).
+See [system architecture](docs/architecture/system_architecture.md), [private-state specification](docs/security/private_spec.md), and the [deployment runbook](docs/operations/demo_runbook.md).
 
 ## References
+
+This repository is licensed under the [Apache License 2.0](LICENSE).
 
 - [Midnight developer documentation](https://docs.midnight.network/)
 - [Cloudflare Workers documentation](https://developers.cloudflare.com/workers/)
