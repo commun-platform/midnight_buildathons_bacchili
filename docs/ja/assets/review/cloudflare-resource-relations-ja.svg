@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1672" height="941" viewBox="0 0 1672 941" role="img" aria-labelledby="title desc">
+  <title id="title">システム全体とCloudflareリソースの関係</title>
+  <desc id="desc">エッジデバイス、Cloudflare、Midnight、第三者画面の関係を、主要Cloudflareリソースに絞って示す。</desc>
+  <defs>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#173047" stroke-width="1" opacity="0.42"/></pattern>
+    <marker id="blue-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L10 3L0 6Z" fill="#38D6E8"/></marker>
+    <marker id="amber-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L10 3L0 6Z" fill="#F4B740"/></marker>
+    <marker id="purple-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L10 3L0 6Z" fill="#A66CFF"/></marker>
+    <marker id="green-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L10 3L0 6Z" fill="#79D66A"/></marker>
+
+    <!-- Cloudflare official product icon paths from cloudflare/cloudflare-docs commit 3feb9a48. -->
+    <symbol id="cf-workers" viewBox="0 0 48 49"><g fill="currentColor"><path d="m18.63 37.418-9.645-12.9 9.592-12.533-1.852-2.527L5.917 23.595l-.015 1.808 10.86 14.542z"/><path d="M21.997 6.503h-3.712l13.387 18.3-13.072 17.7h3.735L35.4 24.81z"/><path d="M29.175 6.503h-3.758l13.598 18.082-13.598 17.918h3.765l12.908-17.01v-1.808z"/></g></symbol>
+    <symbol id="cf-d1" viewBox="0 0 65 64"><path fill="currentColor" d="m23.6 22.2 3.03 1.75v3.5L23.6 29.2l-3.03-1.75v-3.5zM20.06 49l3.54-3.54L27.14 49l-3.54 3.54zm3.54-14.7c.593 0 1.17.176 1.67.506.493.33.878.798 1.1 1.35a3 3 0 0 1-.65 3.27c-.42.42-.954.705-1.54.821a3 3 0 0 1-1.73-.171 3.04 3.04 0 0 1-1.35-1.1 3 3 0 0 1-.506-1.67c0-.796.316-1.56.879-2.12a3 3 0 0 1 2.12-.879zM10.3 11.2l6.42-4.89 1.21-.37h29l1.19.39 6.61 4.89.82 1.61v38L55 52.21l-4.83 5.11-1.46.63h-31.7l-1.37-.54-5.48-5.11-.64-1.47v-38zm3.21 25.4 4.47 4.94h.056v4h-1.83l-2.7-3v7.39l4.26 4h30l3.7-3.91V42.3l-3.67 3.24h-18.6v-4h17.2l5.19-4.61v-7.44l-3.67 3.25h-18.7v-4h17.2l5.19-4.6v-6.92l-3.67 3.26h-31.6l-2.74-2.8v6.12l4.47 4.94h.056v4h-1.83l-2.7-3zm32.7-26.7h-27.6l-4.07 3.11 3.4 3.48h28.4l4-3.56z"/></symbol>
+    <symbol id="cf-queues" viewBox="0 0 40 40"><g fill="currentColor"><path d="M11.154 19.894 5.33 14.21l-1.612 1.65 2.656 2.594H1.942a1.442 1.442 0 1 0 0 2.884h4.433L3.72 23.927l1.61 1.653 5.823-5.685Zm28.352 0-5.823-5.685-1.612 1.65 2.656 2.594h-4.433a1.442 1.442 0 1 0 0 2.884h4.433l-2.655 2.591 1.611 1.651z"/><rect width="23.07" height="2.884" x="7.911" y="7" rx="1.442"/><rect width="23.07" height="2.884" x="7.911" y="30.07" rx="1.442"/><path d="M13.679 14.21c.796 0 1.442.645 1.442 1.441v8.651a1.442 1.442 0 1 1-2.884 0v-8.65c0-.797.646-1.443 1.442-1.443Zm5.767 0c.797 0 1.442.645 1.442 1.441v8.651a1.442 1.442 0 1 1-2.884 0v-8.65c0-.797.646-1.443 1.442-1.443Zm5.768 0c.796 0 1.442.645 1.442 1.441v8.651a1.442 1.442 0 1 1-2.884 0v-8.65c0-.797.645-1.443 1.442-1.443Z"/></g></symbol>
+    <symbol id="cf-containers" viewBox="0 0 512 512"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"><path d="M448 341.37V170.61A32 32 0 0 0 432.11 143l-152-88.46a47.94 47.94 0 0 0-48.24 0L79.89 143A32 32 0 0 0 64 170.61v170.76A32 32 0 0 0 79.89 369l152 88.46a48 48 0 0 0 48.24 0l152-88.46A32 32 0 0 0 448 341.37"/><path d="m69 153.99 187 110 187-110m-187 310v-200"/></g></symbol>
+    <symbol id="cf-r2" viewBox="0 0 40 40"><path fill="currentColor" fill-rule="evenodd" d="M30.289 6.423c-2.43-.813-5.958-1.362-9.977-1.362-4.018 0-7.545.549-9.976 1.362-1.228.41-2.033.842-2.48 1.195q-.14.111-.204.18c.052.171.196.395.562.67.524.394 1.372.783 2.563 1.119 2.368.666 5.731 1.023 9.536 1.023s7.167-.357 9.535-1.023c1.191-.336 2.04-.725 2.563-1.119.366-.275.51-.499.562-.67a2 2 0 0 0-.204-.18c-.447-.353-1.252-.784-2.48-1.195m-20.24 5.624c-.885-.25-1.71-.552-2.424-.922v4.393c0 .196.097.514.625.941.535.433 1.391.869 2.576 1.252 2.36.764 5.71 1.222 9.486 1.222 3.778 0 7.128-.458 9.487-1.222 1.185-.383 2.041-.82 2.576-1.252.528-.427.625-.745.625-.94v-4.394c-.715.37-1.539.673-2.424.922-2.7.76-6.336 1.124-10.264 1.124s-7.564-.364-10.263-1.124m25.576 3.471V7.622c0-2.829-6.856-5.122-15.313-5.122C11.857 2.5 5 4.793 5 7.622v24.756c0 2.829 6.856 5.122 15.313 5.122 8.456 0 15.312-2.293 15.312-5.122zM33 19.134c-.7.393-1.505.726-2.375 1.008-2.708.877-6.358 1.352-10.313 1.352-3.954 0-7.604-.475-10.312-1.352-.87-.282-1.676-.615-2.375-1.008v4.28c0 .196.097.514.625.942.535.432 1.391.868 2.576 1.252 2.36.763 5.71 1.221 9.486 1.221 3.778 0 7.128-.458 9.487-1.221 1.185-.384 2.041-.82 2.576-1.252.528-.428.625-.746.625-.941v-4.28Zm-23 8.904c-.87-.281-1.676-.615-2.375-1.007v5.143c.044.048.116.117.231.208.447.353 1.252.785 2.48 1.195 2.43.813 5.958 1.362 9.976 1.362s7.546-.549 9.977-1.362c1.228-.41 2.033-.842 2.48-1.195a2 2 0 0 0 .231-.208v-5.143c-.7.392-1.505.726-2.375 1.007-2.708.877-6.358 1.352-10.313 1.352-3.954 0-7.604-.475-10.312-1.352m23.06 4.06-.01.016zm-25.495 0 .01.016zm3.997-15.726c.725 0 1.313-.573 1.313-1.28s-.588-1.281-1.313-1.281c-.724 0-1.312.573-1.312 1.28s.588 1.281 1.313 1.281Zm1.313 6.83c0 .706-.588 1.28-1.313 1.28-.724 0-1.312-.574-1.312-1.28 0-.708.588-1.281 1.313-1.281.724 0 1.312.573 1.312 1.28Zm-1.313 9.176c.725 0 1.313-.573 1.313-1.28s-.588-1.28-1.313-1.28c-.724 0-1.312.572-1.312 1.28 0 .707.588 1.28 1.313 1.28Z" clip-rule="evenodd"/></symbol>
+  </defs>
+
+  <rect width="1672" height="941" fill="#06111F"/>
+  <rect width="1672" height="941" fill="url(#grid)"/>
+  <path d="M0 24H1672" stroke="#A66CFF" stroke-width="5"/>
+  <text x="48" y="76" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="43" font-weight="800">システム全体とCloudflareリソースの関係</text>
+  <text x="49" y="112" fill="#AAB7C8" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18">センサー値を公開せず、しきい値判定だけを第三者が確認する</text>
+
+  <!-- Edge Device -->
+  <rect x="45" y="210" width="270" height="430" rx="22" fill="#0D2131" stroke="#38D6E8" stroke-width="4"/>
+  <g transform="translate(135 245)" fill="none" stroke="#38D6E8" stroke-width="4"><rect x="0" y="20" width="78" height="56" rx="8"/><path d="M16 20V2M62 20V2M25 62h28"/><circle cx="20" cy="49" r="4" fill="#38D6E8"/><circle cx="58" cy="49" r="4" fill="#38D6E8"/></g>
+  <text x="180" y="376" text-anchor="middle" fill="#38D6E8" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="29" font-weight="900">エッジデバイス</text>
+  <text x="180" y="426" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18">収集・1時間集約</text>
+  <text x="180" y="461" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18">認証・署名</text>
+  <rect x="78" y="522" width="204" height="48" rx="22" fill="#112B35"/>
+  <text x="180" y="553" text-anchor="middle" fill="#79D66A" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="17" font-weight="800">生の値を保持</text>
+
+  <!-- Cloudflare boundary -->
+  <rect x="370" y="145" width="900" height="635" rx="24" fill="#0A1625" stroke="#F6821F" stroke-width="4" stroke-dasharray="13 9"/>
+  <rect x="400" y="125" width="330" height="48" rx="23" fill="#F6821F"/>
+  <text x="565" y="157" text-anchor="middle" fill="#08111D" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="22" font-weight="900">CLOUDFLARE リソース</text>
+
+  <!-- Workers -->
+  <rect x="410" y="205" width="290" height="180" rx="17" fill="#141E2C" stroke="#F6821F" stroke-width="3"/>
+  <use href="#cf-workers" x="444" y="234" width="65" height="66" color="#F6821F"/>
+  <text x="530" y="264" fill="#F6A35B" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="30" font-weight="900">Workers</text>
+  <text x="555" y="327" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18">API・認証・画面</text>
+
+  <!-- D1 -->
+  <rect x="410" y="440" width="240" height="175" rx="17" fill="#141E2C" stroke="#F6821F" stroke-width="3"/>
+  <use href="#cf-d1" x="437" y="469" width="59" height="58" color="#F6821F"/>
+  <text x="512" y="501" fill="#F6A35B" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="30" font-weight="900">D1</text>
+  <text x="530" y="562" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="17">運用状態・表示用複製</text>
+
+  <!-- Queues -->
+  <rect x="675" y="440" width="240" height="175" rx="17" fill="#141E2C" stroke="#F6821F" stroke-width="3"/>
+  <use href="#cf-queues" x="704" y="473" width="58" height="58" color="#F6821F"/>
+  <text x="779" y="502" fill="#F6A35B" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="27" font-weight="900">Queues</text>
+  <text x="795" y="562" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="17">証明依頼・再試行</text>
+
+  <!-- Containers -->
+  <rect x="950" y="205" width="280" height="410" rx="18" fill="#141E2C" stroke="#F6821F" stroke-width="3"/>
+  <use href="#cf-containers" x="981" y="234" width="73" height="73" color="#F6821F"/>
+  <text x="1074" y="266" fill="#F6A35B" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="27" font-weight="900">Containers</text>
+  <rect x="980" y="335" width="220" height="92" rx="12" fill="#1A2637"/>
+  <text x="1090" y="372" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18" font-weight="800">Proof Server</text>
+  <text x="1090" y="402" text-anchor="middle" fill="#F4B740" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="16">証明生成</text>
+  <rect x="980" y="455" width="220" height="112" rx="12" fill="#1A2637"/>
+  <text x="1090" y="493" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18" font-weight="800">Sponsor Wallet</text>
+  <text x="1090" y="526" text-anchor="middle" fill="#A66CFF" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="16">Fee追加・送信</text>
+
+  <!-- R2 -->
+  <rect x="950" y="645" width="280" height="70" rx="14" fill="#141E2C" stroke="#F6821F" stroke-width="2.5"/>
+  <use href="#cf-r2" x="970" y="660" width="41" height="41" color="#F6821F"/>
+  <text x="1028" y="674" fill="#F6A35B" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="22" font-weight="900">R2</text>
+  <text x="1028" y="699" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="13">暗号化Wallet同期だけ</text>
+
+  <!-- Midnight -->
+  <rect x="1330" y="220" width="290" height="410" rx="22" fill="#17152E" stroke="#A66CFF" stroke-width="4"/>
+  <g transform="translate(1430 249)" fill="none" stroke="#A66CFF" stroke-width="4"><path d="M51 8a48 48 0 1 0 27 87A41 41 0 0 1 51 8Z"/><path d="M80 17l4 9 9 4-9 4-4 9-4-9-9-4 9-4z" fill="#A66CFF"/></g>
+  <text x="1475" y="385" text-anchor="middle" fill="#A66CFF" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="34" font-weight="900">MIDNIGHT</text>
+  <text x="1475" y="458" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18">しきい値・対象</text>
+  <text x="1475" y="512" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="18">判定・取引記録</text>
+
+  <!-- Public view -->
+  <rect x="1330" y="674" width="290" height="105" rx="16" fill="#111C2C" stroke="#38D6E8" stroke-width="3"/>
+  <text x="1475" y="713" text-anchor="middle" fill="#38D6E8" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="21" font-weight="900">第三者画面</text>
+  <text x="1475" y="751" text-anchor="middle" fill="#F5F7FB" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="16">日付・しきい値・判定</text>
+
+  <!-- Relations -->
+  <path d="M315 310H410" fill="none" stroke="#38D6E8" stroke-width="4" marker-end="url(#blue-arrow)"/>
+
+  <path d="M315 405H350V187H1090V335" fill="none" stroke="#F4B740" stroke-width="4" marker-end="url(#amber-arrow)"/>
+  <rect x="675" y="171" width="330" height="34" rx="8" fill="#2B2515" stroke="#F4B740"/>
+  <text x="840" y="194" text-anchor="middle" fill="#F4B740" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="13" font-weight="800">非公開MIN / MAX：証明中だけ</text>
+
+  <path d="M555 385V440" fill="none" stroke="#38D6E8" stroke-width="3" marker-end="url(#blue-arrow)"/>
+  <path d="M700 315H795V440" fill="none" stroke="#38D6E8" stroke-width="3" marker-end="url(#blue-arrow)"/>
+  <path d="M915 528H950" fill="none" stroke="#38D6E8" stroke-width="3" marker-end="url(#blue-arrow)"/>
+
+  <path d="M315 535H350V745H930V520H980" fill="none" stroke="#A66CFF" stroke-width="4" marker-end="url(#purple-arrow)"/>
+  <rect x="470" y="728" width="345" height="34" rx="8" fill="#211832" stroke="#A66CFF"/>
+  <text x="642" y="751" text-anchor="middle" fill="#A66CFF" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="13" font-weight="800">デバイス署名済み取引</text>
+
+  <path d="M1200 520H1330" fill="none" stroke="#A66CFF" stroke-width="4" marker-end="url(#purple-arrow)"/>
+
+  <path d="M1330 595H1270V635H530V615" fill="none" stroke="#79D66A" stroke-width="4" marker-end="url(#green-arrow)"/>
+
+  <path d="M700 350H1288V726H1330" fill="none" stroke="#38D6E8" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#blue-arrow)"/>
+
+  <!-- Bottom message -->
+  <rect x="45" y="824" width="1575" height="75" rx="15" fill="#091624" stroke="#29415C" stroke-width="2"/>
+  <text x="832" y="870" text-anchor="middle" fill="#F4B740" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="21" font-weight="900">非公開MIN / MAXは D1・Queues・R2へ保存しない</text>
+  <text x="1588" y="858" text-anchor="end" fill="#AAB7C8" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="10">Cloudflare公式製品アイコン使用</text>
+  <text x="1588" y="883" text-anchor="end" fill="#AAB7C8" font-family="Noto Sans JP, Yu Gothic, sans-serif" font-size="10">詳細は system_architecture.md</text>
+</svg>
