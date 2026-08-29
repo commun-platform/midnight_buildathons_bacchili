@@ -1,72 +1,90 @@
 import {
-  deserializeMerklePath,
-  encodeTemperature,
+  bytesToHex,
   hexToBytes,
-  toCompactSensorLeaf,
-  type CompactSensorLeaf,
-  type PrivateDataset,
+  toCompactDailyExtremaInput,
+  type CompactDailyExtremaInput,
+  type PrivateDailyExtremaAttestation,
 } from '@midnight-demo/shared';
-import type {
-  MerkleTreePath,
-  WitnessContext,
-} from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import type { WitnessContext } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+
+import { pureCircuits } from './managed/sensor-registry/contract/index.js';
 
 export type SensorPrivateState = {
-  datasets: PrivateDataset[];
+  deviceSecretHex?: string;
+  operatorSecretHex?: string;
+  dailyAttestations: PrivateDailyExtremaAttestation[];
 };
 
-export const SENSOR_PRIVATE_STATE_ID = 'sensorPrivateState';
+export const SENSOR_PRIVATE_STATE_ID = 'sensorPrivateStateV4';
 
-export function createSensorPrivateState(datasets: PrivateDataset[] = []): SensorPrivateState {
-  return { datasets };
+export function createSensorPrivateState(
+  dailyAttestations: PrivateDailyExtremaAttestation[] = [],
+  deviceSecretHex?: string,
+  operatorSecretHex?: string,
+): SensorPrivateState {
+  return { deviceSecretHex, operatorSecretHex, dailyAttestations };
 }
 
-function findDataset(privateState: SensorPrivateState, datasetRoot: bigint): PrivateDataset {
-  const dataset = privateState.datasets.find((candidate) => candidate.datasetRoot === datasetRoot.toString());
-  if (!dataset) throw new Error(`Private dataset not found for root ${datasetRoot}`);
-  return dataset;
+function requiredSecret(value: string | undefined, label: string): Uint8Array {
+  if (!value) throw new Error(`${label} is missing from private state`);
+  const secret = hexToBytes(value);
+  if (secret.length !== 32) throw new Error(`${label} must contain 32 bytes`);
+  return secret;
 }
 
-function selectedSample(dataset: PrivateDataset) {
-  const sample = dataset.samples[dataset.selectedIndex];
-  if (!sample) throw new Error(`Private sample ${dataset.selectedIndex} is missing`);
-  return sample;
+export function deriveDeviceAuthorityHex(deviceSecretHex: string): string {
+  return bytesToHex(pureCircuits.deriveDeviceAuthority(
+    requiredSecret(deviceSecretHex, 'Device contract authority secret'),
+  ));
+}
+
+export function deriveOperatorAuthorityHex(operatorSecretHex: string): string {
+  return bytesToHex(pureCircuits.deriveOperatorAuthority(
+    requiredSecret(operatorSecretHex, 'Operator authority secret'),
+  ));
+}
+
+function findDailyAttestation(
+  privateState: SensorPrivateState,
+  attestationCommitment: Uint8Array,
+): PrivateDailyExtremaAttestation {
+  const commitmentHex = bytesToHex(attestationCommitment);
+  const attestation = privateState.dailyAttestations.find(
+    (candidate) => candidate.attestationCommitment === commitmentHex,
+  );
+  if (!attestation) throw new Error(`Private daily extrema not found for ${commitmentHex}`);
+  return attestation;
 }
 
 export const witnesses = {
-  privateSensorLeaf(
+  privateDeviceSecret(
     { privateState }: WitnessContext<unknown, SensorPrivateState>,
-    datasetRoot: bigint,
-  ): [SensorPrivateState, CompactSensorLeaf] {
-    const dataset = findDataset(privateState, datasetRoot);
-    return [privateState, toCompactSensorLeaf(selectedSample(dataset))];
-  },
-  privateSensorNonce(
-    { privateState }: WitnessContext<unknown, SensorPrivateState>,
-    datasetRoot: bigint,
   ): [SensorPrivateState, Uint8Array] {
-    const dataset = findDataset(privateState, datasetRoot);
-    return [privateState, hexToBytes(dataset.selectedNonceHex)];
+    return [
+      privateState,
+      requiredSecret(privateState.deviceSecretHex, 'Device contract authority secret'),
+    ];
   },
-  privateThresholdMin(
+  privateOperatorSecret(
     { privateState }: WitnessContext<unknown, SensorPrivateState>,
-    datasetRoot: bigint,
-  ): [SensorPrivateState, bigint] {
-    const dataset = findDataset(privateState, datasetRoot);
-    return [privateState, encodeTemperature(dataset.threshold.min)];
+  ): [SensorPrivateState, Uint8Array] {
+    return [
+      privateState,
+      requiredSecret(privateState.operatorSecretHex, 'Operator authority secret'),
+    ];
   },
-  privateThresholdMax(
+  privateDailyExtrema(
     { privateState }: WitnessContext<unknown, SensorPrivateState>,
-    datasetRoot: bigint,
-  ): [SensorPrivateState, bigint] {
-    const dataset = findDataset(privateState, datasetRoot);
-    return [privateState, encodeTemperature(dataset.threshold.max)];
+    attestationCommitment: Uint8Array,
+  ): [SensorPrivateState, CompactDailyExtremaInput] {
+    const attestation = findDailyAttestation(privateState, attestationCommitment);
+    return [privateState, toCompactDailyExtremaInput(attestation)];
   },
-  privateMerklePath(
+  privateDailyNonce(
     { privateState }: WitnessContext<unknown, SensorPrivateState>,
-    datasetRoot: bigint,
-  ): [SensorPrivateState, MerkleTreePath<Uint8Array>] {
-    const dataset = findDataset(privateState, datasetRoot);
-    return [privateState, deserializeMerklePath(dataset.merklePath)];
+    attestationCommitment: Uint8Array,
+  ): [SensorPrivateState, Uint8Array] {
+    const attestation = findDailyAttestation(privateState, attestationCommitment);
+    return [privateState, hexToBytes(attestation.nonceHex)];
   },
 };

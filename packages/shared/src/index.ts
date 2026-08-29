@@ -1,4 +1,5 @@
 import {
+  CompactTypeBoolean,
   CompactTypeBytes,
   CompactTypeField,
   CompactTypeMerkleTreeDigest,
@@ -16,7 +17,13 @@ import {
 
 export const MERKLE_TREE_DEPTH = 11;
 export const TEMPERATURE_OFFSET_CENTI = 10_000;
-export const DATASET_SCHEMA_VERSION = 1;
+export const DATASET_SCHEMA_VERSION = 2;
+export const DAILY_EXTREMA_SCHEMA_VERSION = 5;
+export const DAILY_EXTREMA_CIRCUIT_VERSION = 3;
+export const HOURS_PER_DAY = 24;
+export const DAILY_EXTREMA_COMMITMENT_DOMAIN = 'vsp:daily-extrema:v1';
+export const MEASUREMENT_GROUP_DOMAIN = 'vsp:measurement-group:v1';
+export const JST_OFFSET_MINUTES = 9 * 60;
 
 export interface SensorRecord {
   deviceId: string;
@@ -50,6 +57,8 @@ export interface PublicDatasetCommitment {
   periodStartEpoch: string;
   periodEndEpoch: string;
   sampleCount: number;
+  thresholdMin: number;
+  thresholdMax: number;
   schemaVersion: number;
 }
 
@@ -58,10 +67,6 @@ export interface PrivateDataset {
   datasetRoot: string;
   deviceId: string;
   samples: SensorRecord[];
-  threshold: {
-    min: number;
-    max: number;
-  };
   selectedIndex: number;
   selectedNonceHex: string;
   merklePath: SerializedMerklePath;
@@ -70,6 +75,99 @@ export interface PrivateDataset {
 export interface PreparedDataset {
   publicData: PublicDatasetCommitment;
   privateData: PrivateDataset;
+}
+
+export type ThresholdPolicyMode = 'closed-range' | 'upper-bound' | 'lower-bound';
+export type DailyThresholdResult = 'within-threshold' | 'outside-threshold';
+
+export interface ThresholdPolicyDescriptor {
+  policyId: string;
+  mode: ThresholdPolicyMode;
+  minimum: number;
+  maximum: number;
+  valueScale: number;
+  sensorTypeCode: number;
+  unitCode: number;
+  version: number;
+}
+
+export interface HourlyExtremaSlot {
+  hourIndex: number;
+  present: boolean;
+  minimum: number;
+  maximum: number;
+  sampleCount: number;
+}
+
+export interface CompactHourlyExtrema {
+  present: boolean;
+  minimumCentiOffset: bigint;
+  maximumCentiOffset: bigint;
+  sampleCount: bigint;
+}
+
+export interface CompactDailyExtremaInput {
+  commitmentDomain: Uint8Array;
+  deviceCommitment: Uint8Array;
+  measurementGroupId: Uint8Array;
+  policyId: Uint8Array;
+  assignmentId: Uint8Array;
+  periodStart: bigint;
+  periodEnd: bigint;
+  hours: CompactHourlyExtrema[];
+  schemaVersion: bigint;
+  circuitVersion: bigint;
+}
+
+export interface PublicDailyExtremaAttestation {
+  attestationCommitment: string;
+  deviceCommitment: string;
+  measurementGroupId: string;
+  policyId: string;
+  policyKey: string;
+  assignmentId: string;
+  assignmentKey: string;
+  periodDate: string;
+  periodStart: string;
+  periodEnd: string;
+  periodStartEpoch: string;
+  periodEndEpoch: string;
+  hourPresence: boolean[];
+  observedHourCount: number;
+  stoppedHourCount: number;
+  sampleCount: number;
+  schemaVersion: number;
+  circuitVersion: number;
+}
+
+export interface PrivateDailyExtremaAttestation {
+  attestationCommitment: string;
+  deviceId: string;
+  deviceCommitment: string;
+  measurementGroupId: string;
+  policyKey: string;
+  assignmentKey: string;
+  periodStartEpoch: string;
+  periodEndEpoch: string;
+  hours: HourlyExtremaSlot[];
+  nonceHex: string;
+  schemaVersion: number;
+  circuitVersion: number;
+}
+
+export interface PreparedDailyExtremaAttestation {
+  publicData: PublicDailyExtremaAttestation;
+  privateData: PrivateDailyExtremaAttestation;
+}
+
+export interface PrepareDailyExtremaOptions {
+  deviceId?: string;
+  periodDate?: string;
+  measurementGroupId?: string;
+  timeZoneOffsetMinutes?: number;
+  policyId?: string;
+  assignmentId?: string;
+  nonceSeed?: string;
 }
 
 export interface GenerateSensorOptions {
@@ -92,6 +190,68 @@ const bytes32Type = new CompactTypeBytes(32);
 const uint32Type = new CompactTypeUnsignedInteger((1n << 32n) - 1n, 4);
 const uint64Type = new CompactTypeUnsignedInteger((1n << 64n) - 1n, 8);
 const fieldPairType = new CompactTypeVector(2, CompactTypeField);
+
+export const compactHourlyExtremaType: CompactType<CompactHourlyExtrema> = {
+  alignment: () => [
+    ...CompactTypeBoolean.alignment(),
+    ...uint32Type.alignment(),
+    ...uint32Type.alignment(),
+    ...uint32Type.alignment(),
+  ],
+  toValue: (value) => [
+    ...CompactTypeBoolean.toValue(value.present),
+    ...uint32Type.toValue(value.minimumCentiOffset),
+    ...uint32Type.toValue(value.maximumCentiOffset),
+    ...uint32Type.toValue(value.sampleCount),
+  ],
+  fromValue: (value) => ({
+    present: CompactTypeBoolean.fromValue(value),
+    minimumCentiOffset: uint32Type.fromValue(value),
+    maximumCentiOffset: uint32Type.fromValue(value),
+    sampleCount: uint32Type.fromValue(value),
+  }),
+};
+
+const hourlyExtremaVectorType = new CompactTypeVector(HOURS_PER_DAY, compactHourlyExtremaType);
+
+export const compactDailyExtremaInputType: CompactType<CompactDailyExtremaInput> = {
+  alignment: () => [
+    ...bytes32Type.alignment(),
+    ...bytes32Type.alignment(),
+    ...bytes32Type.alignment(),
+    ...bytes32Type.alignment(),
+    ...bytes32Type.alignment(),
+    ...uint64Type.alignment(),
+    ...uint64Type.alignment(),
+    ...hourlyExtremaVectorType.alignment(),
+    ...uint32Type.alignment(),
+    ...uint32Type.alignment(),
+  ],
+  toValue: (value) => [
+    ...bytes32Type.toValue(value.commitmentDomain),
+    ...bytes32Type.toValue(value.deviceCommitment),
+    ...bytes32Type.toValue(value.measurementGroupId),
+    ...bytes32Type.toValue(value.policyId),
+    ...bytes32Type.toValue(value.assignmentId),
+    ...uint64Type.toValue(value.periodStart),
+    ...uint64Type.toValue(value.periodEnd),
+    ...hourlyExtremaVectorType.toValue(value.hours),
+    ...uint32Type.toValue(value.schemaVersion),
+    ...uint32Type.toValue(value.circuitVersion),
+  ],
+  fromValue: (value) => ({
+    commitmentDomain: bytes32Type.fromValue(value),
+    deviceCommitment: bytes32Type.fromValue(value),
+    measurementGroupId: bytes32Type.fromValue(value),
+    policyId: bytes32Type.fromValue(value),
+    assignmentId: bytes32Type.fromValue(value),
+    periodStart: uint64Type.fromValue(value),
+    periodEnd: uint64Type.fromValue(value),
+    hours: hourlyExtremaVectorType.fromValue(value),
+    schemaVersion: uint32Type.fromValue(value),
+    circuitVersion: uint32Type.fromValue(value),
+  }),
+};
 
 export const compactSensorLeafType: CompactType<CompactSensorLeaf> = {
   alignment: () => [
@@ -202,9 +362,287 @@ export function toCompactSensorLeaf(record: SensorRecord): CompactSensorLeaf {
 }
 
 export function encodeTemperature(value: number): bigint {
+  if (!Number.isFinite(value)) throw new Error('Temperature must be finite');
   const encoded = Math.round(value * 100) + TEMPERATURE_OFFSET_CENTI;
-  if (encoded < 0) throw new Error('Temperature is below the supported range');
+  if (encoded < 0 || encoded > 0xffff_ffff) {
+    throw new Error('Temperature is outside the supported Uint<32> range');
+  }
   return BigInt(encoded);
+}
+
+function requireSafeIdentifier(value: string, label: string): string {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(normalized)) {
+    throw new Error(`${label} must contain 1-160 safe identifier characters`);
+  }
+  return normalized;
+}
+
+function periodStartForDate(periodDate: string, offsetMinutes: number): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(periodDate)) throw new Error('periodDate must be YYYY-MM-DD');
+  if (!Number.isInteger(offsetMinutes) || offsetMinutes < -14 * 60 || offsetMinutes > 14 * 60) {
+    throw new Error('timeZoneOffsetMinutes is outside the supported range');
+  }
+  const [yearText, monthText, dayText] = periodDate.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const start = new Date(Date.UTC(year, month - 1, day) - offsetMinutes * 60_000);
+  const shifted = new Date(start.valueOf() + offsetMinutes * 60_000).toISOString().slice(0, 10);
+  if (shifted !== periodDate) throw new Error('periodDate is not a valid calendar date');
+  return start;
+}
+
+function localDateAtOffset(timestamp: number, offsetMinutes: number): string {
+  return new Date(timestamp + offsetMinutes * 60_000).toISOString().slice(0, 10);
+}
+
+export async function thresholdPolicyKey(policyId: string): Promise<Uint8Array> {
+  return sha256(`vsp:threshold-policy:v1\n${requireSafeIdentifier(policyId, 'policyId')}`);
+}
+
+export async function policyAssignmentKey(assignmentId: string): Promise<Uint8Array> {
+  return sha256(`vsp:policy-assignment:v1\n${requireSafeIdentifier(assignmentId, 'assignmentId')}`);
+}
+
+export async function sensorDeviceCommitment(deviceId: string): Promise<Uint8Array> {
+  return sha256(`vsp:sensor-device:v1\n${requireSafeIdentifier(deviceId, 'deviceId')}`);
+}
+
+export async function measurementGroupKey(groupId: string): Promise<Uint8Array> {
+  return sha256(`${MEASUREMENT_GROUP_DOMAIN}\n${requireSafeIdentifier(groupId, 'measurementGroupId')}`);
+}
+
+export function toCompactDailyExtremaInput(
+  value: PrivateDailyExtremaAttestation,
+): CompactDailyExtremaInput {
+  if (value.hours.length !== HOURS_PER_DAY) throw new Error('Daily extrema must contain exactly 24 hours');
+  return {
+    commitmentDomain: paddedBytes32(DAILY_EXTREMA_COMMITMENT_DOMAIN),
+    deviceCommitment: hexToBytes(value.deviceCommitment),
+    measurementGroupId: hexToBytes(value.measurementGroupId),
+    policyId: hexToBytes(value.policyKey),
+    assignmentId: hexToBytes(value.assignmentKey),
+    periodStart: BigInt(value.periodStartEpoch),
+    periodEnd: BigInt(value.periodEndEpoch),
+    hours: value.hours.map((hour, index) => {
+      if (hour.hourIndex !== index) throw new Error('Daily extrema hour order is invalid');
+      return {
+        present: hour.present,
+        minimumCentiOffset: hour.present ? encodeTemperature(hour.minimum) : 0n,
+        maximumCentiOffset: hour.present ? encodeTemperature(hour.maximum) : 0n,
+        sampleCount: BigInt(hour.sampleCount),
+      };
+    }),
+    schemaVersion: BigInt(value.schemaVersion),
+    circuitVersion: BigInt(value.circuitVersion),
+  };
+}
+
+function paddedBytes32(value: string): Uint8Array {
+  const encoded = encoder.encode(value);
+  if (encoded.length > 32) throw new Error('Commitment domain must fit in Bytes<32>');
+  const padded = new Uint8Array(32);
+  padded.set(encoded);
+  return padded;
+}
+
+function policyAllows(
+  policy: ThresholdPolicyDescriptor,
+  minimum: number,
+  maximum: number,
+): boolean {
+  if (minimum > maximum) return false;
+  if (policy.mode !== 'upper-bound' && minimum < policy.minimum) return false;
+  if (policy.mode !== 'lower-bound' && maximum > policy.maximum) return false;
+  return true;
+}
+
+export async function prepareDailyExtremaAttestation(
+  records: readonly SensorRecord[],
+  options: PrepareDailyExtremaOptions = {},
+): Promise<PreparedDailyExtremaAttestation> {
+  const offsetMinutes = options.timeZoneOffsetMinutes ?? JST_OFFSET_MINUTES;
+  if (offsetMinutes !== JST_OFFSET_MINUTES) {
+    throw new Error('Daily extrema periods are fixed to Asia/Tokyo (UTC+09:00)');
+  }
+  const first = records[0];
+  const deviceId = requireSafeIdentifier(
+    options.deviceId ?? first?.deviceId ?? '',
+    'deviceId',
+  );
+  if (records.some((record) => record.deviceId !== deviceId)) {
+    throw new Error('All records must belong to the configured device');
+  }
+  const firstTimestamp = first ? Date.parse(first.timestamp) : Number.NaN;
+  const periodDate = options.periodDate
+    ?? (Number.isFinite(firstTimestamp) ? localDateAtOffset(firstTimestamp, offsetMinutes) : '');
+  const periodStart = periodStartForDate(periodDate, offsetMinutes);
+  const periodEnd = new Date(periodStart.valueOf() + 86_400_000);
+  const policyId = requireSafeIdentifier(options.policyId ?? 'temperature-v1', 'policyId');
+  const assignmentId = requireSafeIdentifier(
+    options.assignmentId ?? `${deviceId}-${policyId}-wave1`,
+    'assignmentId',
+  );
+  const hours: HourlyExtremaSlot[] = Array.from({ length: HOURS_PER_DAY }, (_, hourIndex) => ({
+    hourIndex,
+    present: false,
+    minimum: 0,
+    maximum: 0,
+    sampleCount: 0,
+  }));
+
+  for (const record of records) {
+    const timestamp = Date.parse(record.timestamp);
+    if (!Number.isFinite(timestamp)) throw new Error(`Invalid timestamp: ${record.timestamp}`);
+    if (timestamp < periodStart.valueOf() || timestamp >= periodEnd.valueOf()) {
+      throw new Error(`Record timestamp is outside ${periodDate} at the configured offset`);
+    }
+    if (!Number.isFinite(record.temperature)) throw new Error('Temperature must be finite');
+    encodeTemperature(record.temperature);
+    const hourIndex = Math.floor((timestamp - periodStart.valueOf()) / 3_600_000);
+    const hour = hours[hourIndex];
+    if (!hour) throw new Error('Calculated hour index is outside the daily range');
+    if (!hour.present) {
+      hour.present = true;
+      hour.minimum = record.temperature;
+      hour.maximum = record.temperature;
+    } else {
+      hour.minimum = Math.min(hour.minimum, record.temperature);
+      hour.maximum = Math.max(hour.maximum, record.temperature);
+    }
+    hour.sampleCount += 1;
+  }
+
+  const policyKeyBytes = await thresholdPolicyKey(policyId);
+  const assignmentKeyBytes = await policyAssignmentKey(assignmentId);
+  const deviceCommitmentBytes = await sensorDeviceCommitment(deviceId);
+  const measurementGroupIdBytes = await measurementGroupKey(
+    options.measurementGroupId ?? `daily:${periodDate}`,
+  );
+  const nonce = await createNonce(options.nonceSeed, HOURS_PER_DAY);
+  const privateData: PrivateDailyExtremaAttestation = {
+    attestationCommitment: '',
+    deviceId,
+    deviceCommitment: bytesToHex(deviceCommitmentBytes),
+    measurementGroupId: bytesToHex(measurementGroupIdBytes),
+    policyKey: bytesToHex(policyKeyBytes),
+    assignmentKey: bytesToHex(assignmentKeyBytes),
+    periodStartEpoch: BigInt(Math.floor(periodStart.valueOf() / 1000)).toString(),
+    periodEndEpoch: BigInt(Math.floor(periodEnd.valueOf() / 1000)).toString(),
+    hours,
+    nonceHex: bytesToHex(nonce),
+    schemaVersion: DAILY_EXTREMA_SCHEMA_VERSION,
+    circuitVersion: DAILY_EXTREMA_CIRCUIT_VERSION,
+  };
+  const commitment = persistentCommit(
+    compactDailyExtremaInputType,
+    toCompactDailyExtremaInput(privateData),
+    nonce,
+  );
+  const attestationCommitment = bytesToHex(commitment);
+  privateData.attestationCommitment = attestationCommitment;
+  const hourPresence = hours.map((hour) => hour.present);
+  const observedHourCount = hourPresence.filter(Boolean).length;
+  return {
+    publicData: {
+      attestationCommitment,
+      deviceCommitment: privateData.deviceCommitment,
+      measurementGroupId: privateData.measurementGroupId,
+      policyId,
+      policyKey: privateData.policyKey,
+      assignmentId,
+      assignmentKey: privateData.assignmentKey,
+      periodDate,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      periodStartEpoch: privateData.periodStartEpoch,
+      periodEndEpoch: privateData.periodEndEpoch,
+      hourPresence,
+      observedHourCount,
+      stoppedHourCount: HOURS_PER_DAY - observedHourCount,
+      sampleCount: records.length,
+      schemaVersion: privateData.schemaVersion,
+      circuitVersion: privateData.circuitVersion,
+    },
+    privateData,
+  };
+}
+
+export function evaluatePreparedDailyExtremaLocally(
+  attestation: PreparedDailyExtremaAttestation,
+  policy: ThresholdPolicyDescriptor,
+): DailyThresholdResult {
+  if (policy.policyId !== attestation.publicData.policyId) throw new Error('Threshold policy mismatch');
+  const publicData = attestation.publicData;
+  const privateData = attestation.privateData;
+  if (privateData.attestationCommitment !== publicData.attestationCommitment) {
+    throw new Error('Private attestation commitment mismatch');
+  }
+  const nonce = hexToBytes(privateData.nonceHex);
+  const commitment = persistentCommit(
+    compactDailyExtremaInputType,
+    toCompactDailyExtremaInput(privateData),
+    nonce,
+  );
+  if (bytesToHex(commitment) !== publicData.attestationCommitment) {
+    throw new Error('Daily extrema commitment mismatch');
+  }
+  if (
+    privateData.deviceCommitment !== publicData.deviceCommitment
+    || privateData.measurementGroupId !== publicData.measurementGroupId
+    || privateData.policyKey !== publicData.policyKey
+    || privateData.assignmentKey !== publicData.assignmentKey
+    || privateData.periodStartEpoch !== publicData.periodStartEpoch
+    || privateData.periodEndEpoch !== publicData.periodEndEpoch
+    || privateData.schemaVersion !== publicData.schemaVersion
+    || privateData.circuitVersion !== publicData.circuitVersion
+  ) throw new Error('Private daily extrema metadata mismatch');
+  if (privateData.hours.length !== HOURS_PER_DAY || publicData.hourPresence.length !== HOURS_PER_DAY) {
+    throw new Error('Daily extrema must contain exactly 24 hours');
+  }
+  let sampleCount = 0;
+  let observedHourCount = 0;
+  let thresholdSatisfied = true;
+  for (const [index, hour] of privateData.hours.entries()) {
+    if (hour.hourIndex !== index || hour.present !== publicData.hourPresence[index]) {
+      throw new Error('Hourly presence mismatch');
+    }
+    sampleCount += hour.sampleCount;
+    if (!hour.present) {
+      if (hour.sampleCount !== 0 || hour.minimum !== 0 || hour.maximum !== 0) {
+        throw new Error('Stopped hour is not canonical');
+      }
+      continue;
+    }
+    observedHourCount += 1;
+    if (
+      hour.sampleCount < 1
+      || !Number.isFinite(hour.minimum)
+      || !Number.isFinite(hour.maximum)
+      || hour.minimum > hour.maximum
+    ) throw new Error('Observed hourly extrema are invalid');
+    encodeTemperature(hour.minimum);
+    encodeTemperature(hour.maximum);
+    if (!policyAllows(policy, hour.minimum, hour.maximum)) thresholdSatisfied = false;
+  }
+  if (
+    sampleCount !== publicData.sampleCount
+    || observedHourCount !== publicData.observedHourCount
+    || HOURS_PER_DAY - observedHourCount !== publicData.stoppedHourCount
+  ) throw new Error('Daily aggregate counts mismatch');
+  return thresholdSatisfied ? 'within-threshold' : 'outside-threshold';
+}
+
+export function verifyPreparedDailyExtremaLocally(
+  attestation: PreparedDailyExtremaAttestation,
+  policy: ThresholdPolicyDescriptor,
+): boolean {
+  try {
+    return evaluatePreparedDailyExtremaLocally(attestation, policy) === 'within-threshold';
+  } catch {
+    return false;
+  }
 }
 
 function alignedBytes32(value: Uint8Array) {
@@ -272,6 +710,8 @@ export async function prepareDataset(
 
   const thresholdMin = options.thresholdMin ?? 10;
   const thresholdMax = options.thresholdMax ?? 35;
+  encodeTemperature(thresholdMin);
+  encodeTemperature(thresholdMax);
   if (thresholdMin > thresholdMax) throw new Error('thresholdMin must not exceed thresholdMax');
 
   let tree = new StateBoundedMerkleTree(MERKLE_TREE_DEPTH);
@@ -316,6 +756,8 @@ export async function prepareDataset(
       periodStartEpoch: BigInt(Math.floor(periodStartMs / 1000)).toString(),
       periodEndEpoch: BigInt(Math.floor(periodEndMs / 1000)).toString(),
       sampleCount: records.length,
+      thresholdMin,
+      thresholdMax,
       schemaVersion: DATASET_SCHEMA_VERSION,
     },
     privateData: {
@@ -323,7 +765,6 @@ export async function prepareDataset(
       datasetRoot: root,
       deviceId,
       samples: [...records],
-      threshold: { min: thresholdMin, max: thresholdMax },
       selectedIndex,
       selectedNonceHex: bytesToHex(selectedNonce),
       merklePath: serializeMerklePath(merklePath),
@@ -339,6 +780,6 @@ export function verifyPreparedDatasetLocally(dataset: PreparedDataset): boolean 
   const path = deserializeMerklePath(dataset.privateData.merklePath);
   if (bytesToHex(commitment) !== bytesToHex(path.leaf)) return false;
   if (calculateMerklePathRoot(path).toString() !== dataset.publicData.datasetRoot) return false;
-  return selected.temperature >= dataset.privateData.threshold.min &&
-    selected.temperature <= dataset.privateData.threshold.max;
+  return selected.temperature >= dataset.publicData.thresholdMin &&
+    selected.temperature <= dataset.publicData.thresholdMax;
 }

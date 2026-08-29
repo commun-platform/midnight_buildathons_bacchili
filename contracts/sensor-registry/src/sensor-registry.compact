@@ -2,102 +2,401 @@ pragma language_version 0.23;
 
 import CompactStandardLibrary;
 
-export struct SensorLeaf {
-    timestamp: Uint<64>;
-    temperatureCentiOffset: Uint<32>;
-    humidityDeci: Uint<32>;
+export enum ThresholdMode {
+    closedRange,
+    upperBound,
+    lowerBound
 }
 
-export struct DatasetPublicState {
+export struct RegisteredDevice {
+    authority: Bytes<32>;
+    active: Boolean;
+    version: Uint<32>;
+}
+
+export struct ThresholdPolicy {
+    mode: ThresholdMode;
+    minimumCentiOffset: Uint<32>;
+    maximumCentiOffset: Uint<32>;
+    valueScale: Uint<32>;
+    sensorTypeCode: Uint<16>;
+    unitCode: Uint<16>;
+    version: Uint<32>;
+}
+
+export struct PolicyAssignment {
+    policyId: Bytes<32>;
     deviceCommitment: Bytes<32>;
+    validFrom: Uint<64>;
+    validUntil: Uint<64>;
+    version: Uint<32>;
+}
+
+export struct HourlyExtrema {
+    present: Boolean;
+    minimumCentiOffset: Uint<32>;
+    maximumCentiOffset: Uint<32>;
+    sampleCount: Uint<32>;
+}
+
+export struct DailyExtremaInput {
+    commitmentDomain: Bytes<32>;
+    deviceCommitment: Bytes<32>;
+    measurementGroupId: Bytes<32>;
+    policyId: Bytes<32>;
+    assignmentId: Bytes<32>;
     periodStart: Uint<64>;
     periodEnd: Uint<64>;
+    hours: Vector<24, HourlyExtrema>;
+    schemaVersion: Uint<32>;
+    circuitVersion: Uint<32>;
+}
+
+export struct DailyAttestationPublicState {
+    attestationCommitment: Bytes<32>;
+    measurementGroupId: Bytes<32>;
+    deviceCommitment: Bytes<32>;
+    policyId: Bytes<32>;
+    assignmentId: Bytes<32>;
+    periodStart: Uint<64>;
+    periodEnd: Uint<64>;
+    hourPresence: Vector<24, Boolean>;
+    observedHourCount: Uint<8>;
     sampleCount: Uint<32>;
+    schemaVersion: Uint<32>;
+    circuitVersion: Uint<32>;
+    thresholdSatisfied: Boolean;
     verified: Boolean;
-    schemaVersion: Uint<16>;
 }
 
-export ledger datasets: Map<Field, DatasetPublicState>;
-export ledger registrationCount: Counter;
-export ledger verificationCount: Counter;
-export ledger lastVerifiedRoot: Field;
-export ledger verificationResult: Boolean;
+export sealed ledger operatorAuthority: Bytes<32>;
+export ledger devices: Map<Bytes<32>, RegisteredDevice>;
+export ledger deviceAuthorityOwners: Map<Bytes<32>, Bytes<32>>;
+export ledger policies: Map<Bytes<32>, ThresholdPolicy>;
+export ledger policyAssignments: Map<Bytes<32>, PolicyAssignment>;
+export ledger attestations: Map<Bytes<32>, DailyAttestationPublicState>;
+export ledger policyCount: Counter;
+export ledger deviceCount: Counter;
+export ledger disabledDeviceCount: Counter;
+export ledger assignmentCount: Counter;
+export ledger attestationCount: Counter;
+export ledger lastAttestationCommitment: Bytes<32>;
+export ledger lastAttestationThresholdSatisfied: Boolean;
 
-constructor() {
-    registrationCount.increment(0);
-    verificationCount.increment(0);
-    verificationResult = false;
+constructor(initialOperatorAuthority: Bytes<32>) {
+    assert(initialOperatorAuthority != pad(32, ""), "operator authority must not be empty");
+    operatorAuthority = disclose(initialOperatorAuthority);
+    deviceCount.increment(0);
+    disabledDeviceCount.increment(0);
+    policyCount.increment(0);
+    assignmentCount.increment(0);
+    attestationCount.increment(0);
+    lastAttestationThresholdSatisfied = false;
 }
 
-witness privateSensorLeaf(datasetRoot: Field): SensorLeaf;
-witness privateSensorNonce(datasetRoot: Field): Bytes<32>;
-witness privateThresholdMin(datasetRoot: Field): Uint<32>;
-witness privateThresholdMax(datasetRoot: Field): Uint<32>;
-witness privateMerklePath(datasetRoot: Field): MerkleTreePath<11, Bytes<32>>;
+witness privateDeviceSecret(): Bytes<32>;
+witness privateOperatorSecret(): Bytes<32>;
+witness privateDailyExtrema(attestationCommitment: Bytes<32>): DailyExtremaInput;
+witness privateDailyNonce(attestationCommitment: Bytes<32>): Bytes<32>;
 
-export circuit registerDataset(
-    datasetRoot: Field,
+export pure circuit deriveDeviceAuthority(secret: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([
+        pad(32, "vsp:sensor-authority:v1"),
+        secret
+    ]);
+}
+
+export pure circuit deriveOperatorAuthority(secret: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([
+        pad(32, "vsp:operator-authority:v1"),
+        secret
+    ]);
+}
+
+export pure circuit deriveAttestationId(
     deviceCommitment: Bytes<32>,
-    periodStart: Uint<64>,
-    periodEnd: Uint<64>,
-    sampleCount: Uint<32>,
-    schemaVersion: Uint<16>
-): [] {
-    const publicRoot = disclose(datasetRoot);
-    assert(periodStart <= periodEnd, "periodStart must be before periodEnd");
-    assert(sampleCount > 0 && sampleCount <= 2048, "sampleCount is outside the tree capacity");
-    assert(!datasets.member(publicRoot), "dataset root already registered");
+    measurementGroupId: Bytes<32>
+): Bytes<32> {
+    return persistentHash<Vector<3, Bytes<32>>>([
+        pad(32, "vsp:daily-attestation-id:v1"),
+        deviceCommitment,
+        measurementGroupId
+    ]);
+}
 
-    datasets.insert(
-        publicRoot,
-        disclose(DatasetPublicState {
-            deviceCommitment: deviceCommitment,
-            periodStart: periodStart,
-            periodEnd: periodEnd,
-            sampleCount: sampleCount,
-            verified: false,
-            schemaVersion: schemaVersion
+circuit assertDeviceAuthorized(deviceCommitment: Bytes<32>): [] {
+    assert(devices.member(deviceCommitment), "device is not registered");
+    const device = devices.lookup(deviceCommitment);
+    assert(device.active, "device is disabled");
+    assert(
+        disclose(device.authority == deriveDeviceAuthority(privateDeviceSecret())),
+        "device is not authorized"
+    );
+}
+
+circuit assertOperatorAuthorized(): [] {
+    assert(
+        disclose(operatorAuthority == deriveOperatorAuthority(privateOperatorSecret())),
+        "operator is not authorized"
+    );
+}
+
+export circuit registerDevice(
+    deviceCommitment: Bytes<32>,
+    deviceAuthority: Bytes<32>,
+    version: Uint<32>
+): [] {
+    assertOperatorAuthorized();
+    const publicDeviceCommitment = disclose(deviceCommitment);
+    const publicDeviceAuthority = disclose(deviceAuthority);
+    assert(publicDeviceCommitment != pad(32, ""), "device commitment must not be empty");
+    assert(publicDeviceAuthority != pad(32, ""), "device authority must not be empty");
+    assert(version > 0, "device registration version must be positive");
+    assert(!devices.member(publicDeviceCommitment), "device is already registered");
+    assert(!deviceAuthorityOwners.member(publicDeviceAuthority), "device authority is already registered");
+    devices.insert(
+        publicDeviceCommitment,
+        disclose(RegisteredDevice {
+            authority: publicDeviceAuthority,
+            active: true,
+            version: version
         })
     );
-    registrationCount.increment(1);
+    deviceAuthorityOwners.insert(publicDeviceAuthority, publicDeviceCommitment);
+    deviceCount.increment(1);
 }
 
-export circuit verifySensorValue(datasetRoot: Field): [] {
-    const publicRoot = disclose(datasetRoot);
-    assert(datasets.member(publicRoot), "dataset root is not registered");
+export circuit rotateDeviceAuthority(
+    deviceCommitment: Bytes<32>,
+    newDeviceAuthority: Bytes<32>,
+    newVersion: Uint<32>
+): [] {
+    assertOperatorAuthorized();
+    const publicDeviceCommitment = disclose(deviceCommitment);
+    const publicDeviceAuthority = disclose(newDeviceAuthority);
+    assert(devices.member(publicDeviceCommitment), "device is not registered");
+    const current = devices.lookup(publicDeviceCommitment);
+    assert(current.active, "device is disabled");
+    assert(publicDeviceAuthority != pad(32, ""), "device authority must not be empty");
+    assert(publicDeviceAuthority != current.authority, "device authority must change");
+    assert(!deviceAuthorityOwners.member(publicDeviceAuthority), "device authority is already registered");
+    assert(newVersion > current.version, "device registration version must increase");
+    devices.insert(
+        publicDeviceCommitment,
+        disclose(RegisteredDevice {
+            authority: publicDeviceAuthority,
+            active: true,
+            version: newVersion
+        })
+    );
+    deviceAuthorityOwners.insert(publicDeviceAuthority, publicDeviceCommitment);
+}
 
-    const sample = privateSensorLeaf(publicRoot);
-    const nonce = privateSensorNonce(publicRoot);
-    const thresholdMin = privateThresholdMin(publicRoot);
-    const thresholdMax = privateThresholdMax(publicRoot);
-    const path = privateMerklePath(publicRoot);
-    const commitment = persistentCommit<SensorLeaf>(sample, nonce);
-    const computedRoot = merkleTreePathRoot<11, Bytes<32>>(path).field;
+export circuit disableDevice(deviceCommitment: Bytes<32>): [] {
+    assertOperatorAuthorized();
+    const publicDeviceCommitment = disclose(deviceCommitment);
+    assert(devices.member(publicDeviceCommitment), "device is not registered");
+    const current = devices.lookup(publicDeviceCommitment);
+    assert(current.active, "device is already disabled");
+    devices.insert(
+        publicDeviceCommitment,
+        disclose(RegisteredDevice {
+            authority: current.authority,
+            active: false,
+            version: current.version
+        })
+    );
+    disabledDeviceCount.increment(1);
+}
 
-    assert(disclose(path.leaf == commitment), "private sample commitment mismatch");
-    assert(disclose(computedRoot == publicRoot), "Merkle inclusion proof mismatch");
-    assert(disclose(thresholdMin <= thresholdMax), "private threshold is invalid");
+export circuit registerThresholdPolicy(
+    policyId: Bytes<32>,
+    policy: ThresholdPolicy
+): [] {
+    assertOperatorAuthorized();
+    const publicPolicyId = disclose(policyId);
+    const publicPolicy = disclose(policy);
+    assert(publicPolicyId != pad(32, ""), "policy id must not be empty");
+    assert(!policies.member(publicPolicyId), "threshold policy already exists");
+    assert(publicPolicy.valueScale > 0, "policy value scale must be positive");
+    assert(publicPolicy.version > 0, "policy version must be positive");
     assert(
-        disclose(
-            sample.temperatureCentiOffset >= thresholdMin &&
-            sample.temperatureCentiOffset <= thresholdMax
-        ),
-        "private sensor value is outside the allowed range"
+        (publicPolicy.mode == ThresholdMode.closedRange &&
+            publicPolicy.minimumCentiOffset <= publicPolicy.maximumCentiOffset) ||
+        (publicPolicy.mode == ThresholdMode.upperBound &&
+            publicPolicy.minimumCentiOffset == 0) ||
+        (publicPolicy.mode == ThresholdMode.lowerBound &&
+            publicPolicy.maximumCentiOffset == 4294967295),
+        "threshold policy is not canonical"
+    );
+    policies.insert(publicPolicyId, publicPolicy);
+    policyCount.increment(1);
+}
+
+export circuit registerPolicyAssignment(
+    assignmentId: Bytes<32>,
+    policyId: Bytes<32>,
+    deviceCommitment: Bytes<32>,
+    validFrom: Uint<64>,
+    validUntil: Uint<64>,
+    version: Uint<32>
+): [] {
+    assertOperatorAuthorized();
+    const publicAssignmentId = disclose(assignmentId);
+    const publicPolicyId = disclose(policyId);
+    const publicDeviceCommitment = disclose(deviceCommitment);
+    assert(publicAssignmentId != pad(32, ""), "assignment id must not be empty");
+    assert(policies.member(publicPolicyId), "threshold policy is not registered");
+    assert(devices.member(publicDeviceCommitment), "device is not registered");
+    assert(devices.lookup(publicDeviceCommitment).active, "device is disabled");
+    assert(!policyAssignments.member(publicAssignmentId), "policy assignment already exists");
+    assert(validUntil == 0 || validFrom < validUntil, "policy assignment period is invalid");
+    assert(version > 0, "assignment version must be positive");
+    policyAssignments.insert(
+        publicAssignmentId,
+        disclose(PolicyAssignment {
+            policyId: publicPolicyId,
+            deviceCommitment: publicDeviceCommitment,
+            validFrom: validFrom,
+            validUntil: validUntil,
+            version: version
+        })
+    );
+    assignmentCount.increment(1);
+}
+
+export circuit submitDailyAttestation(
+    attestationCommitment: Bytes<32>,
+    deviceCommitment: Bytes<32>,
+    measurementGroupId: Bytes<32>,
+    assignmentId: Bytes<32>,
+    periodStart: Uint<64>,
+    periodEnd: Uint<64>,
+    hourPresence: Vector<24, Boolean>,
+    sampleCount: Uint<32>,
+    thresholdSatisfied: Boolean,
+    schemaVersion: Uint<32>,
+    circuitVersion: Uint<32>
+): [] {
+    const publicCommitment = disclose(attestationCommitment);
+    const publicDeviceCommitment = disclose(deviceCommitment);
+    const publicMeasurementGroupId = disclose(measurementGroupId);
+    const publicAssignmentId = disclose(assignmentId);
+    const publicPresence = disclose(hourPresence);
+    const publicThresholdSatisfied = disclose(thresholdSatisfied);
+    assertDeviceAuthorized(publicDeviceCommitment);
+    assert(publicCommitment != pad(32, ""), "attestation commitment must not be empty");
+    assert(publicMeasurementGroupId != pad(32, ""), "measurement group id must not be empty");
+    const publicAttestationId = deriveAttestationId(
+        publicDeviceCommitment,
+        publicMeasurementGroupId
+    );
+    assert(!attestations.member(publicAttestationId), "measurement group already attested");
+    assert(policyAssignments.member(publicAssignmentId), "policy assignment is not registered");
+    assert(periodStart < periodEnd, "attestation period is invalid");
+    assert(periodEnd - periodStart == 86400, "attestation period must be exactly 24 hours");
+
+    const assignment = policyAssignments.lookup(publicAssignmentId);
+    assert(assignment.deviceCommitment == publicDeviceCommitment, "policy assignment belongs to another device");
+    assert(periodStart >= assignment.validFrom, "attestation is before the policy assignment");
+    assert(
+        assignment.validUntil == 0 || periodEnd <= assignment.validUntil,
+        "attestation is after the policy assignment"
+    );
+    assert(policies.member(assignment.policyId), "assigned threshold policy is missing");
+    const policy = policies.lookup(assignment.policyId);
+    const daily = privateDailyExtrema(publicCommitment);
+    const nonce = privateDailyNonce(publicCommitment);
+    const computedCommitment = persistentCommit<DailyExtremaInput>(daily, nonce);
+
+    assert(disclose(computedCommitment == publicCommitment), "daily extrema commitment mismatch");
+    assert(disclose(daily.commitmentDomain == pad(32, "vsp:daily-extrema:v1")), "attestation domain mismatch");
+    assert(disclose(daily.deviceCommitment == publicDeviceCommitment), "device commitment mismatch");
+    assert(disclose(daily.measurementGroupId == publicMeasurementGroupId), "measurement group mismatch");
+    assert(disclose(daily.policyId == assignment.policyId), "threshold policy mismatch");
+    assert(disclose(daily.assignmentId == publicAssignmentId), "policy assignment mismatch");
+    assert(disclose(daily.periodStart == periodStart), "period start mismatch");
+    assert(disclose(daily.periodEnd == periodEnd), "period end mismatch");
+    assert(disclose(daily.schemaVersion == schemaVersion), "schema version mismatch");
+    assert(disclose(daily.circuitVersion == circuitVersion), "circuit version mismatch");
+    assert(schemaVersion == 5, "unsupported schema version");
+    assert(circuitVersion == 3, "unsupported circuit version");
+
+    for (const hourIndex of 0..24) {
+        const hour = daily.hours[hourIndex];
+        assert(
+            disclose(hour.present == publicPresence[hourIndex]),
+            "hour presence mismatch"
+        );
+        assert(
+            disclose(
+                !hour.present ||
+                (hour.sampleCount > 0 &&
+                    hour.minimumCentiOffset <= hour.maximumCentiOffset)
+            ),
+            "observed hourly extrema are invalid"
+        );
+        assert(
+            disclose(
+                hour.present ||
+                (hour.sampleCount == 0 &&
+                    hour.minimumCentiOffset == 0 &&
+                    hour.maximumCentiOffset == 0)
+            ),
+            "stopped hour must use the canonical empty representation"
+        );
+    }
+
+    const computedThresholdSatisfied = fold(
+        (allSatisfied: Boolean, hour: HourlyExtrema): Boolean =>
+            allSatisfied &&
+            (!hour.present ||
+                ((policy.mode == ThresholdMode.upperBound ||
+                    hour.minimumCentiOffset >= policy.minimumCentiOffset) &&
+                 (policy.mode == ThresholdMode.lowerBound ||
+                    hour.maximumCentiOffset <= policy.maximumCentiOffset))),
+        true,
+        daily.hours
+    );
+    assert(
+        disclose(computedThresholdSatisfied == publicThresholdSatisfied),
+        "threshold result mismatch"
     );
 
-    const current = datasets.lookup(publicRoot);
-    datasets.insert(
-        publicRoot,
-        DatasetPublicState {
-            deviceCommitment: current.deviceCommitment,
-            periodStart: current.periodStart,
-            periodEnd: current.periodEnd,
-            sampleCount: current.sampleCount,
-            verified: true,
-            schemaVersion: current.schemaVersion
-        }
+    const computedSampleCount = fold(
+        (total: Uint<32>, hour: HourlyExtrema): Uint<32> =>
+            (total + hour.sampleCount) as Uint<32>,
+        0 as Uint<32>,
+        daily.hours
     );
-    lastVerifiedRoot = publicRoot;
-    verificationResult = true;
-    verificationCount.increment(1);
+    const observedHourCount = fold(
+        (total: Uint<8>, hour: HourlyExtrema): Uint<8> =>
+            (total + (hour.present ? 1 : 0)) as Uint<8>,
+        0 as Uint<8>,
+        daily.hours
+    );
+    assert(disclose(computedSampleCount == sampleCount), "daily sample count mismatch");
+
+    attestations.insert(
+        publicAttestationId,
+        disclose(DailyAttestationPublicState {
+            attestationCommitment: publicCommitment,
+            measurementGroupId: publicMeasurementGroupId,
+            deviceCommitment: publicDeviceCommitment,
+            policyId: assignment.policyId,
+            assignmentId: publicAssignmentId,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            hourPresence: publicPresence,
+            observedHourCount: observedHourCount,
+            sampleCount: sampleCount,
+            schemaVersion: schemaVersion,
+            circuitVersion: circuitVersion,
+            thresholdSatisfied: publicThresholdSatisfied,
+            verified: true
+        })
+    );
+    lastAttestationCommitment = publicCommitment;
+    lastAttestationThresholdSatisfied = publicThresholdSatisfied;
+    attestationCount.increment(1);
 }
