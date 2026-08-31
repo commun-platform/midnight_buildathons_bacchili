@@ -2,6 +2,7 @@
   "name": "@midnight-demo/development-cli",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "node ../../../scripts/require-development-host.mjs && tsc -p tsconfig.json",

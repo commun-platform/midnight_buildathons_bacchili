@@ -2,6 +2,7 @@
   "name": "@midnight-demo/sponsor-wallet",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "prebuild": "npm run build -w @midnight-demo/shared",
