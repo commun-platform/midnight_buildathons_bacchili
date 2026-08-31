@@ -15,6 +15,17 @@ import {
   type MerkleTreePath,
 } from '@midnight-ntwrk/compact-runtime';
 
+export {
+  browserPolicyCanonicalMessage,
+  browserProjectCanonicalMessage,
+  browserProvisioningCanonicalMessage,
+  type BrowserPolicyAuthorization,
+  type BrowserPolicyMode,
+  type BrowserProjectAuthorization,
+  type BrowserProvisioningAuthorization,
+  type BrowserWalletSignature,
+} from './browser-provisioning.js';
+
 export const MERKLE_TREE_DEPTH = 11;
 export const TEMPERATURE_OFFSET_CENTI = 10_000;
 export const DATASET_SCHEMA_VERSION = 2;
