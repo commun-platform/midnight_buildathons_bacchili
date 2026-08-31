@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const artifactDir = path.resolve(process.argv[2] ?? 'runtime/device-artifacts/sensor-registry');
+const artifactDir = path.resolve(process.argv[2] ?? '.device-release/sensor-registry');
 const manifestPath = path.join(artifactDir, 'manifest.json');
 if (!fs.existsSync(manifestPath)) throw new Error(`Artifact manifest is missing: ${manifestPath}`);
 
