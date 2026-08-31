@@ -53,6 +53,7 @@ midnight-level-db/
 
 # Cloudflare and local development state
 .wrangler/
+.sct-output/
 
 # Local agent and editor state
 .agents/
