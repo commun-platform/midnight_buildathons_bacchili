@@ -75,7 +75,7 @@ Source検証と日付付きMidnight事前公開ネットワーク記録は別の
 - リポジトリ: 最終公開GitHub URLを追加
 - 日本語スライド: [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) / [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf)
 - 英語スライド: [PPTX](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf)
-- 紹介動画: 最終画面の実装・録画後に追加
+- 紹介動画: `bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、提出用公開URLを追加
 - 主張と証拠の対応表: [evidence_matrix.md](evidence_matrix.md)
 - 審査の入口: [README](../../../README.md)
 
@@ -85,4 +85,4 @@ Source検証と日付付きMidnight事前公開ネットワーク記録は別の
 - 審査対象コミットを固定し、SHAを記録する。
 - リポジトリの公開設定と`midnightntwrk`トピックを確認する。
 - AKINDOの締切時刻、入力欄の制限、公式ルールを確認する。
-- 最終画面を録画し、言語別の動画リンクを掲載する。
+- 完成した英語動画を公開し、提出用URLを掲載する。

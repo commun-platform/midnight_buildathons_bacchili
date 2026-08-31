@@ -17,10 +17,10 @@ Last local check: 2026-08-31 JST
 | Midnight attribution | PASS | README and submission materials identify Compact, Midnight, and the proof boundary |
 | English / Japanese separation | PASS | Separate docs, figures, and deck outputs |
 | Public repository visibility | PENDING EXTERNAL | Confirm after publishing |
-| GitHub topic midnightntwrk | PENDING EXTERNAL | Add and confirm on the public repository |
+| GitHub topic midnightntwrk | PASS | Confirmed on the GitHub repository |
 | Final submission commit | PENDING | Freeze after GUI implementation and final capture |
 | Final GUI screenshots | PENDING | Capture after GUI implementation stabilizes |
-| Demo / video pitch | DEFERRED | User requested video production last |
+| Demo / video pitch | PASS (LOCAL) | English H.264/AAC 1080p video produced: `bacchiri-demo-pitch-en.mp4` (2:18); public URL remains external |
 | Slide public link | PENDING EXTERNAL | Publish generated deck or PDF and add URL |
 | AKINDO form and Official Rules | PENDING EXTERNAL | Recheck deadline time, limits, team and link fields |
 

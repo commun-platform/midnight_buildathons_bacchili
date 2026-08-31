@@ -2,7 +2,9 @@
 
 [English](../../submission/demo_script.md)
 
-状態: Script / Capture設計完了。最終GUI実装後に録画
+状態: 最終GUIを使った英語デモ動画を作成済み
+実時間: 2分18秒
+出力: `bacchiri-demo-pitch-en.mp4`。必要な場合だけ日本語版を別途制作
 目標時間: 3分30秒
 Output: 英語版・日本語版を別制作し、Burn-in字幕を流用しない
 

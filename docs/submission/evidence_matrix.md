@@ -21,7 +21,7 @@ Local source validation and recorded Preprod transactions are intentionally sepa
 | CLAIM-09 | The standard plan handles 1,440 readings/day with one fixed 24-slot proof | aggregation utilities and cost benchmark | 24 / 96 / 1,440 fixed-shape tests passed | 1,440-reading OUTSIDE TX confirmed | One measured Device/day is not a fleet load test |
 | CLAIM-10 | The required operational Compact contract compiles | contracts/sensor-registry | All 6 circuits compiled on 2026-08-29 | Previous deployed schema-3 contract confirmed | Final submission commit SHA remains to be frozen |
 | CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 287 tests, typecheck, build, Wrangler dry-run passed | Worker version `d88891bc-17b3-40c1-9771-5fc92fbd9cc0` deployed on 2026-08-31 JST | Initial restricted Docker dry-run could not update buildx state; the host-access dry-run passed |
-| CLAIM-12 | The GUI connects the Device workflow to public verification | dashboard source, routes, and tests | Dashboard build and 26 tests passed | Dated capture record shows six review steps | Final GUI capture and video are intentionally pending |
+| CLAIM-12 | The GUI connects the Device workflow to public verification | dashboard source, routes, and tests | Dashboard build and 26 tests passed | Dated capture record shows six review steps | English demo pitch produced; public URL pending |
 
 ## Current validation command
 

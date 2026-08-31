@@ -17,10 +17,10 @@
 | Midnight Attribution | PASS | README / 提出資料でCompact、Midnight、Proof境界を明示 |
 | 日英分離 | PASS | 文書、図版、Deck Outputを分離 |
 | Public Repository | PENDING EXTERNAL | 公開後に確認 |
-| GitHub Topic midnightntwrk | PENDING EXTERNAL | Public Repositoryで追加・確認 |
+| GitHub Topic midnightntwrk | PASS | GitHub Repositoryで設定済みと確認 |
 | 最終提出Commit | PENDING | GUI実装・最終Capture後に固定 |
 | 最終GUI Screenshot | PENDING | GUI安定後にCapture |
-| Demo / Video Pitch | DEFERRED | User指示により最後に制作 |
+| Demo / Video Pitch | PASS（LOCAL） | 英語H.264／AAC 1080p動画`bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、公開URL設定は外部作業 |
 | Slide Public Link | PENDING EXTERNAL | 生成Deck / PDFを公開後URL追加 |
 | AKINDO Form / Official Rules | PENDING EXTERNAL | 締切時刻、制限、Team、Link Fieldを再確認 |
 

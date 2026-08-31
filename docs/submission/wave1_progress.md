@@ -3,7 +3,7 @@
 [日本語版](../ja/submission/wave1_progress.md)
 
 Period covered: 2026-08-27 to 2026-08-29 JST
-Status: implementation continues; the video will be recorded after the final GUI is ready
+Status: final English demo pitch produced; public submission URL pending
 
 ## How to read this record
 

@@ -75,7 +75,7 @@ The browser independently checks public Midnight transaction and Contract state 
 - Repository: add the final public GitHub URL
 - English deck: [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf)
 - Japanese deck: [PPTX](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) / [PDF](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf)
-- Video pitch: add after final GUI implementation and recording
+- Video pitch: `bacchiri-demo-pitch-en.mp4` produced (2:18); add the final public URL
 - Claim-to-evidence map: [evidence_matrix.md](evidence_matrix.md)
 - Judge review path: [README](../../README.md)
 
@@ -85,4 +85,4 @@ The browser independently checks public Midnight transaction and Contract state 
 - Freeze a review commit and record its SHA.
 - Confirm repository visibility and the `midnightntwrk` GitHub topic.
 - Confirm the exact AKINDO deadline time, form limits, and Official Rules.
-- Record the final GUI and publish the language-specific video links.
+- Publish the completed English video and add its final URL.

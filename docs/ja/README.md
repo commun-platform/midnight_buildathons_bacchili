@@ -21,7 +21,7 @@
 | 主張と検証証拠 | [証拠対応表](submission/evidence_matrix.md) |
 | Wave進捗 | [Wave 1進捗](submission/wave1_progress.md) |
 | 想定質問 | [審査員向けQ&A](submission/judge_qa.md) |
-| 最終画面の動画 | [録画台本と撮影条件](submission/demo_script.md) — 画面実装後に録画 |
+| 英語デモ動画 | `bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、提出用公開URL待ち — [録画台本と撮影記録](submission/demo_script.md) |
 
 ## 製品と最初のユースケース
 

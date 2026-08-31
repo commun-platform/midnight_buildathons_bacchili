@@ -10,7 +10,7 @@
 
 ## Judge review
 
-The current review tree compiles all 6 operational proof circuits and passes 182 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
+The current review tree compiles all 6 operational proof circuits and passes 287 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
 
 | Review artifact | Link |
 | --- | --- |
@@ -20,7 +20,7 @@ The current review tree compiles all 6 operational proof circuits and passes 182
 | Claim-to-evidence map | [Evidence matrix](docs/submission/evidence_matrix.md) |
 | Wave progress | [Wave 1 progress](docs/submission/wave1_progress.md) |
 | Judge questions | [Judge Q&A](docs/submission/judge_qa.md) |
-| Final GUI video | [Script and capture gate](docs/submission/demo_script.md) — recording follows the final GUI implementation |
+| English demo pitch | Produced as `bacchiri-demo-pitch-en.mp4` (2:18); public submission URL pending — [script and capture record](docs/submission/demo_script.md) |
 
 ## Product and initial use case
 
@@ -148,7 +148,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-The expected review result is 6 compiled operational proof circuits, 182 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The expected review result is 6 compiled operational proof circuits, 287 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 

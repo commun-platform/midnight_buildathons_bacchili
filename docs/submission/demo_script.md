@@ -2,9 +2,9 @@
 
 [日本語版](../ja/submission/demo_script.md)
 
-Status: production-ready script; capture waits for the final GUI implementation
-Target duration: 3:30
-Output: separate English and Japanese videos; do not reuse burned-in captions across languages
+Status: English demo pitch produced from the final GUI
+Actual duration: 2:18
+Output: `bacchiri-demo-pitch-en.mp4`; produce a separate Japanese version only if needed
 
 ## Recording invariants
 
