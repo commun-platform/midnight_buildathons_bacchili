@@ -1,0 +1,49 @@
+{
+  "name": "@midnight-demo/development-cli",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node ../repository-checks/require-development-host.mjs && tsc -p tsconfig.json",
+    "typecheck": "node ../repository-checks/require-development-host.mjs && tsc -p tsconfig.json --noEmit",
+    "funding": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts funding",
+    "wallet": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts wallet",
+    "deploy": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts deploy",
+    "register-device": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts register-device",
+    "rotate-device": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts rotate-device",
+    "disable-device": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts disable-device",
+    "status": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts status",
+    "benchmark:daily-proof": "node ../repository-checks/require-development-host.mjs && tsx src/daily-attestation-benchmark.ts",
+    "test": "node ../repository-checks/require-development-host.mjs && tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "@midnight-demo/daily-attestation-contract": "*",
+    "@midnight-demo/sensor-registry-contract": "*",
+    "@midnight-demo/shared": "*",
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
+    "@scure/bip39": "2.2.0",
+    "dotenv": "^17.2.1",
+    "rxjs": "^7.8.2",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  }
+}

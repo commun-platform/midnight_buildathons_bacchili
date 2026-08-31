@@ -14,13 +14,13 @@ coverage/
 .turbo/
 
 # Compact and proving-key output
-contracts/*/src/managed/
-apps/dashboard/public/assets/
-apps/dashboard/public/device-flow.js
-apps/dashboard/public/device-flow.js.map
-apps/dashboard/public/keys/
-apps/dashboard/public/zkir/
-contracts/*/src/generated/
+midnight/**/src/managed/
+midnight/**/src/generated/
+frontend/verification-portal/public/assets/
+frontend/verification-portal/public/device-flow.js
+frontend/verification-portal/public/device-flow.js.map
+frontend/verification-portal/public/keys/
+frontend/verification-portal/public/zkir/
 .benchmark-cache/
 
 # Local environment and secret material

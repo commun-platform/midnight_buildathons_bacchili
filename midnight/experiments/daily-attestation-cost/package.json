@@ -1,0 +1,23 @@
+{
+  "name": "@midnight-demo/daily-attestation-contract",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./witnesses": "./src/witnesses.ts"
+  },
+  "scripts": {
+    "generate": "node ../../../tools/repository-checks/require-development-host.mjs && node scripts/generate.mjs",
+    "compile": "node ../../../tools/repository-checks/require-development-host.mjs && npm run generate && node scripts/compile.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.0"
+  }
+}

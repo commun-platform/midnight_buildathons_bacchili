@@ -1,0 +1,22 @@
+{
+  "name": "@midnight-demo/device-auth",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "generate": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts generate",
+    "refresh-enrollment": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts refresh-enrollment",
+    "show": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts show",
+    "session": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts session",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
