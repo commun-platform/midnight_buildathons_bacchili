@@ -3,7 +3,7 @@
 [English](../../implementation/zk_circuit_spec.md)
 
 状態：2026-08-30 JST時点の実装準拠仕様
-対象コントラクト：`contracts/sensor-registry/src/sensor-registry.compact`
+対象コントラクト：`midnight/contracts/sensor-registry/src/sensor-registry.compact`
 
 ## 1. 目的と対象範囲
 
@@ -321,7 +321,7 @@ flowchart LR
 
 ## 13. 開発専用回路プロファイル
 
-`contracts/daily-attestation/src/generated/`には、固定24／96／1,440件のプロファイルがあります。固定した
+`midnight/experiments/daily-attestation-cost/src/generated/`には、固定24／96／1,440件のプロファイルがあります。固定した
 日次構造でコンパイル時間、証明規模、費用を比較するために生成したものです。それぞれ独自の
 `registerDevice`、`registerPolicy`、`submitDailyAttestation`、`appendOutlierReason`を含みます。
 
@@ -343,12 +343,12 @@ Compact言語                      0.23
 
 ソースと生成物の対応は次のとおりです。
 
-- ソース：`contracts/sensor-registry/src/sensor-registry.compact`
-- 非公開入力の供給：`contracts/sensor-registry/src/witnesses.ts`
-- コンパイラ回路一覧：`contracts/sensor-registry/src/managed/sensor-registry/compiler/contract-info.json`
-- 6組のZKIR／BZKIR：`contracts/sensor-registry/src/managed/sensor-registry/zkir/`
-- 6組の証明鍵／検証鍵：`contracts/sensor-registry/src/managed/sensor-registry/keys/`
-- シミュレーターテスト：`contracts/sensor-registry/src/test/sensor-registry.test.ts`
+- ソース：`midnight/contracts/sensor-registry/src/sensor-registry.compact`
+- 非公開入力の供給：`midnight/contracts/sensor-registry/src/witnesses.ts`
+- コンパイラ回路一覧：`midnight/contracts/sensor-registry/src/managed/sensor-registry/compiler/contract-info.json`
+- 6組のZKIR／BZKIR：`midnight/contracts/sensor-registry/src/managed/sensor-registry/zkir/`
+- 6組の証明鍵／検証鍵：`midnight/contracts/sensor-registry/src/managed/sensor-registry/keys/`
+- シミュレーターテスト：`midnight/contracts/sensor-registry/src/test/sensor-registry.test.ts`
 
 生成物を直接編集せず、次のコマンドで再生成・検証します。
 

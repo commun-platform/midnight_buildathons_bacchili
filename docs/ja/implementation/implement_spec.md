@@ -50,11 +50,11 @@
 | --- | --- |
 | Device Install | `installer.sh`が運用Workspaceを導入し、完全なP-256 Device Identityがない場合だけOwner-onlyで生成します。 |
 | Device登録 | Operator CLIでMidnightへDevice／Device-bound Assignmentを登録し、D1 Mirror同期後だけ`register-device-key.mjs`でP-256を有効化します。 |
-| Device Session | `apps/proof-gateway/src/device-auth.ts`が5分のOne-time Challengeと24時間Opaque Sessionを実装し、D1にはToken Hashだけを保存します。 |
-| Collection | `apps/device/edge-agent/`がRaw SampleをLocal保持し、1時間AggregateとDebounce済みAnomaly Transitionを送信します。審査GUIのBrowser Deviceは完了済みの過去30日間から日付を選び、1分間隔のPrivate Sampleを1,440件生成して最大24件のWindowだけを送信します。 |
-| 日次準備 | `packages/shared`の`prepareDailyExtremaAttestation`が24 JST Slot、Canonical STOPPED Slot、Public Metadata、Private Commitment Openingを作ります。 |
-| Fleet管理 | `apps/development/operator-cli/src/operator-authority.ts`がOwner-only Operator Authorityを保持し、Operator限定の登録／Rotation／無効化Commandを提供します。 |
-| Compact回路 | `contracts/sensor-registry/src/sensor-registry.compact`がMulti-Device Registry、Device-bound Assignment、1 Callの日次Attestationを定義します。 |
+| Device Session | `backend/cloudflare/proof-gateway-worker/src/device-auth.ts`が5分のOne-time Challengeと24時間Opaque Sessionを実装し、D1にはToken Hashだけを保存します。 |
+| Collection | `edge-device/sensor-collector/`がRaw SampleをLocal保持し、1時間AggregateとDebounce済みAnomaly Transitionを送信します。審査GUIのBrowser Deviceは完了済みの過去30日間から日付を選び、1分間隔のPrivate Sampleを1,440件生成して最大24件のWindowだけを送信します。 |
+| 日次準備 | `shared/measurement-protocol`の`prepareDailyExtremaAttestation`が24 JST Slot、Canonical STOPPED Slot、Public Metadata、Private Commitment Openingを作ります。 |
+| Fleet管理 | `tools/midnight-operator/src/operator-authority.ts`がOwner-only Operator Authorityを保持し、Operator限定の登録／Rotation／無効化Commandを提供します。 |
+| Compact回路 | `midnight/contracts/sensor-registry/src/sensor-registry.compact`がMulti-Device Registry、Device-bound Assignment、1 Callの日次Attestationを定義します。 |
 | D1 Schema | Migration `0010`～`0022`がPolicy／Job、Fail-closed Fleet Registry Mirror、Device運用設定Revision、ClaimしたThreshold Result、非同期Sponsored Submission State、安定Measurement Group冪等性、冪等なJST日次Sponsor予約、Contract履歴、Wallet所有Project、Project単位Policy Operation、Browser Enrollment State、実際のZKP生成日時、永続Provisioning Progressを追加します。 |
 | Proof Admission | `POST /api/v1/proof-jobs`がAuthenticated Device、登録済みAssignment Metadata、ClaimしたBoolean Resultを検証しますが、Threshold Boundは受け取りません。Cronは02:00～06:00 JSTにAdmissionします。 |
 | Proof生成 | Wallet AgentがPrivate Proving Requestを認証済みWorker RouteからContainerへStreamし、Bodyは永続化しません。 |

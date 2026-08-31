@@ -1,6 +1,6 @@
 # Midnight Sensor Device Firmware
 
-このpackageはEdge Device用のデバイス運用runtimeだけを含みます。開発PC上で`package_archive.sh`から生成し、開発Wallet、Compact source／compiler、proving key生成tool、Cloudflare deploy code、Browser applicationは含めません。
+このpackageはEdge Device用のデバイス運用runtimeだけを含みます。開発PC上で`./edge-device/release/package_archive.sh`から生成し、開発Wallet、Compact source／compiler、proving key生成tool、Cloudflare deploy code、Browser applicationは含めません。
 
 ![検証済みパッケージの作成、版ごとの導入、稼働確認、復旧までの安全なリリース手順](../assets/guides/edge-release-lifecycle-ja.png)
 
@@ -127,7 +127,7 @@ Stateだけに保持します。最初のSponsor Request前に、FeeなしSerial
 同一Bytesを再Proofせず再利用し、同じJobに対する別Transactionは拒否します。新しいAttestationごとに
 一意な`--run-id`を使用してください。
 
-`config/device.env`、`device-auth/`、`device-wallet/`全体を、開発PCの`.env.development` Backupとは別に
+`config/device.env`、`device-auth/`、`device-wallet/`全体を、開発PCの`tools/midnight-operator/.env.development` Backupとは別に
 保管してください。Device Credentialは混在させたり開発ホストへコピーしたりしません。Sponsor Walletの
 Recovery Sourceは両Hostから分離管理します。Release DirectoryとSymlinkは、署名／Checksum検証済み
 Firmware Archiveから再作成できます。

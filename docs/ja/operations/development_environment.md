@@ -16,13 +16,15 @@
 ```bash
 npm ci
 compact update 0.31.1
-cp .env.development.example .env.development
-cp apps/proof-gateway/.dev.vars.example apps/proof-gateway/.dev.vars
+cp tools/midnight-operator/.env.development.example \
+  tools/midnight-operator/.env.development
+cp backend/cloudflare/deployment/.dev.vars.example \
+  backend/cloudflare/deployment/.dev.vars
 npm run contract:compile
 npm run verify
 ```
 
-Contract ArtifactとProving Keyは開発環境で生成し、Edge Deviceでは生成しません。開発Walletの復旧元は`.env.development`です。暗号化またはOfflineでBackupしてください。`.state/development/`は同期・Deploy再開用Cacheであり、Wallet Backupではありません。旧混在Layoutから移行する場合は、新Walletを初期化する前に`npm run development:wallet:migrate`を実行します。
+Contract ArtifactとProving Keyは開発環境で生成し、Edge Deviceでは生成しません。開発Walletの復旧元は`tools/midnight-operator/.env.development`です。暗号化またはOfflineでBackupしてください。`.state/development/`は同期・Deploy再開用Cacheであり、Wallet Backupではありません。旧混在Layoutから移行する場合は、新Walletを初期化する前に`npm run development:wallet:migrate`を実行します。
 
 ## 開発専用Benchmark Profile
 
@@ -44,10 +46,10 @@ npm run development:deploy:cloudflare -- --device-authority <public-32-byte-hex>
 npm run cloudflare:config:network
 npm run cloudflare:config:contract
 npm run development:status
-./package_archive.sh
+./edge-device/release/package_archive.sh
 ```
 
-Network LabelとDeploy済みContract AddressはWorker環境Bindingであり、Commitしません。`package_archive.sh`はCompile済みArtifactをExportし、秘密情報を含まない運用Archiveを生成します。Edge Deviceへ渡すのは生成ArchiveとChecksumだけです。`.env.development`、`.dev.vars`、`.state/development/`、開発Wallet復旧情報、Private開発Inputは転送しません。
+Network LabelとDeploy済みContract AddressはWorker環境Bindingであり、Commitしません。`edge-device/release/package_archive.sh`はCompile済みArtifactをExportし、秘密情報を含まない運用Archiveを生成します。Edge Deviceへ渡すのは生成ArchiveとChecksumだけです。`tools/midnight-operator/.env.development`、`.dev.vars`、`.state/development/`、開発Wallet復旧情報、Private開発Inputは転送しません。
 
 Device登録、Policy Assignment、監督下Reviewの完全な順序は[Deploy・Review Runbook](demo_runbook.md)を参照してください。
 

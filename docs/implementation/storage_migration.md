@@ -15,7 +15,7 @@ Worker API / Scheduled Handler
        Turso adapter (future)
 ```
 
-`apps/proof-gateway/src/storage/sql.ts` is the storage port. API code does not reference `D1Database` directly; adapter selection belongs in `storage/index.ts`. At present, `createSqlDatabase` always returns `D1SqlDatabase`; `DATA_BACKEND` and a Turso adapter do not exist yet.
+`backend/cloudflare/proof-gateway-worker/src/storage/sql.ts` is the storage port. API code does not reference `D1Database` directly; adapter selection belongs in `storage/index.ts`. At present, `createSqlDatabase` always returns `D1SqlDatabase`; `DATA_BACKEND` and a Turso adapter do not exist yet.
 
 ## Port Contract
 
@@ -31,7 +31,7 @@ Parameters are limited to `string | number | null`. Timestamps use UTC ISO 8601.
 
 ## Schema Compatibility
 
-- Treat `apps/proof-gateway/migrations/*.sql` as the canonical D1 schema and port each numbered migration to a future compatible backend.
+- Treat `backend/cloudflare/d1-schema/migrations/*.sql` as the canonical D1 schema and port each numbered migration to a future compatible backend.
 - Use SQLite/libSQL-compatible SQL, foreign keys, indexes, and `CHECK` constraints.
 - Keep adapter-specific metadata out of domain and API responses.
 - Route multi-statement writes through `SqlDatabase.batch`.

@@ -6,7 +6,7 @@ Status: implemented and verified on Preprod for WITHIN and OUTSIDE; reviewer vid
 Last updated: 2026-08-28 JST
 
 This document defines the fixed-shape daily threshold attestation implemented by
-`contracts/sensor-registry`. Despite the stable legacy filename, it is no longer a proposal.
+`midnight/contracts/sensor-registry`. Despite the stable legacy filename, it is no longer a proposal.
 
 ![Simple specification from local sensor values through hourly minimum and maximum reduction to the public ZK result](../assets/review/hourly-extrema-zkp-en.png)
 

@@ -16,13 +16,15 @@ This document covers development-only setup, compilation, verification, deployme
 ```bash
 npm ci
 compact update 0.31.1
-cp .env.development.example .env.development
-cp apps/proof-gateway/.dev.vars.example apps/proof-gateway/.dev.vars
+cp tools/midnight-operator/.env.development.example \
+  tools/midnight-operator/.env.development
+cp backend/cloudflare/deployment/.dev.vars.example \
+  backend/cloudflare/deployment/.dev.vars
 npm run contract:compile
 npm run verify
 ```
 
-Contract artifacts and proving keys are generated here, never on the Edge Device. The development wallet recovery source is `.env.development`; back it up to encrypted or offline storage. `.state/development/` is resumable synchronization and deployment cache, not a wallet backup. For the legacy mixed layout, run `npm run development:wallet:migrate` before initializing a new wallet.
+Contract artifacts and proving keys are generated here, never on the Edge Device. The development wallet recovery source is `tools/midnight-operator/.env.development`; back it up to encrypted or offline storage. `.state/development/` is resumable synchronization and deployment cache, not a wallet backup. For the legacy mixed layout, run `npm run development:wallet:migrate` before initializing a new wallet.
 
 ## Development-only benchmark profiles
 
@@ -44,10 +46,10 @@ npm run development:deploy:cloudflare -- --device-authority <public-32-byte-hex>
 npm run cloudflare:config:network
 npm run cloudflare:config:contract
 npm run development:status
-./package_archive.sh
+./edge-device/release/package_archive.sh
 ```
 
-The network label and deployed contract address are Worker environment bindings and are not committed. `package_archive.sh` exports compiled artifacts and builds a secret-free operational archive. Transfer only the generated firmware archive and checksum to the Edge Device; never transfer `.env.development`, `.dev.vars`, `.state/development/`, development-wallet recovery material, or private development inputs.
+The network label and deployed contract address are Worker environment bindings and are not committed. `edge-device/release/package_archive.sh` exports compiled artifacts and builds a secret-free operational archive. Transfer only the generated firmware archive and checksum to the Edge Device; never transfer `tools/midnight-operator/.env.development`, `.dev.vars`, `.state/development/`, development-wallet recovery material, or private development inputs.
 
 Device registration, policy assignment, and the complete supervised review sequence are defined in the [Deployment and Review Runbook](demo_runbook.md).
 

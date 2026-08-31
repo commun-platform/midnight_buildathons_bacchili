@@ -14,18 +14,18 @@ This is a path and ownership migration, not a product behavior change. The same 
 
 - [x] (2026-08-31 03:40Z) Read `.agents/PLANS.md`, inventoried the current repository, and selected the final boundary names.
 - [x] (2026-08-31 04:04Z) Committed the Apache-2.0 metadata (`5913f14`) and submission-video documentation (`216933b`) as independent clean baselines.
-- [ ] Move browser runtime ownership from `apps/dashboard` to `frontend/verification-portal`.
-- [ ] Move Cloudflare runtimes and persistent schema to `backend/cloudflare` while extracting local administration scripts.
-- [ ] Move Raspberry Pi runtimes, release tooling, installers, and diagnostics to `edge-device`.
-- [ ] Move the operational Compact contract and development-only cost contract to `midnight`.
-- [ ] Move shared protocol code to `shared/measurement-protocol` without changing its npm package name.
-- [ ] Move local operator, benchmark, submission-media, and repository-check tooling to named directories below `tools`.
-- [ ] Move the cross-boundary Dashboard SCT runner to `tests/system/dashboard-workflow`.
-- [ ] Update npm workspaces, package scripts, relative paths, Wrangler paths, release allowlists, generated-artifact paths, ignore rules, and documentation links.
-- [ ] Document the final directory contract in the root and Japanese READMEs.
-- [ ] Remove tracked references to the former layout and clean only known generated caches left below obsolete directories.
-- [ ] Run Compact compilation, all unit and integration tests, type checks, builds, API and GUI SCT, device release verification, portability validation, and Wrangler dry-run.
-- [ ] Record validation evidence and migration results in this ExecPlan, then make focused migration commits.
+- [x] (2026-08-31 04:00Z) Moved the browser runtime to `frontend/verification-portal`.
+- [x] (2026-08-31 04:00Z) Moved Cloudflare runtimes and persistent schema to `backend/cloudflare` and extracted local administration scripts.
+- [x] (2026-08-31 04:00Z) Moved Raspberry Pi runtimes, release tooling, installers, and diagnostics to `edge-device`.
+- [x] (2026-08-31 04:00Z) Moved the operational Compact contract and development-only cost contract to `midnight`.
+- [x] (2026-08-31 04:00Z) Moved shared protocol code to `shared/measurement-protocol` without changing its npm package name.
+- [x] (2026-08-31 04:00Z) Moved local operator, benchmark, submission-media, and repository-check tooling to named directories below `tools`.
+- [x] (2026-08-31 04:00Z) Moved the cross-boundary Dashboard SCT runner to `tests/system/dashboard-workflow`.
+- [x] (2026-08-31 04:06Z) Updated npm workspaces, package scripts, relative paths, Wrangler paths, release allowlists, generated-artifact paths, ignore rules, and documentation links.
+- [x] (2026-08-31 04:06Z) Documented the final directory contract in the root and Japanese READMEs.
+- [x] (2026-08-31 04:07Z) Removed tracked references to the former layout and quarantined known generated caches left below obsolete directories.
+- [x] (2026-08-31 04:12Z) Ran Compact compilation, all unit and integration tests, type checks, builds, API and GUI SCT, Device release verification, portability validation, and Wrangler dry-run.
+- [x] (2026-08-31 04:13Z) Recorded validation evidence and migration results in this ExecPlan and created focused implementation commits.
 
 ## Surprises & Discoveries
 
@@ -40,6 +40,15 @@ This is a path and ownership migration, not a product behavior change. The same 
 
 - Observation: ignored secrets and generated files exist below old paths. Whole-directory moves would accidentally relocate `.dev.vars`, `.wrangler`, `dist`, generated proving keys, or local `node_modules` without making their ownership explicit.
   Evidence: `git status --ignored` reports those paths below `apps/proof-gateway`, `apps/dashboard`, and other workspaces.
+
+- Observation: the baseline suite contains 288 tests, although current submission prose stated 287.
+  Evidence: the pre-migration and relocated root `npm test` totals are 18 shared, 13 contract, 52 Frontend, 4 operator, 6 Device Identity, 13 collector, 29 transaction-agent, 111 Worker, and 42 Sponsor tests.
+
+- Observation: the development-only daily-attestation test imports generated Compact modules, so including every experiment test in the root TypeScript project makes a clean clone depend on an unrequested experiment compile.
+  Evidence: after removing ignored experiment output, `tsc` failed on the test import. Restricting the experiment's normal `typecheck` to its handwritten witness restores clean-clone verification; `npm run attestation:compile` and the experiment's explicit test command retain the generated-profile path.
+
+- Observation: npm retained removed workspace entries as `extraneous` when updating the existing lockfile in place.
+  Evidence: `npm prune --package-lock-only` still listed the former `apps`, `contracts`, and `packages/shared` entries. Regenerating the lockfile from the new root workspace declaration removed them and reduced the audited dependency set from 473 to 331 packages.
 
 ## Decision Log
 
@@ -67,13 +76,31 @@ This is a path and ownership migration, not a product behavior change. The same 
   Rationale: the repository security boundary and existing ignore policy remain unchanged.
   Date/Author: 2026-08-31 / Codex.
 
+- Decision: relocate each ignored environment file to the boundary that owns it without printing its contents.
+  Rationale: the local development Wallet recovery source belongs to `tools/midnight-operator`, Device staging configuration belongs to `edge-device/release`, and Worker development secrets belong beside the deployment manifest; keeping them at old paths would leave two apparent configuration sources.
+  Date/Author: 2026-08-31 / Codex.
+
+- Decision: quarantine obsolete ignored build output under `/tmp` instead of deleting it during migration.
+  Rationale: the old directories contained no tracked files or secret-pattern files, but temporary relocation remains recoverable and avoids treating untracked user data as disposable.
+  Date/Author: 2026-08-31 / Codex.
+
 ## Outcomes & Retrospective
 
-Implementation has not started. At completion this section will state the final paths, validation totals, any intentionally retained compatibility paths, and lessons from the migration.
+The boundary migration is implemented in `020a656`, with the aligned Device artifact verification default in `0125c4e`. The repository now communicates ownership from the first path component: Browser code is under `frontend`, Cloudflare-deployed code and schema under `backend`, Raspberry Pi runtime and release code under `edge-device`, Compact code under `midnight`, cross-runtime protocol code under `shared`, and development-host commands under `tools`. No tracked implementation remains in the former generic `apps`, `contracts`, `packages`, `ops`, or root `scripts` directories, and no compatibility source paths were retained.
+
+Final validation passed on 2026-08-31:
+
+- `WRANGLER_LOG_PATH=/tmp/midnight-wrangler-verify.log TMPDIR=/tmp npm run verify` compiled all 6 operational Compact circuits and passed 288 tests across 9 workspaces, every configured type check and build, the 1,307-module Frontend production bundle, and Wrangler dry-run.
+- Wrangler resolved 31 static assets, the official Proof Server `8.1.0` Container, the relocated Sponsor Wallet Container, both Queues, D1, R2, rate limits, and both Durable Object bindings without making a remote deployment.
+- `npm run sct:api` passed 111 Worker and 42 Sponsor tests. `npm run sct:gui` passed all 20 rendered browser checkpoints and wrote ignored local evidence below `.sct-output/dashboard`.
+- `npm run device:release -- --version 0.1.0-boundary-final` produced a checksum-protected installer-rooted archive, verified all 91 operational files and 28 Compact runtime artifacts, proved its production lockfile installable, and confirmed that no development workspace or Wallet material entered the package.
+- Script syntax checks, repository portability, stale-path searches, `git diff --check`, and Device artifact-manifest verification all passed.
+
+The main lesson is that filesystem organization is part of the trust model. Moving local administration commands out of a deployed Worker workspace and keeping Device release code under the Device boundary makes accidental packaging and secret ownership easier to test. A second lesson is that generated output must not silently satisfy clean-clone checks; the development experiment's normal type check now covers handwritten code only, while its explicit compile/test workflow remains opt-in.
 
 ## Context and Orientation
 
-The repository is an npm-workspaces monorepo. The browser user interface currently lives in `apps/dashboard`. The Cloudflare Worker, D1 migrations, Wrangler deployment manifest, and local Cloudflare administration scripts currently live together in `apps/proof-gateway`. The dedicated Midnight fee Sponsor runtime is a Cloudflare Container in `apps/sponsor-wallet`. Raspberry Pi runtime code is divided among `apps/device/device-auth`, `apps/device/edge-agent`, and `apps/device/wallet-agent`. Development-wallet and Midnight registry administration code is in `apps/development/operator-cli`. The operational Compact contract is in `contracts/sensor-registry`; `contracts/daily-attestation` is a development-only cost experiment. Shared measurement and provisioning protocol code is in `packages/shared`. Device diagnostics are in `ops/pi-forensics`. Generic root `scripts/` currently contains unrelated release, benchmark, submission-media, host-boundary, and repository-check scripts.
+The repository is an npm-workspaces monorepo. Before this migration, the browser user interface lived in `apps/dashboard`; Cloudflare runtime, schema, deployment, and local administration concerns were mixed in `apps/proof-gateway`; and the other runtime and tool boundaries were split among generic `apps`, `contracts`, `packages`, `ops`, and root `scripts` directories. Those former locations are recorded here only as migration context. The current ownership tree below is authoritative.
 
 A runtime is code that remains active in its target environment and handles product work. A local tool is invoked by a developer or operator from the development workstation and is never shipped as part of the browser, Worker, Container, or Raspberry Pi runtime. A deployment manifest describes how a runtime is deployed but is not itself a second implementation. `wrangler dev` is allowed to execute the same Worker code locally; no duplicate local Worker implementation should be created.
 
@@ -132,7 +159,7 @@ Validate after each major boundary move with targeted type checks and tests. At 
 
 ## Concrete Steps
 
-All commands run from `/home/polonity/workspace/midnight/midnight_cloudflare_demo`.
+All commands run from the repository root (the directory containing this project's `package.json`).
 
 First record the baseline and commit existing unrelated work:
 
@@ -146,7 +173,7 @@ Then perform path-only moves in the milestone order above and run the targeted w
 
 Search for stale source paths. The final command must print no source or configuration matches; historical Git data and ignored generated files are outside this check:
 
-    rg -n 'apps/|ops/pi-forensics|packages/shared|scripts/' README.md AGENTS.md package.json .gitignore .dockerignore frontend backend edge-device midnight shared tools tests docs
+    git grep -n -E 'apps/(dashboard|development|device|proof-gateway|sponsor-wallet)|packages/shared|ops/pi-forensics' -- ':!docs/implementation/monorepo_boundary_reorganization_execplan.md'
 
 Run the full acceptance gate:
 
@@ -155,10 +182,11 @@ Run the full acceptance gate:
     npm run sct:api
     npm run sct:gui
     ./edge-device/release/package_archive.sh
+    npm run device:artifacts:export
     npm run device:artifacts:verify
     npm run build -w @midnight-demo/proof-gateway
 
-The exact root script names may retain their public command names, but their implementation paths must point into the new boundaries. Expected success includes six Compact circuits compiled, 287 repository tests unless the test runner itself legitimately adds a new test, all type checks and builds passing, both SCT suites passing, a device archive with a valid checksum, and a successful Wrangler dry-run that resolves both Containers and browser assets.
+The exact root script names may retain their public command names, but their implementation paths must point into the new boundaries. Expected success includes six Compact circuits compiled, 288 repository tests, all type checks and builds passing, both SCT suites passing, a device archive with a valid checksum, and a successful Wrangler dry-run that resolves both Containers and browser assets.
 
 ## Validation and Acceptance
 
@@ -174,7 +202,7 @@ If a milestone fails, keep the already moved ownership group and fix references 
 
 ## Artifacts and Notes
 
-The baseline remote commit before this work is `c8d99c6`. Existing uncommitted work adds Apache-2.0 package metadata and updates submission documents for the completed 2:18 English video and the 287-test result. Preserve that work in its own commit before moving paths.
+The baseline remote commit before this work is `c8d99c6`. Apache-2.0 package metadata was preserved in `5913f14`, and completed 2:18 English-video evidence was preserved in `216933b` before moving paths. Final documentation uses the measured 288-test total.
 
 The Cloudflare deployment manifest currently references the following cross-boundary inputs, all of which must be adjusted together:
 
@@ -194,3 +222,5 @@ The final Wrangler manifest must continue to generate `src/worker-configuration.
 The final device release builder must consume Edge Device packages, `shared/measurement-protocol`, and the operational contract witness implementation only. It must not include `tools/midnight-operator`, `tools/cloudflare-admin`, development Wallet dependencies, Compact compilation tools, Sponsor Wallet code, or Cloudflare deployment credentials.
 
 Plan revision note (2026-08-31): created the initial self-contained plan after inventorying the current worktree and agreeing with the user to replace the generic `apps` layout with explicit system-boundary directories.
+
+Plan revision note (2026-08-31): marked the migration complete after the full repository gate, API/GUI SCT, Cloudflare dry-run, and Device release verification passed; recorded the measured 288-test total and clean-clone experiment fix.

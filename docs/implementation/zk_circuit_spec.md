@@ -3,7 +3,7 @@
 [Japanese](../ja/implementation/zk_circuit_spec.md)
 
 Status: implementation-aligned specification, 2026-08-30 JST
-Contract: `contracts/sensor-registry/src/sensor-registry.compact`
+Contract: `midnight/contracts/sensor-registry/src/sensor-registry.compact`
 
 ## 1. Purpose and scope
 
@@ -329,7 +329,7 @@ that unobserved fluctuations never occurred. Those require separate provenance a
 
 ## 13. Development-only circuit profiles
 
-`contracts/daily-attestation/src/generated/` contains fixed 24, 96, and 1,440-reading profiles. They
+`midnight/experiments/daily-attestation-cost/src/generated/` contains fixed 24, 96, and 1,440-reading profiles. They
 were created to compare compile/proof size and cost while preserving a fixed daily structure. They
 include their own `registerDevice`, `registerPolicy`, `submitDailyAttestation`, and
 `appendOutlierReason` circuits.
@@ -353,12 +353,12 @@ Operational proof circuits  6
 
 Source and generated evidence:
 
-- source: `contracts/sensor-registry/src/sensor-registry.compact`;
-- witnesses: `contracts/sensor-registry/src/witnesses.ts`;
-- compiler inventory: `contracts/sensor-registry/src/managed/sensor-registry/compiler/contract-info.json`;
-- six ZKIR/BZKIR pairs: `contracts/sensor-registry/src/managed/sensor-registry/zkir/`;
-- six prover/verifier key pairs: `contracts/sensor-registry/src/managed/sensor-registry/keys/`; and
-- simulator tests: `contracts/sensor-registry/src/test/sensor-registry.test.ts`.
+- source: `midnight/contracts/sensor-registry/src/sensor-registry.compact`;
+- witnesses: `midnight/contracts/sensor-registry/src/witnesses.ts`;
+- compiler inventory: `midnight/contracts/sensor-registry/src/managed/sensor-registry/compiler/contract-info.json`;
+- six ZKIR/BZKIR pairs: `midnight/contracts/sensor-registry/src/managed/sensor-registry/zkir/`;
+- six prover/verifier key pairs: `midnight/contracts/sensor-registry/src/managed/sensor-registry/keys/`; and
+- simulator tests: `midnight/contracts/sensor-registry/src/test/sensor-registry.test.ts`.
 
 Do not hand-edit generated artifacts. Rebuild and validate with:
 

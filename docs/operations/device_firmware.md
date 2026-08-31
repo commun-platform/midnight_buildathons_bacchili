@@ -1,6 +1,6 @@
 # Midnight Sensor Device Firmware
 
-This package contains only the Edge Device device runtime. It is produced on a development PC by `package_archive.sh` and contains no development wallet, Compact source, compiler, proving-key generator, Cloudflare deployment code, or browser application.
+This package contains only the Edge Device device runtime. It is produced on a development PC by `edge-device/release/package_archive.sh` and contains no development wallet, Compact source, compiler, proving-key generator, Cloudflare deployment code, or browser application.
 
 ![Safe Edge release lifecycle with package verification, versioned installation, health check, and rollback](../assets/guides/edge-release-lifecycle-en.png)
 
@@ -132,6 +132,6 @@ those exact integrity-checked bytes without regenerating its proof; a different 
 same Job is rejected. Use a new `--run-id` for every new attestation.
 
 Back up `config/device.env`, `device-auth/`, and the entire `device-wallet/` directory separately
-from the development PC's `.env.development` backup. Device credentials must not be merged with or
+from the development PC's `tools/midnight-operator/.env.development` backup. Device credentials must not be merged with or
 copied to the development host. The Sponsor Wallet recovery source is managed separately from both
 hosts. Release directories and symlinks can be recreated from signed/checksummed firmware archives.

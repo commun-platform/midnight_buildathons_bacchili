@@ -215,15 +215,15 @@ npm run cloudflare:config:sponsor
 
 主な実装箇所は次のとおりです。
 
-- `apps/device/wallet-agent/src/pending-transaction.ts`
-- `apps/device/wallet-agent/src/midnight.ts`
-- `apps/device/wallet-agent/src/proof-job.ts`
-- `apps/proof-gateway/src/sponsor.ts`
-- `apps/proof-gateway/src/sponsor-policy.ts`
-- `apps/proof-gateway/src/sponsor-quota.ts`
-- `apps/proof-gateway/migrations/0014_sponsored_submission.sql`
-- `apps/proof-gateway/migrations/0015_sponsor_daily_quota.sql`
-- `apps/proof-gateway/migrations/0016_async_sponsor_and_measurement_groups.sql`
-- `apps/proof-gateway/migrations/0017_release_stale_sponsor_reservations.sql`
-- `apps/sponsor-wallet/src/transaction.ts`
-- `apps/sponsor-wallet/src/wallet.ts`
+- `edge-device/midnight-transaction-agent/src/pending-transaction.ts`
+- `edge-device/midnight-transaction-agent/src/midnight.ts`
+- `edge-device/midnight-transaction-agent/src/proof-job.ts`
+- `backend/cloudflare/proof-gateway-worker/src/sponsor.ts`
+- `backend/cloudflare/proof-gateway-worker/src/sponsor-policy.ts`
+- `backend/cloudflare/proof-gateway-worker/src/sponsor-quota.ts`
+- `backend/cloudflare/d1-schema/migrations/0014_sponsored_submission.sql`
+- `backend/cloudflare/d1-schema/migrations/0015_sponsor_daily_quota.sql`
+- `backend/cloudflare/d1-schema/migrations/0016_async_sponsor_and_measurement_groups.sql`
+- `backend/cloudflare/d1-schema/migrations/0017_release_stale_sponsor_reservations.sql`
+- `backend/cloudflare/sponsor-wallet-container/src/transaction.ts`
+- `backend/cloudflare/sponsor-wallet-container/src/wallet.ts`

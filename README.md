@@ -10,17 +10,18 @@
 
 ## Judge review
 
-The current review tree compiles all 6 operational proof circuits and passes 287 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
+The current review tree compiles all 6 operational proof circuits and passes 288 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
 
 | Review artifact | Link |
 | --- | --- |
 | Submission copy | [Wave 1 submission](docs/submission/submission_copy.md) |
-| Editable slide deck | [English PPTX](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) |
-| Review slide deck | [English PDF](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) |
+| Editable slide deck | [English PPTX](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) — 9 slides synchronized with the 2:18 pitch |
+| Review slide deck | [English PDF](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) — 9 pages synchronized with the 2:18 pitch |
 | Claim-to-evidence map | [Evidence matrix](docs/submission/evidence_matrix.md) |
 | Wave progress | [Wave 1 progress](docs/submission/wave1_progress.md) |
 | Judge questions | [Judge Q&A](docs/submission/judge_qa.md) |
 | English demo pitch | Produced as `bacchiri-demo-pitch-en.mp4` (2:18); public submission URL pending — [script and capture record](docs/submission/demo_script.md) |
+| Submission thumbnail / capture pack | [English reviewed stills](docs/submission/captures/) |
 
 ## Product and initial use case
 
@@ -110,21 +111,42 @@ The operational Compact contract is `sensor-registry`. Its current daily entry p
 
 The browser includes the guided Lace-backed Device workflow, administrator evidence, and the third-party public view. The third-party view displays the contract-confirmed result and Midnight identifiers; it does not independently execute the Compact verifier in the browser. Independent browser verification is a Wave 2 plan.
 
-## Monorepo
+## Monorepo boundaries
+
+The first directory component identifies where code runs or who owns it. A local tool is never presented as a deployed service, and a deployed runtime is not duplicated under a development-only directory.
 
 ```text
-apps/development/operator-cli/  development wallet, deploy, and benchmarks
-apps/device/device-auth/         device-only P-256 identity and short-lived sessions
-apps/device/edge-agent/         Edge Device temperature collector
-apps/device/wallet-agent/       device operational wallet, submit, and status
-apps/dashboard/public/          Worker-hosted bilingual SPA
-apps/proof-gateway/             Worker API, D1 migrations, proof container
-apps/sponsor-wallet/            dedicated fee-only Midnight Sponsor Wallet container
-contracts/                      Compact contracts, generated profiles, tests
-packages/shared/                daily commitments, hourly aggregation, legacy Merkle utilities, fixtures
-docs/                           canonical English documentation
-docs/ja/                        Japanese translations
+frontend/
+  verification-portal/               browser bundle and Worker-served static assets
+backend/
+  cloudflare/
+    proof-gateway-worker/             Worker API, Queue consumers, storage adapters
+    sponsor-wallet-container/         dedicated fee-only Midnight Wallet runtime
+    d1-schema/migrations/             persistent Backend schema history
+    deployment/wrangler.jsonc         Worker, D1, R2, Queues, Containers, and assets
+edge-device/
+  sensor-collector/                   temperature collection, hourly aggregation, local health
+  device-identity/                    P-256 identity and short-lived API Sessions
+  midnight-transaction-agent/         Device authorization, proof input, submit, and status
+  release/                            archive builder, installer, rollback, release verification
+  diagnostics/pi-forensics/           optional diagnostics shipped with Device firmware
+midnight/
+  contracts/sensor-registry/          operational Compact contract, witnesses, simulator tests
+  experiments/daily-attestation-cost/ development-only fixed-profile cost experiment
+shared/
+  measurement-protocol/               commitments, aggregates, provisioning messages
+tools/
+  midnight-operator/                  local development Wallet and Midnight administration
+  cloudflare-admin/                   local provisioning and secret-management commands
+  benchmarks/                         local compile and operating-cost measurements
+  submission-media/                   local deck, PDF, still, and demo-capture generators
+  repository-checks/                  host-boundary and portability checks
+tests/
+  system/dashboard-workflow/          cross-boundary browser SCT
+docs/                                  canonical English guidance; Japanese is under docs/ja/
 ```
+
+Unit tests remain beside their owner. Only cross-boundary compatibility tests live under `tests/system`. `tools/` executes on a development workstation and is excluded from the Device firmware and Container images. `edge-device/release/package_archive.sh` deliberately creates an installer-rooted Device archive containing only Edge runtimes, required shared protocol code, verified compiled contract artifacts, and diagnostics.
 
 ## Operations
 
@@ -148,7 +170,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-The expected review result is 6 compiled operational proof circuits, 287 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The expected review result is 6 compiled operational proof circuits, 288 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 
@@ -169,7 +191,7 @@ The adoption path is technical proof, then a construction-site PoC, then integra
 
 ## Security boundary
 
-The development wallet exists only in `.env.development`; its encrypted/offline backup is the recovery copy. Independent Device transaction identity and Compact private state exist only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. The dedicated Sponsor Wallet uses a separate deployment secret and encrypted synchronization checkpoint; its recovery source is never stored in D1, R2 plaintext, Worker source, or Device firmware. Installed operational configuration is `config/device.env`; staged `.env.device` is removed after installation and never contains a mnemonic or seed. The Edge Device receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
+The development wallet exists only in the ignored `tools/midnight-operator/.env.development`; its encrypted/offline backup is the recovery copy. Independent Device transaction identity and Compact private state exist only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. The dedicated Sponsor Wallet uses a separate deployment secret and encrypted synchronization checkpoint; its recovery source is never stored in D1, R2 plaintext, Worker source, or Device firmware. Installed operational configuration is `config/device.env`; staged `edge-device/release/.env.device` is removed after installation and never contains a mnemonic or seed. The Edge Device receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
 
 See [system architecture](docs/architecture/system_architecture.md), [private-state specification](docs/security/private_spec.md), and the [deployment runbook](docs/operations/demo_runbook.md).
 

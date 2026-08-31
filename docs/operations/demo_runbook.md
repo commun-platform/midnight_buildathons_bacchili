@@ -9,19 +9,20 @@
 ```bash
 npm ci
 npm run verify
-cp .env.development.example .env.development
+cp tools/midnight-operator/.env.development.example \
+  tools/midnight-operator/.env.development
 npm run development:wallet
 npm run development:funding
 npm run sponsor:wallet
 npm run cloudflare:deploy
 npm run cloudflare:config:network
 npm run cloudflare:config:sponsor
-./package_archive.sh
+./edge-device/release/package_archive.sh
 ```
 
-Back up `.env.development` and the owner-only Sponsor credential file separately. Fund only the
+Back up `tools/midnight-operator/.env.development` and the owner-only Sponsor credential file separately. Fund only the
 Sponsor address printed by `sponsor:wallet` with tNIGHT before enabling operations. The Cloudflare
-deployment creates the Worker, D1 migrations through `0020`, Queue/DLQ, GUI assets, Proof Server
+deployment creates the Worker, D1 migrations through `0022`, Queue/DLQ, GUI assets, Proof Server
 Container, Sponsor Wallet Container, and encrypted Sponsor checkpoint R2 binding. The
 `cloudflare:config:sponsor` command sends the seed to Wrangler over stdin and never prints it. No
 Device private key is created on this host.

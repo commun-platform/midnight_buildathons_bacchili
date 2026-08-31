@@ -9,19 +9,20 @@
 ```bash
 npm ci
 npm run verify
-cp .env.development.example .env.development
+cp tools/midnight-operator/.env.development.example \
+  tools/midnight-operator/.env.development
 npm run development:wallet
 npm run development:funding
 npm run sponsor:wallet
 npm run cloudflare:deploy
 npm run cloudflare:config:network
 npm run cloudflare:config:sponsor
-./package_archive.sh
+./edge-device/release/package_archive.sh
 ```
 
-`.env.development`とOwner-only Sponsor Credential Fileは分離して安全にBackupします。運用開始前に
+`tools/midnight-operator/.env.development`とOwner-only Sponsor Credential Fileは分離して安全にBackupします。運用開始前に
 `sponsor:wallet`が表示したSponsor AddressだけへtNIGHTを送ります。Cloudflare DeployはWorker、D1 Migration
-`0020`まで、Queue／DLQ、GUI、Proof Server Container、Sponsor Wallet Container、暗号化Sponsor Checkpoint用
+`0022`まで、Queue／DLQ、GUI、Proof Server Container、Sponsor Wallet Container、暗号化Sponsor Checkpoint用
 R2 Bindingを作成します。`cloudflare:config:sponsor`はSeedを標準入力でWranglerへ渡し、表示しません。
 
 ## 2. Edge Device導入・登録

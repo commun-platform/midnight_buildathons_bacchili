@@ -5,7 +5,7 @@
 状態：WITHIN／OUTSIDEともPreprod実装・検証完了。審査用動画は未作成。
 最終更新：2026-08-28 JST
 
-本書は`contracts/sensor-registry`に実装した固定形状の日次Threshold Attestationを定義します。互換性のためファイル名には`proposal`が残っていますが、内容は提案ではなく確定仕様です。
+本書は`midnight/contracts/sensor-registry`に実装した固定形状の日次Threshold Attestationを定義します。互換性のためファイル名には`proposal`が残っていますが、内容は提案ではなく確定仕様です。
 
 ![Local Sensor値を時間別Minimum／Maximumへ集約しPublic ZK Resultへ変換するSimpleな仕様](../assets/review/hourly-extrema-zkp-ja.png)
 

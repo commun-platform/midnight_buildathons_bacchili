@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-現行ソースは、6つの証明回路のコンパイル、287件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
+現行ソースは、6つの証明回路のコンパイル、288件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
 
 | 審査成果物 | 文書 |
 | --- | --- |
@@ -113,21 +113,42 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 ブラウザには、Laceを使うデバイス管理画面、管理者向けの処理状況、第三者向けの公開画面があります。公開画面は、コントラクトで確定した対象日・しきい値・判定結果・Midnight取引識別子を表示します。確定済みRecordを開くと、ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract LedgerからCommitment、Result、Policy、Device-bound Assignmentを照合します。Raw Sensor値やPrivate Openingは使いません。
 
-## リポジトリ構成
+## モノレポの境界
+
+最上位ディレクトリだけで、コードの実行場所または所有者を判断できる構成です。開発端末だけで使うツールを配備サービスとして扱わず、同じサーバー実装をローカル用に複製しません。
 
 ```text
-apps/development/operator-cli/  開発Wallet・deploy・benchmark
-apps/device/device-auth/         デバイス専用P-256 Identity・短命Session
-apps/device/edge-agent/         Edge Device用温度Collector
-apps/device/wallet-agent/       デバイス運用Wallet・submit・status
-apps/dashboard/public/          Worker配信の2言語SPA
-apps/proof-gateway/             Worker API・D1 migration・Proof Container
-apps/sponsor-wallet/            Fee専用Midnight Sponsor Wallet Container
-contracts/                      Compact Contract・生成Profile・テスト
-packages/shared/                Daily Commitment・Hourly集計・Legacy Merkle utility・fixture
-docs/                           英語の正本文書
-docs/ja/                        日本語訳
+frontend/
+  verification-portal/               Browser Bundle・Worker配信Static Assets
+backend/
+  cloudflare/
+    proof-gateway-worker/             Worker API・Queue Consumer・Storage Adapter
+    sponsor-wallet-container/         Fee専用Midnight Wallet Runtime
+    d1-schema/migrations/             Backend永続Schemaの履歴
+    deployment/wrangler.jsonc         Worker・D1・R2・Queue・Container・Assets
+edge-device/
+  sensor-collector/                   温度収集・1時間集計・Local Health
+  device-identity/                    P-256 Identity・短命API Session
+  midnight-transaction-agent/         Device承認・Proof Input・Submit・Status
+  release/                            Archive生成・Installer・Rollback・検証
+  diagnostics/pi-forensics/           Device Firmware同梱の任意診断機能
+midnight/
+  contracts/sensor-registry/          運用Compact Contract・Witness・Simulator Test
+  experiments/daily-attestation-cost/ 開発専用の固定Profile費用実験
+shared/
+  measurement-protocol/               Commitment・集計・Provisioning Message
+tools/
+  midnight-operator/                  Local開発Wallet・Midnight管理
+  cloudflare-admin/                   Local Provisioning・Secret設定Command
+  benchmarks/                         Local Compile・運用費用の計測
+  submission-media/                   Slide・PDF・Still・Demo Capture生成
+  repository-checks/                  Host境界・Portability検査
+tests/
+  system/dashboard-workflow/          境界横断Browser SCT
+docs/                                  英語の正本文書。日本語訳はdocs/ja/
 ```
+
+Unit Testは所有するComponentの近くに置き、複数境界を通すCompatibility Testだけを`tests/system`へ置きます。`tools/`は開発端末でのみ動作し、Device FirmwareとContainer Imageには入りません。`edge-device/release/package_archive.sh`は、Edge Runtime、必要なShared Protocol、検証済みContract Artifact、診断機能だけを含むInstaller-rooted Archiveを生成します。
 
 ## 運用手順
 
@@ -151,7 +172,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-期待結果は、運用する6つの証明回路のコンパイル、287件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用する6つの証明回路のコンパイル、288件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 
@@ -172,7 +193,7 @@ TMPDIR=/tmp npm run verify
 
 ## 秘密情報の管理境界
 
-開発用ウォレットは`.env.development`だけを復旧元とし、暗号化したオフラインバックアップを保持します。デバイス用ウォレットは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。導入後の運用設定は`config/device.env`で、準備用の`.env.device`は削除され、復旧用単語列や秘密鍵の種は含みません。エッジデバイスへ渡すのはコンパイル済みの実行物だけで、Compactのソースや鍵生成ツールは渡しません。ブラウザ向けAPIにも秘密値を公開しません。
+開発用ウォレットはGit管理外の`tools/midnight-operator/.env.development`だけを復旧元とし、暗号化したオフラインバックアップを保持します。デバイス用ウォレットは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。導入後の運用設定は`config/device.env`で、準備用の`edge-device/release/.env.device`は削除され、復旧用単語列や秘密鍵の種は含みません。エッジデバイスへ渡すのはコンパイル済みの実行物だけで、Compactのソースや鍵生成ツールは渡しません。ブラウザ向けAPIにも秘密値を公開しません。
 
 詳細は[`system_architecture.md`](architecture/system_architecture.md)、[`private_spec.md`](security/private_spec.md)、[`demo_runbook.md`](operations/demo_runbook.md)を参照してください。
 

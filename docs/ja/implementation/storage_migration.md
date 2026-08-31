@@ -15,7 +15,7 @@ Worker API / Scheduled Handler
        Turso Adapter（将来）
 ```
 
-`apps/proof-gateway/src/storage/sql.ts`がStorage Portです。API Codeは`D1Database`を直接参照せず、Adapter選択は`storage/index.ts`で行います。現在、`createSqlDatabase`は常に`D1SqlDatabase`を返し、`DATA_BACKEND`とTurso Adapterはまだ存在しません。
+`backend/cloudflare/proof-gateway-worker/src/storage/sql.ts`がStorage Portです。API Codeは`D1Database`を直接参照せず、Adapter選択は`storage/index.ts`で行います。現在、`createSqlDatabase`は常に`D1SqlDatabase`を返し、`DATA_BACKEND`とTurso Adapterはまだ存在しません。
 
 ## Port契約
 
@@ -31,7 +31,7 @@ Parameterは`string | number | null`に制限します。TimestampにはUTC ISO 
 
 ## Schema互換ルール
 
-- `apps/proof-gateway/migrations/*.sql`をD1のCanonical Schemaとして扱い、連番Migrationごとに将来の互換Backendへ移植します。
+- `backend/cloudflare/d1-schema/migrations/*.sql`をD1のCanonical Schemaとして扱い、連番Migrationごとに将来の互換Backendへ移植します。
 - SQLite／libSQL互換SQL、Foreign Key、Index、`CHECK`制約を使用します。
 - Adapter固有MetadataをDomainやAPI Responseへ出しません。
 - 複数StatementのWriteは`SqlDatabase.batch`を経由します。

@@ -56,11 +56,11 @@ excluded. A fully STOPPED day is displayed as STOPPED from its zero observed cou
 | --- | --- |
 | Device installation | `installer.sh` installs operational workspaces and creates a complete owner-only P-256 Device Identity only when absent. |
 | Device enrollment | Operator CLI registers the Device and Device-bound Assignment on Midnight; `sync-midnight-device.mjs` mirrors it; only then does `register-device-key.mjs` activate P-256 in D1. |
-| Device Session | `apps/proof-gateway/src/device-auth.ts` implements five-minute one-time challenges and 24-hour opaque Sessions; D1 stores token hashes only. |
-| Collection | `apps/device/edge-agent/` retains raw samples locally, uploads hourly aggregate windows, and emits debounced anomaly transitions. The review GUI creates 1,440 one-minute private samples for a browser Device day and uploads no more than 24 hourly windows. |
-| Daily preparation | `prepareDailyExtremaAttestation` in `packages/shared` creates 24 JST slots, canonical STOPPED slots, public metadata, and the private commitment opening. |
-| Fleet administration | `apps/development/operator-cli/src/operator-authority.ts` keeps an owner-only Operator Authority and exposes Operator-only register/rotate/disable commands. |
-| Compact circuit | `contracts/sensor-registry/src/sensor-registry.compact` defines the multi-Device Registry, Device-bound immutable assignments, and one-call daily attestation. |
+| Device Session | `backend/cloudflare/proof-gateway-worker/src/device-auth.ts` implements five-minute one-time challenges and 24-hour opaque Sessions; D1 stores token hashes only. |
+| Collection | `edge-device/sensor-collector/` retains raw samples locally, uploads hourly aggregate windows, and emits debounced anomaly transitions. The review GUI creates 1,440 one-minute private samples for a browser Device day and uploads no more than 24 hourly windows. |
+| Daily preparation | `prepareDailyExtremaAttestation` in `shared/measurement-protocol` creates 24 JST slots, canonical STOPPED slots, public metadata, and the private commitment opening. |
+| Fleet administration | `tools/midnight-operator/src/operator-authority.ts` keeps an owner-only Operator Authority and exposes Operator-only register/rotate/disable commands. |
+| Compact circuit | `midnight/contracts/sensor-registry/src/sensor-registry.compact` defines the multi-Device Registry, Device-bound immutable assignments, and one-call daily attestation. |
 | D1 schema | Migrations `0010`–`0022` add policy/job data, the fail-closed Fleet Registry mirror, Device operation-configuration revisions, the claimed threshold result, asynchronous sponsored-submission state, stable measurement-group idempotency, idempotent JST-day Sponsor reservations, contract history, Wallet-owned Projects, Project-scoped Policy operations, browser enrollment state, actual ZKP generation time, and durable provisioning progress. |
 | Proof admission | `POST /api/v1/proof-jobs` validates authenticated device, registered assignment metadata, and the claimed Boolean result, but accepts no threshold bounds. Cron admits jobs during 02:00–06:00 JST. |
 | Proof generation | The Wallet Agent streams private proving requests through authenticated Worker routes to the Container; bodies are not persisted. |
