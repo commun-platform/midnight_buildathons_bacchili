@@ -4,6 +4,9 @@ import type { ProofJobRow } from './jobs.js';
 // its Container subrequest. Keep the recovery horizon beyond the Device's
 // 30-minute request timeout so an active preparation is never reclaimed.
 const staleSponsorshipMs = 35 * 60_000;
+// Sponsor Wallet prepares transactions with a 30-minute TTL. Refresh five
+// minutes early so queue latency cannot turn a valid retry into an expired one.
+const sponsorTransactionRefreshMs = 25 * 60_000;
 
 export interface SponsorWalletReadiness {
   phase: string;
@@ -57,8 +60,25 @@ export function deviceTransactionAcceptance(
   ].includes(status)) {
     return existingHash === incomingHash ? 'idempotent-pending' : 'conflict';
   }
-  if (status === 'proof_ready' && existingHash === null) return 'accept-new';
+  if (['proof_ready', 'reproof_required'].includes(status) && existingHash === null) {
+    return 'accept-new';
+  }
   return 'ineligible';
+}
+
+export function sponsorSubmissionRequiresReproof(message: string): boolean {
+  // A stale contract-state transaction cannot become valid by resending the
+  // same bytes; the Device must rebuild it against current contract state.
+  // MalformedError::TransactionApplicationError to Custom error 182. A
+  // textual variant is retained for node responses that expose the enum name.
+  return /(?:Custom error:\s*182\b|Malformed\(TransactionApplicationError\))/iu.test(message);
+}
+
+export function sponsorSubmissionIsReplayProtectionViolation(message: string): boolean {
+  // The first submission can reach the chain even when a later submission
+  // attempt reports replay protection. This signal alone is never success;
+  // the queue must reconcile exact transaction evidence with the Indexer.
+  return /(?:Custom error:\s*193\b|ReplayProtectionViolation)/iu.test(message);
 }
 
 export function sponsorWalletCanSubmit(health: SponsorWalletReadiness): boolean {
@@ -72,6 +92,16 @@ export function sponsorWalletCanSubmit(health: SponsorWalletReadiness): boolean 
     && health.supervisor.walletProcessAlive
     && health.supervisor.walletStatusFresh
   );
+}
+
+export function sponsorJobCanProceed(
+  status: string,
+  health: SponsorWalletReadiness,
+): boolean {
+  // A prepared transaction already owns its DUST input. It must be submitted
+  // or released even when no additional DUST is currently spendable; otherwise
+  // that reservation permanently prevents Wallet recovery.
+  return status === 'sponsored' || sponsorWalletCanSubmit(health);
 }
 
 export function shouldReplaySponsorDustState(
@@ -109,4 +139,13 @@ export function canRecoverStaleSponsoringRequest(job: ProofJobRow, nowMs = Date.
     && job.attest_tx_id === null
     && job.attest_tx_hash === null
     && job.block_height === null;
+}
+
+export function sponsorTransactionNeedsRefresh(
+  uploadedAt: Date,
+  nowMs = Date.now(),
+): boolean {
+  const uploadedAtMs = uploadedAt.getTime();
+  return Number.isFinite(uploadedAtMs)
+    && uploadedAtMs <= nowMs - sponsorTransactionRefreshMs;
 }

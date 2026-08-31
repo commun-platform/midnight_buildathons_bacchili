@@ -6,22 +6,29 @@ import {
   canRecoverStaleSponsoringRequest,
   deviceTransactionAcceptance,
   shouldReplaySponsorDustState,
-  sponsorWalletCanSubmit,
+  sponsorJobCanProceed,
+  sponsorSubmissionIsReplayProtectionViolation,
+  sponsorSubmissionRequiresReproof,
+  sponsorTransactionNeedsRefresh,
 } from './sponsor-policy.js';
 import { reserveSponsorQuota, type SponsorQuotaStatus } from './sponsor-quota.js';
 import {
+  clearSponsorRecoveryCheckpoint,
   maxSponsorCheckpointBytes,
+  preserveSponsorRecoveryCheckpoint,
   sponsorCheckpointKey,
   sponsorCheckpointRecoveryKey,
   storeSponsorCheckpoint,
+  storeSponsorDustReplayCheckpoint,
 } from './sponsor-checkpoint.js';
+import { reconcileReplayProtectedSponsorTransaction } from './sponsor-reconciliation.js';
 import { createSqlDatabase } from './storage/index.js';
 
 // Keep this logical ID stable. With max_instances=1, changing it while the old
 // 24-hour Sponsor instance is running prevents the replacement from starting.
 const sponsorContainerName = 'midnight-sponsor-wallet';
 const sponsorQueueName = 'midnight-sponsor-jobs';
-const synchronizationCheckpointIntervalMs = 5 * 60_000;
+const synchronizationCheckpointIntervalMs = 60_000;
 const steadyCheckpointIntervalMs = 30 * 60_000;
 const maxTransactionBytes = 4 * 1024 * 1024;
 const sponsorRetryDelayMs = 60_000;
@@ -36,6 +43,8 @@ interface SponsorSubmission {
   contractTransactionId: string;
   sponsorTransactionId: string;
   transactionHash: string;
+  blockHeight?: string;
+  replayRecovered?: boolean;
   serializedSha256: string;
   feeSpecks: string;
   transactionBytes: number;
@@ -78,6 +87,16 @@ export interface SponsorWalletHealth {
     startedAt: string | null;
     completedAt: string | null;
     error: string | null;
+  };
+  synchronizationCheckpoint?: {
+    status: 'idle' | 'saving' | 'succeeded' | 'skipped' | 'failed';
+    attemptedAt: string | null;
+    completedAt: string | null;
+    durationMs: number | null;
+    bytes: number | null;
+    dustApplied: string | null;
+    error: string | null;
+    delivery?: 'local-cache';
   };
   supervisor?: {
     status: 'healthy' | 'degraded' | 'unavailable';
@@ -199,7 +218,14 @@ function sponsorContainer(env: Env) {
 }
 
 async function restoreSponsorWallet(env: Env): Promise<void> {
-  const checkpointExists = await env.SPONSOR_STATE.head(sponsorCheckpointKey) !== null;
+  const checkpointHead = await env.SPONSOR_STATE.head(sponsorCheckpointKey);
+  const checkpointExists = checkpointHead !== null;
+  console.log(JSON.stringify({
+    message: 'sponsor_wallet_checkpoint_selected_for_restore',
+    exists: checkpointExists,
+    bytes: checkpointHead?.size ?? 0,
+    metadata: checkpointHead?.customMetadata ?? null,
+  }));
   let detail = '';
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     const checkpoint = checkpointExists
@@ -270,15 +296,75 @@ async function persistSponsorCheckpoint(env: Env): Promise<void> {
     await response.body.cancel();
     throw new Error('Sponsor Wallet checkpoint has an invalid Content-Length');
   }
+  const digits = /^\d+$/u;
+  const bootId = response.headers.get('X-Sponsor-Checkpoint-Boot-Id')?.trim() ?? '';
+  const phase = response.headers.get('X-Sponsor-Checkpoint-Phase')?.trim() ?? '';
+  const shieldedApplied = response.headers
+    .get('X-Sponsor-Checkpoint-Shielded-Applied')?.trim() ?? '';
+  const unshieldedApplied = response.headers
+    .get('X-Sponsor-Checkpoint-Unshielded-Applied')?.trim() ?? '';
+  const dustApplied = response.headers.get('X-Sponsor-Checkpoint-Dust-Applied')?.trim() ?? '';
+  const checkpointSource = response.headers.get('X-Sponsor-Checkpoint-Source')?.trim();
+  const progress = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+    .test(bootId)
+    && /^(?:starting|syncing|waiting-for-funding|registering-dust|ready|error)$/u.test(phase)
+    && digits.test(shieldedApplied)
+    && digits.test(unshieldedApplied)
+    && digits.test(dustApplied)
+    ? { bootId, phase, shieldedApplied, unshieldedApplied, dustApplied }
+    : undefined;
   await storeSponsorCheckpoint(env, response.body, contentLength, {
-    source: 'periodic-pull',
+    source: checkpointSource === 'local-cache' ? 'periodic-cache-pull' : 'periodic-pull',
+    progress,
   });
+  console.log(JSON.stringify({
+    message: 'sponsor_wallet_checkpoint_persisted',
+    bytes: contentLength,
+    progress: progress ?? null,
+  }));
+}
+
+async function persistSponsorDustReplayCheckpoint(env: Env): Promise<void> {
+  const response = await sponsorContainer(env).fetch(new Request(
+    'http://sponsor-wallet/checkpoint?mode=without-dust',
+    { signal: AbortSignal.timeout(5 * 60_000) },
+  ));
+  if (!response.ok || !response.body) {
+    const detail = await response.text();
+    throw new Error(
+      `Sponsor Wallet base checkpoint failed with HTTP ${response.status}: ${detail.slice(0, 240)}`,
+    );
+  }
+  const contentLength = Number(response.headers.get('Content-Length'));
+  if (
+    !Number.isSafeInteger(contentLength)
+    || contentLength <= 0
+    || contentLength > maxSponsorCheckpointBytes
+  ) {
+    await response.body.cancel();
+    throw new Error('Sponsor Wallet base checkpoint has an invalid Content-Length');
+  }
+  await storeSponsorDustReplayCheckpoint(env, response.body, contentLength);
 }
 
 async function persistSponsorCheckpointIfStale(
   env: Env,
   health: SponsorWalletHealth,
 ): Promise<void> {
+  if (
+    health.phase === 'syncing'
+    && health.synchronizationCheckpoint !== undefined
+    && health.synchronizationCheckpoint.delivery !== 'local-cache'
+  ) {
+    console.log(JSON.stringify({
+      message: 'sponsor_checkpoint_outer_pull_skipped_for_direct_sync_upload',
+      status: health.synchronizationCheckpoint.status,
+      attemptedAt: health.synchronizationCheckpoint.attemptedAt,
+      completedAt: health.synchronizationCheckpoint.completedAt,
+      dustApplied: health.synchronizationCheckpoint.dustApplied,
+    }));
+    return;
+  }
   const intervalMs = health.phase === 'ready'
     ? steadyCheckpointIntervalMs
     : synchronizationCheckpointIntervalMs;
@@ -301,7 +387,7 @@ async function replayInconsistentSponsorDustState(
        AND sponsor_transaction_object_key IS NOT NULL`,
   );
   const activeReservations = Number(active?.active_count ?? 0);
-  const recoveryCheckpoint = await env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey);
+  let recoveryCheckpoint = await env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey);
   if (
     recoveryCheckpoint === null
     && !shouldReplaySponsorDustState(health, activeReservations)
@@ -312,6 +398,13 @@ async function replayInconsistentSponsorDustState(
       activeReservations,
     }));
     return false;
+  }
+  if (recoveryCheckpoint === null) {
+    await persistSponsorDustReplayCheckpoint(env);
+    recoveryCheckpoint = await env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey);
+    if (recoveryCheckpoint === null) {
+      throw new Error('Sponsor Wallet DUST replay checkpoint was not persisted');
+    }
   }
   const response = await sponsorContainer(env).fetch(new Request(
     'http://sponsor-wallet/maintenance/replay-dust',
@@ -330,7 +423,7 @@ async function replayInconsistentSponsorDustState(
     message: 'sponsor_wallet_inconsistent_dust_state_replaying',
     registeredNightCoins: health.nightCoins?.registered ?? null,
     activeReservations,
-    recoveryCheckpointRestored: recoveryCheckpoint !== null,
+    recoveryCheckpointRestored: true,
   }));
   return true;
 }
@@ -428,6 +521,11 @@ async function prepareSponsoredTransaction(
   }
 
   try {
+    // Preserve a chain-synchronized state from immediately before the Wallet
+    // reserves DUST. If preparation is interrupted, replay can resume from
+    // this point instead of rescanning the entire chain.
+    await persistSponsorCheckpoint(env);
+    await preserveSponsorRecoveryCheckpoint(env);
     const prepared = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/prepare', {
       method: 'POST',
       headers: {
@@ -523,7 +621,7 @@ async function prepareSponsoredTransaction(
   }
 }
 
-async function submitSponsoredTransaction(
+export async function submitSponsoredTransaction(
   env: Env,
   job: ProofJobRow,
   contractAddress: string,
@@ -536,7 +634,14 @@ async function submitSponsoredTransaction(
     throw new Error('Sponsored transaction artifact is missing');
   }
   const object = await env.SPONSOR_STATE.get(job.sponsor_transaction_object_key);
-  if (!object) throw new Error('Sponsored transaction artifact was not found');
+  if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
+    throw new Error('Sponsored transaction artifact was not found');
+  }
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  if (
+    bytes.byteLength !== job.sponsor_transaction_bytes
+    || await sha256Hex(bytes) !== job.sponsor_serialized_sha256
+  ) throw new Error('Sponsored transaction artifact failed its integrity check');
   const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/submit', {
     method: 'POST',
     headers: {
@@ -546,7 +651,7 @@ async function submitSponsoredTransaction(
       'X-Contract-Transaction-Id': job.attest_tx_id,
       'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
     },
-    body: object.body,
+    body: bytes,
     signal: AbortSignal.timeout(15 * 60_000),
   }));
   const result = await readSmallJson<SponsorSubmission>(response);
@@ -557,14 +662,30 @@ async function submitSponsoredTransaction(
     || result.feeSpecks !== job.sponsor_fee_specks
     || result.transactionBytes !== job.sponsor_transaction_bytes
   ) throw new Error('Sponsor submission result does not match the prepared transaction');
+  const confirmedBlockHeight = result.blockHeight === undefined
+    ? null
+    : /^(?:0|[1-9]\d*)$/u.test(result.blockHeight)
+      ? result.blockHeight
+      : null;
+  if (result.blockHeight !== undefined && confirmedBlockHeight === null) {
+    throw new Error('Sponsor submission returned an invalid block height');
+  }
+  const completedStatus = confirmedBlockHeight === null ? 'submitted' : 'confirmed';
   const completedAt = new Date().toISOString();
   const updated = await createSqlDatabase(env).execute(
     `UPDATE daily_proof_jobs
-     SET status = 'submitted', sponsor_transaction_id = ?1,
-         sponsorship_completed_at = ?2, sponsor_lease_expires_at = NULL,
-         last_error_code = NULL, updated_at = ?2
-     WHERE id = ?3 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?4`,
-    [result.sponsorTransactionId, completedAt, job.id, job.sponsor_serialized_sha256],
+     SET status = ?1, sponsor_transaction_id = ?2, block_height = ?3,
+         sponsorship_completed_at = ?4, sponsor_lease_expires_at = NULL,
+         last_error_code = NULL, updated_at = ?4
+     WHERE id = ?5 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?6`,
+    [
+      completedStatus,
+      result.sponsorTransactionId,
+      confirmedBlockHeight,
+      completedAt,
+      job.id,
+      job.sponsor_serialized_sha256,
+    ],
   );
   if (updated !== 1) {
     const changed = await currentJob(env, job.id);
@@ -573,13 +694,299 @@ async function submitSponsoredTransaction(
     }
     return changed;
   }
-  await persistSponsorCheckpoint(env).catch((error) => {
+  try {
+    await persistSponsorCheckpoint(env);
+    await clearSponsorRecoveryCheckpoint(env);
+  } catch (error) {
     console.error(JSON.stringify({
       message: 'sponsor_checkpoint_after_submit_failed',
       proofJobId: job.id,
       errorName: error instanceof Error ? error.name : 'UnknownError',
     }));
+  }
+  if (completedStatus === 'confirmed') {
+    await env.SPONSOR_STATE.delete(job.sponsor_transaction_object_key).catch((error) => {
+      console.error(JSON.stringify({
+        message: 'sponsor_transaction_artifact_confirmation_cleanup_failed',
+        proofJobId: job.id,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      }));
+    });
+  }
+  console.log(JSON.stringify({
+    message: 'sponsor_submission_recorded',
+    proofJobId: job.id,
+    status: completedStatus,
+    blockHeight: confirmedBlockHeight,
+    replayRecovered: result.replayRecovered === true,
+  }));
+  return currentJob(env, job.id);
+}
+
+async function confirmReplayProtectedSponsorTransaction(
+  env: Env,
+  job: ProofJobRow,
+): Promise<ProofJobRow | null> {
+  if (
+    job.status !== 'sponsored'
+    || !job.attest_tx_id
+    || !job.attest_tx_hash
+    || !job.sponsor_serialized_sha256
+  ) throw new Error('Replay-protected Sponsor transaction is incomplete');
+  const evidence = await reconcileReplayProtectedSponsorTransaction({
+    network: env.PUBLIC_MIDNIGHT_NETWORK,
+    transactionId: job.attest_tx_id,
+    transactionHash: job.attest_tx_hash,
   });
+  if (!evidence) return null;
+  const completedAt = new Date().toISOString();
+  const updated = await createSqlDatabase(env).execute(
+    `UPDATE daily_proof_jobs
+     SET status = 'confirmed', sponsor_transaction_id = ?1,
+         block_height = ?2, sponsorship_completed_at = ?3,
+         sponsor_lease_expires_at = NULL, last_error_code = NULL, updated_at = ?3
+     WHERE id = ?4 AND status = 'sponsored'
+       AND sponsor_serialized_sha256 = ?5
+       AND attest_tx_id = ?1 AND attest_tx_hash = ?6`,
+    [
+      evidence.transactionId,
+      String(evidence.blockHeight),
+      completedAt,
+      job.id,
+      job.sponsor_serialized_sha256,
+      evidence.transactionHash,
+    ],
+  );
+  if (updated !== 1) {
+    const changed = await currentJob(env, job.id);
+    if (
+      changed.status !== 'confirmed'
+      || changed.attest_tx_id !== evidence.transactionId
+      || changed.attest_tx_hash !== evidence.transactionHash
+      || changed.block_height !== String(evidence.blockHeight)
+    ) throw new Error('Proof Job changed during replay reconciliation');
+    return changed;
+  }
+  try {
+    await persistSponsorCheckpoint(env);
+    await clearSponsorRecoveryCheckpoint(env);
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: 'sponsor_checkpoint_after_reconciliation_failed',
+      proofJobId: job.id,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    }));
+  }
+  if (job.sponsor_transaction_object_key) {
+    await env.SPONSOR_STATE.delete(job.sponsor_transaction_object_key).catch((error) => {
+      console.error(JSON.stringify({
+        message: 'sponsor_transaction_artifact_reconciliation_cleanup_failed',
+        proofJobId: job.id,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      }));
+    });
+  }
+  console.warn(JSON.stringify({
+    message: 'sponsor_queue_replay_reconciled',
+    proofJobId: job.id,
+    transactionId: evidence.transactionId,
+    transactionHash: evidence.transactionHash,
+    blockHeight: evidence.blockHeight,
+  }));
+  return currentJob(env, job.id);
+}
+
+export async function releaseAlreadyAttestedSponsorReservation(
+  env: Env,
+  job: ProofJobRow,
+  contractAddress: string,
+): Promise<ProofJobRow> {
+  if (
+    job.status !== 'sponsored'
+    || !job.sponsor_transaction_object_key
+    || !job.sponsor_serialized_sha256
+  ) throw new Error('Already-attested Sponsor reservation is incomplete');
+  const objectKey = job.sponsor_transaction_object_key;
+  const object = await env.SPONSOR_STATE.get(objectKey);
+  if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
+    throw new Error('Already-attested Sponsor transaction artifact was not found');
+  }
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  if (
+    bytes.byteLength !== job.sponsor_transaction_bytes
+    || await sha256Hex(bytes) !== job.sponsor_serialized_sha256
+  ) throw new Error('Already-attested Sponsor transaction artifact failed its integrity check');
+  const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/release', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'X-Sponsor-Contract-Address': contractAddress,
+      'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
+    },
+    body: bytes,
+    signal: AbortSignal.timeout(15 * 60_000),
+  }));
+  const released = await readSmallJson<SponsorRelease>(response);
+  if (!released.released || released.serializedSha256 !== job.sponsor_serialized_sha256) {
+    throw new Error('Sponsor Wallet returned an invalid already-attested release result');
+  }
+  await persistSponsorCheckpoint(env);
+  await clearSponsorRecoveryCheckpoint(env);
+  const updatedAt = new Date().toISOString();
+  const updated = await createSqlDatabase(env).execute(
+    `UPDATE daily_proof_jobs
+     SET status = 'dead_lettered', sponsor_transaction_object_key = NULL,
+         sponsor_serialized_sha256 = NULL, sponsor_fee_specks = NULL,
+         sponsor_transaction_bytes = NULL, sponsor_lease_expires_at = NULL,
+         attest_tx_id = NULL, attest_tx_hash = NULL,
+         last_error_code = 'measurement_group_already_attested', updated_at = ?1
+     WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
+    [updatedAt, job.id, job.sponsor_serialized_sha256],
+  );
+  if (updated !== 1) throw new Error('Already-attested Sponsor reservation changed during release');
+  await env.SPONSOR_STATE.delete(objectKey);
+  console.log(JSON.stringify({
+    message: 'sponsor_wallet_already_attested_reservation_released',
+    proofJobId: job.id,
+    releasedAt: released.releasedAt,
+  }));
+  return currentJob(env, job.id);
+}
+
+export async function releaseStaleSponsorReservationForReproof(
+  env: Env,
+  job: ProofJobRow,
+  contractAddress: string,
+): Promise<ProofJobRow> {
+  if (
+    job.status !== 'sponsored'
+    || !job.sponsor_transaction_object_key
+    || !job.sponsor_serialized_sha256
+  ) throw new Error('Stale Sponsor reservation is incomplete');
+  const sponsorObjectKey = job.sponsor_transaction_object_key;
+  const deviceObjectKey = job.device_transaction_object_key;
+  const object = await env.SPONSOR_STATE.get(sponsorObjectKey);
+  if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
+    throw new Error('Stale Sponsor transaction artifact was not found');
+  }
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  if (
+    bytes.byteLength !== job.sponsor_transaction_bytes
+    || await sha256Hex(bytes) !== job.sponsor_serialized_sha256
+  ) throw new Error('Stale Sponsor transaction artifact failed its integrity check');
+  const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/release', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'X-Sponsor-Contract-Address': contractAddress,
+      'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
+    },
+    body: bytes,
+    signal: AbortSignal.timeout(15 * 60_000),
+  }));
+  const released = await readSmallJson<SponsorRelease>(response);
+  if (!released.released || released.serializedSha256 !== job.sponsor_serialized_sha256) {
+    throw new Error('Sponsor Wallet returned an invalid stale-transaction release result');
+  }
+  await persistSponsorCheckpoint(env);
+  await clearSponsorRecoveryCheckpoint(env);
+  const updatedAt = new Date().toISOString();
+  const updated = await createSqlDatabase(env).execute(
+    `UPDATE daily_proof_jobs
+     SET status = 'reproof_required', device_transaction_object_key = NULL,
+         device_transaction_hash = NULL, device_transaction_bytes = NULL,
+         sponsor_transaction_object_key = NULL, sponsor_serialized_sha256 = NULL,
+         sponsor_transaction_id = NULL, sponsor_fee_specks = NULL,
+         sponsor_transaction_bytes = NULL, sponsor_lease_expires_at = NULL,
+         sponsorship_started_at = NULL, sponsorship_completed_at = NULL,
+         attest_tx_id = NULL, attest_tx_hash = NULL,
+         last_error_code = 'contract_state_changed_reproof_required', updated_at = ?1
+     WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
+    [updatedAt, job.id, job.sponsor_serialized_sha256],
+  );
+  if (updated !== 1) throw new Error('Stale Sponsor reservation changed during release');
+  await env.SPONSOR_STATE.delete(sponsorObjectKey);
+  if (deviceObjectKey) await env.SPONSOR_STATE.delete(deviceObjectKey);
+  console.warn(JSON.stringify({
+    message: 'sponsor_wallet_stale_reservation_released_for_reproof',
+    proofJobId: job.id,
+    releasedAt: released.releasedAt,
+  }));
+  return currentJob(env, job.id);
+}
+
+export async function releaseExpiredSponsorReservation(
+  env: Env,
+  job: ProofJobRow,
+  contractAddress: string,
+): Promise<ProofJobRow> {
+  if (
+    job.status !== 'sponsored'
+    || !job.sponsor_transaction_object_key
+    || !job.sponsor_serialized_sha256
+  ) throw new Error('Expired Sponsor reservation is incomplete');
+  const objectKey = job.sponsor_transaction_object_key;
+  const object = await env.SPONSOR_STATE.get(objectKey);
+  if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
+    throw new Error('Expired Sponsor transaction artifact was not found');
+  }
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  if (
+    bytes.byteLength !== job.sponsor_transaction_bytes
+    || await sha256Hex(bytes) !== job.sponsor_serialized_sha256
+  ) throw new Error('Expired Sponsor transaction artifact failed its integrity check');
+  let releasedAt: string | null = null;
+  let releaseError: unknown;
+  try {
+    const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/release', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Sponsor-Contract-Address': contractAddress,
+        'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
+      },
+      body: bytes,
+      signal: AbortSignal.timeout(15 * 60_000),
+    }));
+    const released = await readSmallJson<SponsorRelease>(response);
+    if (!released.released || released.serializedSha256 !== job.sponsor_serialized_sha256) {
+      throw new Error('Sponsor Wallet returned an invalid expired-transaction release result');
+    }
+    releasedAt = released.releasedAt;
+    await persistSponsorCheckpoint(env);
+    await clearSponsorRecoveryCheckpoint(env);
+  } catch (error) {
+    // The finalized transaction was never exposed outside the private R2
+    // bucket and has already crossed the refresh horizon. Clearing the DB/R2
+    // reservation lets the next maintenance pass restart from chain state,
+    // even if a stuck Wallet serializer makes the release endpoint unreachable.
+    releaseError = error;
+  }
+  const updatedAt = new Date().toISOString();
+  const updated = await createSqlDatabase(env).execute(
+    `UPDATE daily_proof_jobs
+     SET status = 'awaiting_sponsor', sponsor_transaction_object_key = NULL,
+         sponsor_serialized_sha256 = NULL, sponsor_transaction_id = NULL,
+         sponsor_fee_specks = NULL, sponsor_transaction_bytes = NULL,
+         sponsor_lease_expires_at = NULL, sponsor_available_after = ?1,
+         sponsorship_started_at = NULL, sponsorship_completed_at = NULL,
+         attest_tx_id = NULL, attest_tx_hash = NULL,
+         last_error_code = 'sponsor_transaction_expired_reprepare', updated_at = ?1
+     WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
+    [updatedAt, job.id, job.sponsor_serialized_sha256],
+  );
+  if (updated !== 1) throw new Error('Expired Sponsor reservation changed during release');
+  await env.SPONSOR_STATE.delete(objectKey);
+  const recoveryLog = JSON.stringify({
+    message: releaseError
+      ? 'sponsor_wallet_expired_reservation_abandoned'
+      : 'sponsor_wallet_expired_reservation_released',
+    proofJobId: job.id,
+    releasedAt,
+    releaseError: releaseError ? errorMessage(releaseError) : null,
+  });
+  if (releaseError) console.warn(recoveryLog);
+  else console.log(recoveryLog);
   return currentJob(env, job.id);
 }
 
@@ -622,6 +1029,7 @@ async function releaseContractUpgradeReservations(
       throw new Error(`Sponsor Wallet returned an invalid release result for ${job.id}`);
     }
     await persistSponsorCheckpoint(env);
+    await clearSponsorRecoveryCheckpoint(env);
     const updatedAt = new Date().toISOString();
     const updated = await database.execute(
       `UPDATE daily_proof_jobs
@@ -717,7 +1125,8 @@ export async function sponsorProofTransaction(
        SET status = 'awaiting_sponsor', device_transaction_object_key = ?1,
            device_transaction_hash = ?2, device_transaction_bytes = ?3,
            sponsor_available_after = ?4, last_error_code = NULL, updated_at = ?4
-       WHERE id = ?5 AND status = 'proof_ready' AND device_transaction_hash IS NULL`,
+       WHERE id = ?5 AND status IN ('proof_ready', 'reproof_required')
+         AND device_transaction_hash IS NULL`,
       [objectKey, deviceTransactionHash, bytes.byteLength, acceptedAt, job.id],
     );
     job = await currentJob(env, job.id);
@@ -775,6 +1184,12 @@ async function deferSponsorJob(
 }
 
 async function processSponsorQueueMessage(message: Message<unknown>, env: Env): Promise<void> {
+  const {
+    processBrowserPolicyQueueMessage,
+    processBrowserProvisioningQueueMessage,
+  } = await import('./provisioning.js');
+  if (await processBrowserPolicyQueueMessage(message, env)) return;
+  if (await processBrowserProvisioningQueueMessage(message, env)) return;
   if (!isSponsorQueueMessage(message.body)) {
     message.ack();
     return;
@@ -809,14 +1224,40 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
     return;
   }
   try {
+    // A network/SDK response can be lost after the node has already finalized
+    // the exact transaction. Reconcile immutable Indexer evidence before
+    // touching the Wallet again so a Container restart or Wallet resync cannot
+    // delay completion and the same DUST intent is not resubmitted needlessly.
+    if (
+      job.status === 'sponsored'
+      && job.last_error_code === 'sponsor_submit_failed'
+      && env.PUBLIC_MIDNIGHT_NETWORK !== undefined
+    ) {
+      const reconciled = await confirmReplayProtectedSponsorTransaction(env, job);
+      if (reconciled) {
+        console.log(JSON.stringify({
+          message: 'sponsor_queue_prior_submission_reconciled',
+          proofJobId: job.id,
+        }));
+        message.ack();
+        return;
+      }
+    }
     const health = await sponsorWalletHealth(env);
-    if (!sponsorWalletCanSubmit(health)) {
+    const contractAddress = normalizedContractAddress(env.PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS);
+    if (!contractAddress) throw new Error('Sponsor contract policy is not configured');
+    if (job.status === 'sponsored' && job.sponsor_transaction_object_key) {
+      const sponsoredObject = await env.SPONSOR_STATE.get(job.sponsor_transaction_object_key);
+      if (!sponsoredObject) throw new Error('Sponsored transaction artifact was not found');
+      if (sponsorTransactionNeedsRefresh(sponsoredObject.uploaded)) {
+        job = await releaseExpiredSponsorReservation(env, job, contractAddress);
+      }
+    }
+    if (!sponsorJobCanProceed(job.status, health)) {
       await deferSponsorJob(env, job, 'sponsor_wallet_not_ready');
       message.ack();
       return;
     }
-    const contractAddress = normalizedContractAddress(env.PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS);
-    if (!contractAddress) throw new Error('Sponsor contract policy is not configured');
     if (job.status !== 'sponsored') {
       if (!job.device_transaction_object_key || !job.device_transaction_hash) {
         throw new Error('Accepted Device transaction artifact is missing');
@@ -839,7 +1280,30 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
       );
     }
     if (job.status === 'sponsored') {
-      job = await submitSponsoredTransaction(env, job, contractAddress);
+      try {
+        job = await submitSponsoredTransaction(env, job, contractAddress);
+      } catch (error) {
+        const submissionError = errorMessage(error);
+        if (sponsorSubmissionIsReplayProtectionViolation(submissionError)) {
+          const reconciled = await confirmReplayProtectedSponsorTransaction(env, job);
+          if (!reconciled) throw error;
+          job = reconciled;
+        } else if (submissionError.includes('measurement group already attested')) {
+          job = await releaseAlreadyAttestedSponsorReservation(env, job, contractAddress);
+          console.warn(JSON.stringify({
+            message: 'sponsor_queue_already_attested_closed',
+            proofJobId: job.id,
+          }));
+        } else if (sponsorSubmissionRequiresReproof(submissionError)) {
+          job = await releaseStaleSponsorReservationForReproof(env, job, contractAddress);
+        } else {
+          throw error;
+        }
+        if (!['submitted', 'confirmed'].includes(job.status)) {
+          message.ack();
+          return;
+        }
+      }
     }
     if (!['submitted', 'confirmed'].includes(job.status)) {
       throw new Error('Sponsor processing did not reach the submitted state');
@@ -946,6 +1410,7 @@ export async function warmSponsorWallet(env: Env): Promise<void> {
       progress: status.progress,
       progressDetails: status.progressDetails,
       initialization: status.initialization,
+      synchronizationCheckpoint: status.synchronizationCheckpoint,
       initializedAt: status.initializedAt,
       lastStateAt: status.lastStateAt,
       shuttingDown: status.shuttingDown,
@@ -955,8 +1420,22 @@ export async function warmSponsorWallet(env: Env): Promise<void> {
     if (status.supervisor && status.supervisor.status !== 'healthy') {
       await logSponsorRuntimeDiagnostics(env, warmupId);
     }
-    if (status.progress !== null && status.phase !== 'error') {
-      await persistSponsorCheckpointIfStale(env, status);
+    if (status.progress !== null) {
+      const active = await createSqlDatabase(env).first<{ active_count: number }>(
+        `SELECT COUNT(*) AS active_count FROM daily_proof_jobs
+         WHERE status IN ('sponsoring', 'sponsored')
+           AND sponsor_transaction_object_key IS NOT NULL`,
+      );
+      const activeReservations = Number(active?.active_count ?? 0);
+      if (status.phase === 'ready' || activeReservations === 0) {
+        await persistSponsorCheckpointIfStale(env, status);
+      } else {
+        console.log(JSON.stringify({
+          message: 'sponsor_checkpoint_skipped_for_active_reservation',
+          activeReservations,
+          phase: status.phase,
+        }));
+      }
     }
   } catch (error) {
     const message = errorMessage(error);

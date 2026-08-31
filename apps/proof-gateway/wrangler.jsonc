@@ -42,7 +42,7 @@
         "queue": "midnight-sponsor-jobs",
         "max_batch_size": 1,
         "max_batch_timeout": 5,
-        "max_retries": 3,
+        "max_retries": 12,
         "dead_letter_queue": "midnight-sponsor-jobs-dlq",
         "max_concurrency": 1,
         "retry_delay": 60

@@ -1,6 +1,8 @@
-import { getContainer } from '@cloudflare/containers';
-
-import type { DevicePrincipal } from './device-auth.js';
+import {
+  applyDeviceRateLimits,
+  authorizeDeviceRequest,
+  type DevicePrincipal,
+} from './device-auth.js';
 import { isProofOperatingWindow } from './proof-window.js';
 import { createSqlDatabase } from './storage/index.js';
 
@@ -39,6 +41,7 @@ export interface ProofJobRow {
   available_after: string;
   lease_expires_at: string | null;
   proof_artifact_key: string | null;
+  proof_generated_at: string | null;
   device_transaction_object_key: string | null;
   device_transaction_hash: string | null;
   device_transaction_bytes: number | null;
@@ -183,6 +186,7 @@ async function admitProofJob(message: Message<unknown>, env: Env): Promise<void>
     return;
   }
   try {
+    const { getContainer } = await import('@cloudflare/containers');
     const container = getContainer(env.PROOF_SERVER, proofContainerName);
     const response = await container.fetch(new Request('http://proof-server/health', {
       signal: AbortSignal.timeout(8 * 60 * 1000),
@@ -282,4 +286,65 @@ export async function markProofReady(env: Env, proofJobId: string): Promise<void
      WHERE id = ?2 AND status = 'proving'`,
     [new Date().toISOString(), proofJobId],
   );
+}
+
+export async function admitProofJobForBrowserDevice(
+  request: Request,
+  env: Env,
+  proofJobId: string,
+): Promise<Response> {
+  const authorization = await authorizeDeviceRequest(request, env, 'proof:request');
+  if (!authorization.ok) return authorization.response;
+  if (!(await applyDeviceRateLimits(env.API_RATE_LIMITER, request, authorization.principal))) {
+    return json(429, { error: 'Immediate Proof admission rate limit exceeded' });
+  }
+  const database = createSqlDatabase(env);
+  const job = await database.first<ProofJobRow>(
+    'SELECT * FROM daily_proof_jobs WHERE id = ?1 AND device_id = ?2 AND project_id = ?3',
+    [proofJobId, authorization.principal.deviceId, authorization.principal.projectId],
+  );
+  if (!job) return json(404, { error: 'Proof Job not found' });
+  if (['ready_for_input', 'proving', 'proof_ready'].includes(job.status)) {
+    return json(200, { admitted: true, proofJobId, status: job.status });
+  }
+  if (!['pending', 'retryable_failed'].includes(job.status)) {
+    return json(409, { error: `Proof Job cannot be admitted from status ${job.status}` });
+  }
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const leaseExpiresAt = new Date(now.valueOf() + proofLeaseSeconds * 1000).toISOString();
+  const active = await database.first<{ active_count: number }>(
+    `SELECT
+       (SELECT COUNT(*) FROM daily_proof_jobs
+        WHERE status IN ('ready_for_input', 'proving', 'proof_ready')
+          AND lease_expires_at > ?1)
+       +
+       (SELECT COUNT(*) FROM operator_proof_leases
+        WHERE status = 'active' AND expires_at > ?2) AS active_count`,
+    [nowIso, Math.floor(now.valueOf() / 1000)],
+  );
+  if ((active?.active_count ?? 0) >= proofAdmissionCapacity) {
+    return json(409, { error: 'Proof capacity is already leased; retry shortly' });
+  }
+  const changed = await database.execute(
+    `UPDATE daily_proof_jobs
+     SET status = 'ready_for_input', attempt_count = attempt_count + 1,
+         lease_expires_at = ?1, last_error_code = NULL, updated_at = ?2
+     WHERE id = ?3 AND device_id = ?4 AND project_id = ?5
+       AND status IN ('pending', 'retryable_failed')`,
+    [
+      leaseExpiresAt,
+      nowIso,
+      proofJobId,
+      authorization.principal.deviceId,
+      authorization.principal.projectId,
+    ],
+  );
+  if (changed !== 1) return json(409, { error: 'Proof Job state changed' });
+  return json(200, {
+    admitted: true,
+    proofJobId,
+    status: 'ready_for_input',
+    leaseExpiresAt,
+  });
 }

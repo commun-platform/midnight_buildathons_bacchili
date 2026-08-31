@@ -19,7 +19,7 @@ import {
 import { authorizeOperatorProofRequest } from './operator-proof.js';
 import {
   parseSponsorCheckpointUpload,
-  sponsorCheckpointKey,
+  restoreSponsorRecoveryCheckpoint,
   sponsorCheckpointRecoveryKey,
   storeSponsorCheckpoint,
 } from './sponsor-checkpoint.js';
@@ -31,6 +31,10 @@ import {
 } from './sponsor.js';
 
 const instanceName = 'midnight-proof-server';
+// Keep the Durable Object lifecycle revision coupled to Sponsor Wallet image
+// changes. Cloudflare can otherwise retain a stale "restarting" state after a
+// container-only rollout while the replacement instance remains inactive.
+const sponsorWalletRuntimeRevision = 'adaptive-checkpoint-v1';
 const maxProofBodyBytes = 95 * 1024 * 1024;
 const securityHeaders = {
   'Cross-Origin-Resource-Policy': 'same-site',
@@ -206,6 +210,12 @@ export class SponsorWalletContainer extends Container {
         request.method !== 'POST'
         || request.headers.get('X-Sponsor-Maintenance') !== 'replay-dust-from-chain'
       ) return json(404, { error: 'Not found' });
+      if (await this.env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey) === null) {
+        return json(409, { error: 'Sponsor Wallet DUST replay checkpoint is unavailable' });
+      }
+      // Drain the maintenance request before stopping the Container. Otherwise
+      // the runtime may try to consume its stream after the 204 response.
+      await request.arrayBuffer();
       const runtime = this.ctx.container;
       if (runtime?.running) {
         await this.stop('SIGTERM');
@@ -222,24 +232,11 @@ export class SponsorWalletContainer extends Container {
       // The graceful shutdown first stores the latest encrypted checkpoint.
       // Replace it only after the process has stopped, so a late shutdown
       // upload cannot overwrite the selected pre-reservation recovery point.
-      const recovery = await this.env.SPONSOR_STATE.get(sponsorCheckpointRecoveryKey);
-      if (recovery) {
-        await this.env.SPONSOR_STATE.put(sponsorCheckpointKey, recovery.body, {
-          httpMetadata: { contentType: 'application/octet-stream' },
-          customMetadata: {
-            format: 'vsp-sponsor-checkpoint-v1',
-            updatedAt: new Date().toISOString(),
-            source: 'operator-recovery',
-          },
-        });
-        await this.env.SPONSOR_STATE.delete(sponsorCheckpointRecoveryKey);
-      } else {
-        await this.env.SPONSOR_STATE.delete(sponsorCheckpointKey);
-      }
+      const recoveryCheckpointRestored = await restoreSponsorRecoveryCheckpoint(this.env);
       console.log(JSON.stringify({
         message: 'sponsor_wallet_dust_replay_scheduled',
         requestId,
-        recoveryCheckpointRestored: recovery !== null,
+        recoveryCheckpointRestored,
       }));
       return new Response(null, { status: 204 });
     }
@@ -278,7 +275,8 @@ export class SponsorWalletContainer extends Container {
           startOptions: {
             envVars: {
               SPONSOR_WALLET_SEED: seed,
-              SPONSOR_ZK_CONFIG_PATH: '/app/contracts/sensor-registry/src/managed',
+              OPERATOR_AUTHORITY_SECRET: this.env.OPERATOR_AUTHORITY_SECRET?.trim() ?? '',
+              SPONSOR_ZK_CONFIG_PATH: '/app/contracts/sensor-registry/src/managed/sensor-registry',
             },
             enableInternet: true,
           },
@@ -319,6 +317,7 @@ export class SponsorWalletContainer extends Container {
     console.log(JSON.stringify({
       message: 'sponsor_wallet_container_started',
       port: this.defaultPort,
+      runtimeRevision: sponsorWalletRuntimeRevision,
     }));
   }
 
@@ -381,16 +380,22 @@ SponsorWalletContainer.outboundByHost = {
     try {
       const checkpoint = parseSponsorCheckpointUpload(request);
       await storeSponsorCheckpoint(env, checkpoint.body, checkpoint.bytes, {
-        source: 'graceful-shutdown',
+        source: checkpoint.reason === 'periodic-sync'
+          ? 'periodic-push'
+          : 'graceful-shutdown',
         bootId: checkpoint.bootId,
         reason: checkpoint.reason,
+        progress: checkpoint.progress,
       });
       console.log(JSON.stringify({
-        message: 'sponsor_wallet_graceful_checkpoint_stored',
+        message: checkpoint.reason === 'periodic-sync'
+          ? 'sponsor_wallet_periodic_checkpoint_stored'
+          : 'sponsor_wallet_graceful_checkpoint_stored',
         containerId: context.containerId,
         bootId: checkpoint.bootId,
         reason: checkpoint.reason,
         bytes: checkpoint.bytes,
+        progress: checkpoint.progress ?? null,
         durationMs: Math.round(performance.now() - startedAt),
       }));
       return new Response(null, { status: 204 });

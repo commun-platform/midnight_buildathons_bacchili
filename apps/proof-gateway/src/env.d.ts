@@ -4,6 +4,7 @@ interface Env {
   API_RATE_LIMITER: RateLimit;
   PROOF_RATE_LIMITER: RateLimit;
   SPONSOR_WALLET_SEED?: string;
+  OPERATOR_AUTHORITY_SECRET?: string;
   PUBLIC_MIDNIGHT_NETWORK?: string;
   PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS?: string;
 }
@@ -11,5 +12,6 @@ interface Env {
 declare namespace Cloudflare {
   interface Env {
     SPONSOR_WALLET_SEED?: string;
+    OPERATOR_AUTHORITY_SECRET?: string;
   }
 }
