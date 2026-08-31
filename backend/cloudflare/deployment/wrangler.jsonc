@@ -91,7 +91,7 @@
       "class_name": "SponsorWalletContainer",
       "image": "../sponsor-wallet-container/Dockerfile",
       "image_build_context": "../../..",
-      "instance_type": "standard-4",
+      "instance_type": "standard-2",
       "max_instances": 1
     }
   ],

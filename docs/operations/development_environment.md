@@ -84,12 +84,29 @@ is an intentionally oversized feasibility baseline, not the production minimum:
 | Full repository `npm run verify` after Supervisor implementation | 58.32 s wall; 59.38 s user; 12.15 s system; 865,416 KiB maximum RSS; all checks passed |
 | Sponsor Wallet Container image build in that verification | 22.9 s wall |
 
-The measurements show that memory was not the initial bottleneck. The `basic` CPU limit starved the
-Node.js event loop while Wallet SDK replay consumed approximately one core. Extra `standard-4` cores
-provide operating margin but do not make a predominantly single-core replay four times faster. The
-runtime waits for complete DUST-wallet replay before registration cost estimation, DUST generation,
-registration submission, and readiness. Final sizing must be based on a warm restore and sponsored
-transaction run after this feasibility test.
+The production-like warm-restore check was repeated on 2026-08-31 after changing only the Sponsor
+Wallet allocation to `standard-2`. The same software versions and the encrypted R2 checkpoint were
+used:
+
+| `standard-2` operation | Measured result |
+| --- | --- |
+| Allocation | 1 vCPU, 6 GiB memory, 12 GB disk, one private-network instance |
+| Encrypted R2 checkpoint selected for restore | 5,363,987 bytes; prior `ready` checkpoint at 2026-08-31 06:44:32 UTC |
+| Checkpoint restore to Wallet `ready` | 85.536 s from initialization start to completion |
+| Initialization CPU | 0.975 core in a 1.028 s diagnostic sample; no throttling event observed |
+| Initialization process memory | Wallet child approximately 299–354 MB RSS; Supervisor 94,976 KiB RSS |
+| Initialization health | Wallet-status probe timed out 8 consecutive times and was stale for 49.842 s; outer Supervisor `/health` remained HTTP 200 in 3–7 ms |
+| Post-restore checkpoint cache | 5,363,987 bytes in 1.083 s |
+| First two steady Cron checks | `ready`; 0.760–0.789 s warmup; Supervisor `healthy`; zero consecutive probe failures; spendable DUST coin present |
+| API regression after resize | Proof Gateway 111 tests and Sponsor Wallet 42 tests passed; no active Sponsor, Device-registration, or Policy-registration backlog |
+
+The measurements confirm that memory was not the bottleneck. The Wallet SDK needs approximately one
+CPU core while restoring and catching up, so `standard-2` saturates its single vCPU and temporarily
+makes the cached Wallet status stale. The separate Supervisor still returns HTTP 200, and Queue jobs
+remain held until the Wallet reports `ready`. Once synchronized, `standard-2` maintained healthy
+minute-by-minute checks. Wave 1 therefore uses `standard-2` as the measured cost-oriented size;
+`standard-4` remains the faster-recovery option if a production restart SLO cannot tolerate the
+observed 85.536-second warm restore or temporary degraded Wallet status.
 
 The pre-fix adverse-network run persisted a 220,225-byte checkpoint in 10 ms but the SDK WebSocket
 shutdown did not finish before the 60-second local stop deadline. The implemented order therefore

@@ -74,4 +74,7 @@ funding, DUST registration, or DUST history synchronization.
 The Proof Server and Sponsor Wallet remain separate Containers even when both are sized as
 `standard-2`. Sponsor PID 1 is a lightweight Health Supervisor; it serves cached freshness-aware
 health while the lower-priority Wallet SDK child synchronizes. This keeps operational health
-responsive without combining proving keys, Sponsor seed material, or scaling failures.
+responsive without combining proving keys, Sponsor seed material, or scaling failures. A measured
+warm restore on the single-vCPU Sponsor allocation temporarily made the cached Wallet status
+`degraded`, but the Supervisor endpoint remained responsive and Queue processing stayed gated until
+the Wallet returned to `ready`.

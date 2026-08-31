@@ -84,10 +84,27 @@ Preprod Wallet、R2互換の非公開HTTP Receiverを使用しました。Produc
 | Supervisor実装後のRepository全体`npm run verify` | Wall 58.32秒、User 59.38秒、System 12.15秒、最大RSS 865,416 KiB、全Check成功 |
 | 同Verify内のSponsor Wallet Container Image Build | Wall 22.9秒 |
 
-初期Bottle NeckはMemoryではなくCPUでした。`basic`のCPU上限に対してWallet SDK Replayが約1 coreを必要とし、
-Node.js Event LoopのHealth処理が遅延しました。`standard-4`の追加Coreは余裕を確保しますが、主にSingle-coreで
-進むReplayを4倍速にはしません。RuntimeはDUST Walletの完全Replay後に、登録費用見積り、DUST生成待ち、登録TX、
-Ready判定の順で進みます。本番Sizeは、この成立性確認後のWarm RestoreとSponsored TX実測で決定します。
+2026-08-31にSponsor Walletの割当だけを`standard-2`へ変更し、同じSoftware Versionと暗号化R2 Checkpointで
+Production相当のWarm Restoreを再計測しました。
+
+| `standard-2`処理 | 実測結果 |
+| --- | --- |
+| 割当 | 1 vCPU、Memory 6 GiB、Disk 12 GB、Private Networkの1 instance |
+| Restore対象の暗号化R2 Checkpoint | 5,363,987 bytes、2026-08-31 06:44:32 UTC時点の`ready` Checkpoint |
+| Checkpoint RestoreからWallet `ready` | Initialization開始から完了まで85.536秒 |
+| Initialization CPU | 1.028秒のDiagnostic Sampleで0.975 core、Throttling Eventなし |
+| Initialization Process Memory | Wallet Child RSS約299～354 MB、Supervisor RSS 94,976 KiB |
+| Initialization中のHealth | Wallet Status Probeが8回連続Timeoutし49.842秒Stale。外側Supervisor `/health`は3～7 msでHTTP 200を維持 |
+| Restore後のCheckpoint Cache | 5,363,987 bytesを1.083秒で保存 |
+| Ready後最初の2回のCron確認 | `ready`、Warmup 0.760～0.789秒、Supervisor `healthy`、連続Probe失敗0、使用可能DUST Coinあり |
+| Resize後のAPI Regression | Proof Gateway 111件、Sponsor Wallet 42件が成功。Sponsor／Device登録／Policy登録のActive Backlogなし |
+
+MemoryはBottle Neckではありません。Wallet SDKはRestoreと追随中に約1 CPU coreを必要とするため、1 vCPUの
+`standard-2`ではCPUを使い切り、Cached Wallet Statusが一時的にStaleになります。一方、分離したSupervisorは
+HTTP 200を返し続け、Queue JobはWalletが`ready`になるまで保留されます。同期完了後は`standard-2`で1分ごとの
+Health確認を正常に維持しました。Wave 1ではCostを優先した実測Sizeとして`standard-2`を採用します。
+ProductionのRestart SLOで85.536秒のWarm Restoreまたは一時的なWallet `degraded`を許容できない場合は、
+`standard-4`を高速復旧Optionとして残します。
 
 改修前のNetwork不調条件では220,225-byte Checkpointを10 msで退避できましたが、SDKのWebSocket停止がLocalの
 60秒停止期限までに完了しませんでした。このため実装はState退避を最初に行い、その後のSDK停止待ちを45秒へ

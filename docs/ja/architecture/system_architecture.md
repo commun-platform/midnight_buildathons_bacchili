@@ -21,7 +21,7 @@ Integration Evidenceとして、次の現場Runtime境界も実装していま�
 | Queues／DLQ | Proof Admission／Sponsor処理のJob参照だけを配送し、失敗時に再試行またはDLQへ移送 |
 | Cron Trigger | 開発環境では1分ごとにD1の待機中JobとSponsor Healthを確認し、営業時間内の処理をQueueへ投入 |
 | Proof Server Container | 非公開の時間別MIN／MAXからMidnight用Proofを生成。`standard-2`、最大1 instance |
-| Sponsor Wallet Container | デバイス署名済み取引を検査し、DUST Feeだけを追加してMidnightへ送信。初回成立確認は`standard-4`、最大1 instance。成立後に実測して縮小する |
+| Sponsor Wallet Container | デバイス署名済み取引を検査し、DUST Feeだけを追加してMidnightへ送信。Warm Restore実測済みの`standard-2`、最大1 instance |
 | Durable Objects | 2つのContainerを起動・ルーティングするCloudflare内部Binding。Device SessionやReadingの保存には使用しない |
 | R2 | 非公開TX Artifact、任意のPublic Report、Sponsor Walletの暗号化同期Checkpointを保存。SeedやRaw値は平文保存しない |
 | Rate Limiter／Observability | 認証・API・ProofのRate制限と、秘密値を除外した構造化Log／処理時間／Byte数の記録 |
@@ -90,4 +90,5 @@ Addressedな非公開BytesをR2へ保存してJob IDをQueueへ投入します�
 Proof ServerとSponsor Walletは、両方を`standard-2`にする場合も別Containerのままとします。Sponsorの
 PID 1は軽量Health Supervisorで、低PriorityのWallet SDK Childが同期中でも、鮮度付きCached Healthを
 即座に返します。これによりProof用資材、Sponsor Seed、Scaling障害を混在させずに運用Healthを応答可能に
-保ちます。
+保ちます。1 vCPUのSponsorでWarm Restoreした実測ではCached Wallet Statusが一時`degraded`になりましたが、
+Supervisor Endpointは応答を維持し、Walletが`ready`へ戻るまでQueue処理を保留できました。
