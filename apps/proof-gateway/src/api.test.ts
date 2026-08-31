@@ -5,14 +5,21 @@ import { handleApi } from './api.js';
 function database(proofRow: Record<string, unknown> | null = null): D1Database {
   return {
     prepare(query: string) {
+      const visibleProofRow = proofRow
+        && (!query.includes("j.status = 'confirmed'") || proofRow.status === 'confirmed')
+        && (!query.includes('j.attest_tx_id IS NOT NULL') || proofRow.attest_tx_id)
+        && (!query.includes('j.attest_tx_hash IS NOT NULL') || proofRow.attest_tx_hash)
+        && (!query.includes('j.block_height IS NOT NULL') || proofRow.block_height)
+        ? proofRow
+        : null;
       const statement = {
         bind() { return statement; },
         async first<T>() {
-          return (query.includes('FROM daily_proof_jobs') ? proofRow : null) as T | null;
+          return (query.includes('FROM daily_proof_jobs') ? visibleProofRow : null) as T | null;
         },
         async all<T>() {
-          const results = query.includes('FROM daily_proof_jobs j') && proofRow
-            ? [proofRow] as T[]
+          const results = query.includes('FROM daily_proof_jobs j') && visibleProofRow
+            ? [visibleProofRow] as T[]
             : [] as T[];
           return { success: true, results, meta: { changes: 0 } } as D1Result<T>;
         },
@@ -62,6 +69,11 @@ describe('Wave 1 API router', () => {
 
   it('requires a Device Session for Device-owned daily history', async () => {
     const result = await response(new Request('https://worker.test/api/v1/device/history'));
+    expect(result.status).toBe(401);
+  });
+
+  it('requires a Device Session for the Device-scoped administrator dashboard', async () => {
+    const result = await response(new Request('https://worker.test/api/v1/device/dashboard'));
     expect(result.status).toBe(401);
   });
 
@@ -143,7 +155,7 @@ describe('Wave 1 API router', () => {
       assignment_key: '78'.repeat(32), hour_presence: '1'.repeat(24),
       observed_hour_count: 24, threshold_satisfied: 0, schema_version: 5, circuit_version: 3,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
-      proof_artifact_key: null, attest_tx_id: 'attest-tx', attest_tx_hash: null,
+      proof_artifact_key: null, attest_tx_id: 'attest-tx', attest_tx_hash: '81'.repeat(32),
       block_height: '123', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
       policy_version: 1, assignment_version: 1, last_error_code: null,
@@ -171,6 +183,54 @@ describe('Wave 1 API router', () => {
     expect(serialized).not.toContain(proofRow.device_commitment);
   });
 
+  it('excludes unconfirmed or incomplete transaction records from the public verifier', async () => {
+    const baseRow = {
+      id: 'proof-not-public-001', project_id: 'project-secret', device_id: 'device-secret',
+      period_date: '2026-08-28', contract_address: 'cd'.repeat(32),
+      measurement_group_id: '93'.repeat(32), attestation_commitment: '12'.repeat(32),
+      device_commitment: '34'.repeat(32), sample_count: 1440,
+      threshold_policy_version: 'temperature-v1', policy_key: '56'.repeat(32),
+      assignment_id: 'private-assignment-id', assignment_key: '78'.repeat(32),
+      hour_presence: '1'.repeat(24), observed_hour_count: 24, threshold_satisfied: 1,
+      schema_version: 5, circuit_version: 3, attempt_count: 1,
+      available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
+      proof_artifact_key: null, mode: 'closed-range', minimum: 10, maximum: 35,
+      value_scale: 100, sensor_type: 'temperature', unit: '°C', policy_version: 1,
+      assignment_version: 1, last_error_code: null,
+      created_at: '2026-08-28T17:00:00.000Z', updated_at: '2026-08-28T17:10:00.000Z',
+    };
+    for (const proofRow of [
+      {
+        ...baseRow,
+        status: 'reproof_required',
+        attest_tx_id: 'unconfirmed-tx',
+        attest_tx_hash: 'unconfirmed-hash',
+        block_height: '123',
+      },
+      {
+        ...baseRow,
+        status: 'confirmed',
+        attest_tx_id: 'incomplete-tx',
+        attest_tx_hash: null,
+        block_height: '123',
+      },
+    ]) {
+      const list = await response(
+        new Request('https://worker.test/api/v1/public/proofs?limit=100'),
+        environment(database(proofRow)),
+      );
+      expect(list.status).toBe(200);
+      expect(await list.json()).toEqual({ proofs: [] });
+
+      const detail = await response(
+        new Request(`https://worker.test/api/v1/public/proofs/${proofRow.id}`),
+        environment(database(proofRow)),
+      );
+      expect(detail.status).toBe(404);
+      expect(await detail.json()).toEqual({ error: 'Public Proof record not found' });
+    }
+  });
+
   it('publishes a confirmed outside-threshold result without private extrema', async () => {
     const proofRow = {
       id: 'proof-outside-001', project_id: 'project-secret', device_id: 'device-secret',
@@ -183,7 +243,7 @@ describe('Wave 1 API router', () => {
       assignment_key: '78'.repeat(32), hour_presence: '1'.repeat(24),
       observed_hour_count: 24, threshold_satisfied: 0, schema_version: 5, circuit_version: 3,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
-      proof_artifact_key: null, attest_tx_id: 'outside-attest-tx', attest_tx_hash: null,
+      proof_artifact_key: null, attest_tx_id: 'outside-attest-tx', attest_tx_hash: '82'.repeat(32),
       block_height: '124', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
       policy_version: 1, assignment_version: 1, last_error_code: null,

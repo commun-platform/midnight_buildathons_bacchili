@@ -16,7 +16,7 @@ describe('local dashboard CORS', () => {
     expect(response?.status).toBe(204);
     expect(response?.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8792');
     expect(response?.headers.get('Access-Control-Allow-Headers')).toBe(
-      'authorization, content-type, x-proof-job-id',
+      'authorization, content-type, x-proof-job-id, x-provisioning-token',
     );
     expect(response?.headers.get('Access-Control-Allow-Credentials')).toBeNull();
     expect(response?.headers.get('Vary')).toBe('Origin');

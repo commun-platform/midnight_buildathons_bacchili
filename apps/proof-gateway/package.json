@@ -8,6 +8,7 @@
     "types:check": "node ../../scripts/require-development-host.mjs && wrangler types src/worker-configuration.d.ts --include-runtime=false --config wrangler.jsonc --check",
     "build": "node ../../scripts/require-development-host.mjs && wrangler deploy --dry-run --outdir dist",
     "test": "node ../../scripts/require-development-host.mjs && vitest run src",
+    "test:sct": "node ../../scripts/require-development-host.mjs && vitest run src",
     "typecheck": "npm run types:check && tsc -p tsconfig.json --noEmit",
     "db:migrate:local": "node ../../scripts/require-development-host.mjs && wrangler d1 migrations apply midnight-sensor-data-v2 --local --config wrangler.jsonc",
     "db:migrate:remote": "node ../../scripts/require-development-host.mjs && wrangler d1 migrations apply midnight-sensor-data-v2 --remote --config wrangler.jsonc",
@@ -21,11 +22,13 @@
     "config:network": "node ../../scripts/require-development-host.mjs && wrangler secret put PUBLIC_MIDNIGHT_NETWORK --config wrangler.jsonc",
     "config:contract": "node ../../scripts/require-development-host.mjs && wrangler secret put PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS --config wrangler.jsonc",
     "config:sponsor": "node ../../scripts/require-development-host.mjs && node scripts/configure-sponsor-wallet.mjs",
+    "config:operator-authority": "node ../../scripts/require-development-host.mjs && node scripts/configure-operator-authority.mjs",
     "deploy": "node ../../scripts/require-development-host.mjs && npm run db:migrate:remote && wrangler deploy --config wrangler.jsonc",
     "destroy": "node ../../scripts/require-development-host.mjs && wrangler delete --config wrangler.jsonc --name midnight-proof-gateway && wrangler d1 delete midnight-sensor-data-v2 --config wrangler.jsonc --skip-confirmation"
   },
   "dependencies": {
-    "@cloudflare/containers": "0.3.7"
+    "@cloudflare/containers": "0.3.7",
+    "@midnight-demo/shared": "*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260828.1",

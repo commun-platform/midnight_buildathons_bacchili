@@ -94,6 +94,7 @@ function database(options: TestDatabaseOptions = {}): {
               unit_code: 1,
               policy_version: 1,
               policy_registered_tx_id: 'policy-registration-tx',
+              provisioning_wallet_key_sha256: '98'.repeat(32),
             } as T;
           }
           return null;
@@ -169,6 +170,7 @@ describe('authenticated Device operation configuration', () => {
         deviceId: 'edge-temp-001',
         projectId: 'measurement-authenticity-01',
         commitment: '01'.repeat(32),
+        provisioningWalletKeySha256: '98'.repeat(32),
       },
       midnight: {
         network: 'preprod',

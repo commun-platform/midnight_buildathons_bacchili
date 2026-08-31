@@ -1,4 +1,5 @@
 import { applyDeviceRateLimits, authorizeDeviceRequest } from './device-auth.js';
+import { admitProofJobForBrowserDevice } from './jobs.js';
 import { authorizeLocalAdministrator } from './admin-auth.js';
 import type { ProofJobRow } from './jobs.js';
 import { readSponsorQuota } from './sponsor-quota.js';
@@ -106,6 +107,7 @@ interface DeviceConfigurationRow extends RegisteredPolicyAssignmentRow {
   operation_configuration_updated_at: string;
   policy_registered_tx_id: string;
   assignment_registered_tx_id: string;
+  provisioning_wallet_key_sha256: string | null;
 }
 
 interface PublicProofRow extends ProofJobRow {
@@ -178,6 +180,16 @@ function requiredString(body: Record<string, unknown>, key: string, max = 256): 
     throw new Error(`${key} must be a non-empty string up to ${max} characters`);
   }
   return value.trim();
+}
+
+export function requiredBlockHeight(value: unknown): string {
+  if (typeof value !== 'string' || !/^(?:0|[1-9]\d{0,14})$/u.test(value)) {
+    throw new Error('blockHeight must be a non-negative decimal integer');
+  }
+  if (!Number.isSafeInteger(Number(value))) {
+    throw new Error('blockHeight must be a safe integer');
+  }
+  return value;
 }
 
 function identifier(body: Record<string, unknown>, key: string): string {
@@ -305,6 +317,7 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
          d.midnight_registration_version, d.midnight_contract_address,
          d.midnight_registered_tx_id, d.midnight_authority_tx_id,
          d.operation_configuration_version, d.operation_configuration_updated_at,
+         w.wallet_key_sha256 AS provisioning_wallet_key_sha256,
          a.assignment_id, a.assignment_key, a.valid_from, a.valid_until,
          a.assignment_version, a.device_commitment,
          a.registered_tx_id AS assignment_registered_tx_id,
@@ -312,14 +325,20 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
          p.value_scale, p.sensor_type_code, p.unit_code, p.policy_version,
          p.registered_tx_id AS policy_registered_tx_id
        FROM devices d
+       LEFT JOIN browser_wallet_devices w
+         ON w.device_id = d.id
+        AND w.project_id = d.project_id
+        AND w.status = 'registered'
        JOIN policy_assignments a
          ON a.device_id = d.id
         AND a.project_id = d.project_id
         AND a.device_commitment = d.midnight_device_commitment
         AND a.status = 'registered'
+       JOIN project_policies pp
+         ON pp.project_id = d.project_id
+        AND pp.policy_id = a.policy_id
        JOIN threshold_policies p
          ON p.policy_id = a.policy_id
-        AND p.project_id = d.project_id
         AND p.policy_id = d.threshold_policy_version
         AND p.sensor_type = d.sensor_type
         AND p.unit = d.unit
@@ -354,6 +373,7 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
         sensorType: row.sensor_type,
         unit: row.unit,
         commitment: row.device_commitment,
+        provisioningWalletKeySha256: row.provisioning_wallet_key_sha256,
       },
       midnight: {
         network,
@@ -452,6 +472,7 @@ export function proofJobView(row: ProofJobRow) {
     attemptCount: row.attempt_count,
     availableAfter: row.available_after,
     leaseExpiresAt: row.lease_expires_at,
+    proofGeneratedAt: row.proof_generated_at,
     deviceTransactionHash: row.device_transaction_hash,
     deviceTransactionBytes: row.device_transaction_bytes,
     sponsorTransactionId: row.sponsor_transaction_id,
@@ -838,6 +859,127 @@ async function deviceHistory(request: Request, env: Env): Promise<Response> {
   });
 }
 
+async function deviceAdministratorDashboard(request: Request, env: Env): Promise<Response> {
+  const authorization = await authorizeDeviceRequest(request, env, 'device:status');
+  if (!authorization.ok) return authorization.response;
+  if (!(await applyDeviceRateLimits(env.API_RATE_LIMITER, request, authorization.principal))) {
+    return json(429, { error: 'Device administrator API rate limit exceeded' });
+  }
+  const { deviceId, projectId: authorizedProjectId } = authorization.principal;
+  const database = createSqlDatabase(env);
+  const project = await database.first<Wave1ProjectRow>(
+    `SELECT id, name, name_ja, organization, organization_ja, timezone
+     FROM projects WHERE id = ?1`,
+    [authorizedProjectId],
+  );
+  if (!project) return json(404, { error: 'Project not found' });
+  const [devices, windows, anomalies, proofJobs, policies, activeKey, anomalyState] = await Promise.all([
+    database.all<Wave1DeviceRow>(
+      `SELECT id, project_id, sensor_type, unit, threshold_policy_version,
+              midnight_device_commitment, midnight_device_authority,
+              midnight_registry_status, midnight_registration_version,
+              midnight_contract_address, name, name_ja, last_seen_at
+       FROM devices WHERE id = ?1 AND project_id = ?2`,
+      [deviceId, authorizedProjectId],
+    ),
+    database.all<MeasurementWindowRow>(
+      `SELECT * FROM measurement_windows
+       WHERE device_id = ?1 AND project_id = ?2
+       ORDER BY period_start DESC LIMIT 2160`,
+      [deviceId, authorizedProjectId],
+    ),
+    database.all<AnomalyEventRow>(
+      `SELECT * FROM anomaly_events
+       WHERE device_id = ?1 AND project_id = ?2
+       ORDER BY occurred_at DESC LIMIT 100`,
+      [deviceId, authorizedProjectId],
+    ),
+    database.all<ProofJobRow>(
+      `SELECT * FROM daily_proof_jobs
+       WHERE device_id = ?1 AND project_id = ?2
+       ORDER BY created_at DESC LIMIT 50`,
+      [deviceId, authorizedProjectId],
+    ),
+    database.all<ThresholdPolicyRow>(
+      `SELECT DISTINCT p.policy_id, p.mode, p.minimum, p.maximum, p.value_scale,
+              p.sensor_type, p.unit, p.policy_version, p.status
+       FROM threshold_policies p
+       JOIN policy_assignments a
+         ON a.policy_id = p.policy_id
+       WHERE a.device_id = ?1 AND a.project_id = ?2 AND p.project_id = a.project_id
+         AND a.status = 'registered'
+       ORDER BY p.policy_version DESC`,
+      [deviceId, authorizedProjectId],
+    ),
+    database.first<{ active_count: number }>(
+      `SELECT COUNT(*) AS active_count FROM device_auth_keys
+       WHERE device_id = ?1 AND project_id = ?2 AND status = 'active'`,
+      [deviceId, authorizedProjectId],
+    ),
+    database.first<{ state: string; changed_at: string }>(
+      `SELECT state, changed_at FROM anomaly_states
+       WHERE device_id = ?1 AND project_id = ?2`,
+      [deviceId, authorizedProjectId],
+    ),
+  ]);
+  const device = devices[0];
+  if (!device || devices.length !== 1) return json(404, { error: 'Device not found' });
+  const latestJob = proofJobs[0] ?? null;
+  return json(200, {
+    source: `${database.kind} / authenticated Device`,
+    project: {
+      id: project.id,
+      name: project.name,
+      nameJa: project.name_ja,
+      organization: project.organization,
+      organizationJa: project.organization_ja,
+      timezone: project.timezone,
+    },
+    devices: devices.map((device) => ({
+      id: device.id,
+      name: device.name,
+      nameJa: device.name_ja,
+      sensorType: device.sensor_type,
+      unit: device.unit,
+      thresholdPolicyVersion: device.threshold_policy_version,
+      midnightDeviceCommitment: device.midnight_device_commitment,
+      midnightRegistryStatus: device.midnight_registry_status,
+      midnightRegistrationVersion: device.midnight_registration_version,
+      midnightContractAddress: device.midnight_contract_address,
+      lastSeenAt: device.last_seen_at,
+    })),
+    windows: windows.map(measurementWindowView),
+    anomalies: anomalies.map(anomalyEventView),
+    anomalyState: anomalyState ? {
+      state: anomalyState.state,
+      changedAt: anomalyState.changed_at,
+    } : null,
+    proofJobs: proofJobs.map(proofJobView),
+    policies: policies.map((policy) => ({
+      policyId: policy.policy_id,
+      mode: policy.mode,
+      minimum: policy.minimum,
+      maximum: policy.maximum,
+      valueScale: policy.value_scale,
+      sensorType: policy.sensor_type,
+      unit: policy.unit,
+      version: policy.policy_version,
+      status: policy.status,
+    })),
+    stepper: {
+      deviceRegistered: (activeKey?.active_count ?? 0) > 0
+        && device.midnight_registry_status === 'registered',
+      hourlyDataReceived: windows.length > 0,
+      anomalyStateAvailable: Boolean(anomalyState),
+      proofRequested: Boolean(latestJob),
+      proofGenerated: Boolean(latestJob && [
+        'proof_ready', 'device_bound', 'sponsoring', 'sponsored', 'submitted', 'confirmed',
+      ].includes(latestJob.status)),
+      midnightConfirmed: latestJob?.status === 'confirmed',
+    },
+  });
+}
+
 async function deviceSponsorQuota(request: Request, env: Env): Promise<Response> {
   const authorization = await authorizeDeviceRequest(request, env, 'transaction:submit');
   if (!authorization.ok) return authorization.response;
@@ -872,19 +1014,48 @@ async function reportProofJobResult(
   try {
     const body = await readJson(request);
     const phase = requiredString(body, 'phase', 16);
-    if (phase !== 'attest') throw new Error('phase must be attest');
-    const txId = requiredString(body, 'txId', 256);
-    const txHashValue = body.txHash;
-    const txHash = txHashValue === null || txHashValue === undefined
-      ? null
-      : requiredString(body, 'txHash', 256);
-    const blockHeight = requiredString(body, 'blockHeight', 80);
     const database = createSqlDatabase(env);
     const job = await database.first<ProofJobRow>(
       'SELECT * FROM daily_proof_jobs WHERE id = ?1 AND device_id = ?2 AND project_id = ?3',
       [proofJobId, authorization.principal.deviceId, authorization.principal.projectId],
     );
     if (!job) return json(404, { error: 'Proof Job not found' });
+
+    if (phase === 'failed') {
+      const failureCode = requiredString(body, 'errorCode', 64);
+      if (failureCode !== 'measurement_group_already_attested') {
+        return json(400, { error: 'Unsupported Proof Job failure code' });
+      }
+      const idempotent = job.status === 'dead_lettered'
+        && job.last_error_code === failureCode;
+      if (!idempotent) {
+        const closed = await database.execute(
+          `UPDATE daily_proof_jobs SET status = 'dead_lettered',
+             lease_expires_at = NULL, last_error_code = ?1, updated_at = ?2
+           WHERE id = ?3 AND status IN ('ready_for_input', 'proving', 'proof_ready')`,
+          [failureCode, new Date().toISOString(), job.id],
+        );
+        if (closed !== 1) {
+          return json(409, { error: 'Proof Job is not accepting this failure result' });
+        }
+      }
+      const current = await database.first<ProofJobRow>(
+        'SELECT * FROM daily_proof_jobs WHERE id = ?1',
+        [job.id],
+      );
+      return json(200, { accepted: true, idempotent, job: current ? proofJobView(current) : null });
+    }
+
+    if (phase !== 'attest') throw new Error('phase must be attest or failed');
+    const txId = requiredString(body, 'txId', 256);
+    const txHashValue = body.txHash;
+    const txHash = txHashValue === null || txHashValue === undefined
+      ? null
+      : requiredString(body, 'txHash', 256);
+    const blockHeight = requiredBlockHeight(body.blockHeight);
+    const proofGeneratedAt = body.proofGeneratedAt === null || body.proofGeneratedAt === undefined
+      ? null
+      : isoDate(body, 'proofGeneratedAt');
 
     if (!job.attest_tx_id || job.attest_tx_id !== txId) {
       return json(409, { error: 'Proof Job already has another attestation transaction' });
@@ -898,10 +1069,10 @@ async function reportProofJobResult(
         return json(409, { error: 'Proof Job is not accepting an attestation result' });
       }
       const confirmed = await database.execute(
-        `UPDATE daily_proof_jobs SET block_height = ?1, status = 'confirmed',
-           lease_expires_at = NULL, last_error_code = NULL, updated_at = ?2
-         WHERE id = ?3 AND status = 'submitted' AND attest_tx_id = ?4`,
-        [blockHeight, new Date().toISOString(), job.id, txId],
+        `UPDATE daily_proof_jobs SET block_height = ?1, proof_generated_at = COALESCE(proof_generated_at, ?2),
+           status = 'confirmed', lease_expires_at = NULL, last_error_code = NULL, updated_at = ?3
+         WHERE id = ?4 AND status = 'submitted' AND attest_tx_id = ?5`,
+        [blockHeight, proofGeneratedAt, new Date().toISOString(), job.id, txId],
       );
       if (confirmed !== 1) {
         return json(409, { error: 'Proof Job changed before confirmation was recorded' });
@@ -983,7 +1154,7 @@ async function administratorDashboard(
     [projectId],
   );
   if (!project) return json(404, { error: 'Project not found' });
-  const [devices, windows, anomalies, proofJobs, policies, activeKey] = await Promise.all([
+  const [devices, windows, anomalies, proofJobs, policies, activeKey, anomalyState] = await Promise.all([
     database.all<Wave1DeviceRow>(
       `SELECT id, project_id, sensor_type, unit, threshold_policy_version,
               midnight_device_commitment, midnight_device_authority,
@@ -1008,14 +1179,21 @@ async function administratorDashboard(
       [projectId],
     ),
     database.all<ThresholdPolicyRow>(
-      `SELECT policy_id, mode, minimum, maximum, value_scale, sensor_type, unit,
-              policy_version, status
-       FROM threshold_policies WHERE project_id = ?1 ORDER BY policy_version DESC`,
+      `SELECT p.policy_id, p.mode, p.minimum, p.maximum, p.value_scale,
+              p.sensor_type, p.unit, p.policy_version, p.status
+       FROM threshold_policies p
+       JOIN project_policies pp ON pp.policy_id = p.policy_id
+       WHERE pp.project_id = ?1 ORDER BY p.policy_version DESC`,
       [projectId],
     ),
     database.first<{ active_count: number }>(
       `SELECT COUNT(*) AS active_count FROM device_auth_keys
        WHERE project_id = ?1 AND status = 'active'`,
+      [projectId],
+    ),
+    database.first<{ state_count: number }>(
+      `SELECT COUNT(*) AS state_count FROM anomaly_states
+       WHERE project_id = ?1`,
       [projectId],
     ),
   ]);
@@ -1061,7 +1239,7 @@ async function administratorDashboard(
       deviceRegistered: (activeKey?.active_count ?? 0) > 0
         && devices.some((device) => device.midnight_registry_status === 'registered'),
       hourlyDataReceived: windows.length > 0,
-      anomalyStateAvailable: anomalies.length > 0,
+      anomalyStateAvailable: (anomalyState?.state_count ?? 0) > 0,
       proofRequested: Boolean(latestJob),
       proofGenerated: Boolean(latestJob && [
         'proof_ready', 'device_bound', 'sponsoring', 'sponsored', 'submitted', 'confirmed',
@@ -1083,7 +1261,11 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
        AND a.policy_id = p.policy_id
        AND a.device_id = j.device_id
        AND a.project_id = j.project_id
-     WHERE j.id = ?1`,
+     WHERE j.id = ?1
+       AND j.status = 'confirmed'
+       AND j.attest_tx_id IS NOT NULL
+       AND j.attest_tx_hash IS NOT NULL
+       AND j.block_height IS NOT NULL`,
     [proofJobId],
   );
   if (!row) return json(404, { error: 'Public Proof record not found' });
@@ -1179,6 +1361,10 @@ async function listPublicProofs(env: Env, url: URL): Promise<Response> {
        AND a.policy_id = p.policy_id
        AND a.device_id = j.device_id
        AND a.project_id = j.project_id
+     WHERE j.status = 'confirmed'
+       AND j.attest_tx_id IS NOT NULL
+       AND j.attest_tx_hash IS NOT NULL
+       AND j.block_height IS NOT NULL
      ORDER BY j.period_date DESC, j.created_at DESC
      LIMIT ${limit}`,
   );
@@ -1204,6 +1390,7 @@ async function listPublicProofs(env: Env, url: URL): Promise<Response> {
         version: row.policy_version,
       },
       status: row.status,
+      proofGeneratedAt: row.proof_generated_at,
       midnightConfirmed: row.status === 'confirmed' && Boolean(row.attest_tx_id),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -1218,6 +1405,9 @@ export async function handleWave1Api(request: Request, env: Env): Promise<Respon
   }
   if (request.method === 'GET' && url.pathname === '/api/v1/device/history') {
     return deviceHistory(request, env);
+  }
+  if (request.method === 'GET' && url.pathname === '/api/v1/device/dashboard') {
+    return deviceAdministratorDashboard(request, env);
   }
   if (request.method === 'GET' && url.pathname === '/api/v1/sponsor-quota') {
     return deviceSponsorQuota(request, env);
@@ -1235,6 +1425,15 @@ export async function handleWave1Api(request: Request, env: Env): Promise<Respon
   if (request.method === 'GET' && url.pathname === '/api/v1/public/proofs') {
     return listPublicProofs(env, url);
   }
+  if (
+    request.method === 'POST'
+    && parts.length === 5
+    && parts[0] === 'api'
+    && parts[1] === 'v1'
+    && parts[2] === 'proof-jobs'
+    && parts[3]
+    && parts[4] === 'admit'
+  ) return admitProofJobForBrowserDevice(request, env, parts[3]);
   if (
     request.method === 'GET'
     && parts.length === 4

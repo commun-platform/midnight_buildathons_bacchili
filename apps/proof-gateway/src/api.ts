@@ -1,4 +1,5 @@
 import { handleWave1Api } from './wave1-api.js';
+import { handleProvisioningApi } from './provisioning.js';
 
 function json(status: number, value: unknown): Response {
   return Response.json(value, {
@@ -13,6 +14,9 @@ function json(status: number, value: unknown): Response {
 export async function handleApi(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return null;
+
+  const provisioning = await handleProvisioningApi(request, env);
+  if (provisioning) return provisioning;
 
   const wave1 = await handleWave1Api(request, env);
   if (wave1) return wave1;

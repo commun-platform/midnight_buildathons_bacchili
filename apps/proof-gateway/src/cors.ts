@@ -1,5 +1,10 @@
 const allowedMethods = ['GET', 'HEAD', 'POST', 'OPTIONS'] as const;
-const allowedRequestHeaders = new Set(['authorization', 'content-type', 'x-proof-job-id']);
+const allowedRequestHeaders = new Set([
+  'authorization',
+  'content-type',
+  'x-proof-job-id',
+  'x-provisioning-token',
+]);
 const loopbackHostnames = new Set(['localhost', '127.0.0.1', '::1']);
 
 function developmentOrigin(request: Request): string | null {
