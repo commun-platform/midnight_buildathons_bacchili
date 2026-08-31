@@ -12,7 +12,7 @@ Prove whether sensor values are within a registered threshold without showing th
 
 ## Short description
 
-BACCHIRI!━━Verifiable Measurement Layer reduces one day of Edge Device measurements to an hourly minimum and maximum and creates a threshold result while keeping the values private. Raw measurements remain on the Edge Device. After the proof is generated, the Edge Device signs the Midnight transaction and records a WITHIN or OUTSIDE result. An hour with no measurements is published as STOPPED rather than treated as WITHIN.
+BACCHIRI!━━Verifiable Measurement Layer reduces one synthetic day of measurements to hourly minima and maxima and creates a threshold result while keeping those values private. In the Wave 1 review flow, a user-authorized browser client acts as the simulated measurement source and authorizes the Midnight transaction. The public record is WITHIN or OUTSIDE; an hour with no measurements is STOPPED rather than silently treated as WITHIN.
 
 ## Problem
 
@@ -20,9 +20,9 @@ Measurement results are shared through dashboards, CSV files, reports, and cloud
 
 ## Solution
 
-- Edge Device: keeps raw sensor values and hourly minimum / maximum values, authenticates to the API, and signs Midnight transactions.
-- Frontend: provides an administrator workflow and a third-party view that does not reveal private values.
-- Backend: authenticates Devices, accepts proof requests, stores public workflow records, and generates proofs.
+- Simulated measurement source: creates the synthetic daily record, keeps raw values and its private proof opening in the user-authorized browser client, and uploads bounded hourly summaries for the authorized operator workflow.
+- Review interface: combines operator steps and a third-party view so judges can follow the complete PoC without revealing private values.
+- Managed backend: stores authorized hourly summaries and workflow records, accepts proof requests, and generates proofs as a trusted Wave 1 component.
 - Midnight: records the public threshold, its target Device, the confirmed result, and the transaction record.
 
 ![From raw-data disclosure to minimum necessary evidence](../assets/review/privacy-value-proposition-en.png)
@@ -33,9 +33,11 @@ Midnight separates private values from a result record that anyone can check. Ho
 
 ## Wave 1 progress
 
-Wave 1 produced the daily threshold proof, multi-Device registration, a public threshold bound to its target Device, Device API authentication, Device signing of Midnight transactions, proof-request management, Cloudflare proof generation, administrator and third-party views, and a versioned Device package with rollback.
+Wave 1 produced the reviewable core-proof PoC: project-scoped proof-subject and policy registration, synthetic daily records, a fixed private 24-slot proof input, proof-request management, managed proof generation, user-authorized and service-funded Midnight transactions, and a combined operator / third-party review interface.
 
-The current working source was validated on 2026-08-29 JST:
+The repository also contains supporting field-runtime authentication, collection, transaction, packaging, and rollback code. That code is integration evidence for the next stage; Wave 1 does not claim autonomous long-running field operation or production separation of roles and applications.
+
+The current working source was validated on 2026-08-31 JST:
 
 - all 6 proof circuits compiled;
 - all 288 automated tests passed;
@@ -54,7 +56,7 @@ Source validation and dated Midnight preproduction-network records remain separa
 
 A confirmed daily proof establishes that the private minimum and maximum values for every observed hour are within the registered threshold, or that at least one observed hour is outside it. It also binds the day, observed hours, counts, target Device, registered threshold, and proof-input commitment.
 
-It does not prove physical sensor integrity, continuous sampling, that no readings were withheld, or correct Edge Device aggregation. The Backend and Proof Server are trusted in the current architecture. The browser now queries the public Midnight Indexer directly and compares the confirmed Contract state, but it does not rerun the ZK verifier locally or expose the witness.
+It does not prove physical sensor integrity, continuous sampling, that no readings were withheld, or correct source-side aggregation. The managed backend and proof service are trusted in the current architecture. The browser queries the public Midnight Indexer directly and compares the confirmed Contract state, but it does not rerun the ZK verifier locally or expose the witness.
 
 ## Target users and adoption
 
@@ -64,11 +66,11 @@ The team is discussing a field proof of concept with an industry partner using e
 
 ## Three-stage delivery plan
 
-- Wave 1 — verified: Device-authenticated daily proof, one day normalized into 24 hourly slots, WITHIN / OUTSIDE confirmed on the Midnight preproduction network, and administrator / third-party views.
-- Wave 2 — planned: local/multi-source verification hardening, signed provenance proof, operational automation, recovery, and multi-Device monitoring.
-- Wave 3 — planned: calibrated-device proof, firmware identity, secure-hardware integration, and cross-organization audit.
+- Wave 1 — Core Proof PoC: validate the privacy value with a simulated measurement source, synthetic daily records, and one review-oriented interface.
+- Wave 2 — Operational Partner Pilot: connect real field measurement systems, automate daily operation, separate roles and interfaces, add production authorization, audit, diagnostics, monitoring, recovery, and complete a paid partner pilot.
+- Wave 3 — Trust Minimization and PMF: add hardware-protected identity and provenance, operate across organizations and sites, and validate recurring revenue, renewal, expansion, and sustainable unit economics.
 
-The browser independently checks public Midnight transaction and Contract state today. Local proof-verifier execution, calibration, and firmware binding remain planned rather than current capabilities.
+The browser independently checks public Midnight transaction and Contract state today. The complete product and business plan is the [three-wave roadmap](../architecture/three_wave_roadmap.md); Wave 2 and Wave 3 are planned rather than current capabilities.
 
 ## Submission links
 

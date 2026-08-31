@@ -21,11 +21,11 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 
 ## How it works
 
-1. The Edge Device collects raw sensor values and keeps them on the Device.
-2. It reduces the readings to an hourly minimum and maximum and normalizes the day into 24 hourly slots.
-3. The Backend accepts the proof request and generates the proof without publishing the sensor values.
-4. The Edge Device signs the Midnight transaction.
-5. A third party checks the day, public threshold, result, and transaction record.
+1. A user-authorized browser client acts as the simulated measurement source and creates a synthetic daily record.
+2. It keeps raw values and the private opening in browser-private state, reduces the readings to 24 hourly slots, and uploads bounded summaries for the authorized operator workflow.
+3. The trusted managed backend stores those restricted summaries, accepts the request, and generates the proof without publishing the values to third parties.
+4. The user authorizes the transaction while the service handles its fee.
+5. Midnight records the public result, which a third party can inspect without receiving the underlying values.
 
 ## Verified in Wave 1
 
@@ -37,12 +37,12 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 
 ## What this proof alone cannot establish
 
-It does not prove that the physical sensor produced correct values, that sampling continued for 24 hours, or that the Edge Device aggregated the readings correctly. In the current architecture, the trusted Backend handles hourly minimum / maximum values while generating the proof.
+It does not prove that a physical sensor produced correct values, that sampling continued for 24 hours, or that a measurement source aggregated the readings correctly. In the current architecture, the trusted managed backend handles hourly minimum / maximum values while generating the proof.
 
 The third-party view directly compares public Midnight transaction and Contract state. Browser-local proof-verifier execution and multi-source Indexer comparison remain planned for Wave 2.
 
 ## Adoption path
 
-The plan is to begin with a construction-site temperature-measurement field trial and add verification to existing equipment and sales or rental channels. Wave 2 plans local/multi-source verification hardening and operational automation. Wave 3 plans calibrated-device proof and secure-hardware integration.
+Wave 1 validates the core proof as a review-oriented PoC. Wave 2 connects real field measurement systems, automates daily operation, separates roles and interfaces, adds production operations controls, and targets a paid pilot with an established business partner. Wave 3 reduces source trust through hardware-protected identity and provenance, then targets product-market fit through recurring revenue, renewal, expansion, and sustainable unit economics. See the [canonical roadmap](../architecture/three_wave_roadmap.md).
 
 Repository, deck, and video URLs will be added after the final public release.

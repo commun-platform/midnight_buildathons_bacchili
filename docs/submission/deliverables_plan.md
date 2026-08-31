@@ -47,24 +47,21 @@ Recheck the exact submission time, field limits, upload constraints, and Officia
 
 Supporting artifacts should include a screenshot pack, judge Q&A, one-page brief, and a release snapshot tied to a commit and checksums.
 
-## Core deck and technical appendix
+## Final nine-slide deck
 
 | # | Slide | Core message |
 | ---: | --- | --- |
-| 1 | Title / Value | Daily compliance evidence without publishing raw readings |
-| 2 | Problem | Useful evidence normally exposes too much telemetry |
-| 3 | How the Proof Is Made | Sensor values → hourly MIN / MAX → ZK threshold check → public result |
-| 4 | Exact Claim | What is proven and explicitly not proven |
-| 5 | Architecture | Edge Device / Frontend / Backend / Midnight |
-| 6 | Why Midnight | Private hourly values, public threshold, public result, and storage / disclosure table |
-| 7 | End-to-End Flow | Collection through confirmed daily attestation |
-| 8 | Working Product | Operator UI and third-party verification view |
-| 9 | Evidence | Compilation, tests, Midnight preproduction-network record, rejection cases, and cost |
-| 10 | Progress / Roadmap | Wave 1 delta, next wave, audience, and adoption path |
-| A | Device Identity → API Session | P-256 Challenge, public JWK, opaque Bearer Session, and non-recipients |
-| B | Private Values → Public Result | Bearer Session, Contract Authority, Device Wallet, Backend prover, and Midnight result |
+| 1 | Title / Value | Threshold evidence without publishing private readings |
+| 2 | Minimum Evidence | Why cross-organization review should disclose only the required result |
+| 3 | Use Case | Register → measure → reduce → prove → authorize → verify |
+| 4 | Live Product: Register | User-controlled account, proof subject, public policy, and validity |
+| 5 | Private Evidence | Raw readings, fixed 24-slot private input, and STOPPED hours |
+| 6 | Live Product: Prove | Generate the proof against the policy registered before measurement |
+| 7 | Live Product: Authorize | Separate user authorization from service-funded submission |
+| 8 | Live Product: Verify | Show public policy, result, commitment, and transaction evidence |
+| 9 | Exact Claim Boundary | State what is proved, kept private, and not established |
 
-The ten-slide core story minimizes cognitive load: customer value first, then the simple hourly MIN / MAX proof specification, with cryptographic and operational detail later. The key and Session sequences are appendices, not prerequisites for understanding the product. Use a restrained technical visual system: dark navy, slate, white, Midnight purple, muted green for WITHIN, and amber or red for OUTSIDE.
+The nine-slide story is synchronized with the final 2:18 English video. It minimizes cognitive load by moving from customer value to the controlled proof path, then showing the live review flow and ending with the exact claim boundary. Deeper architecture, test, cost, and roadmap evidence remains linked documentation rather than extra pitch slides.
 
 ## Demo storyboard
 
@@ -72,27 +69,27 @@ The ten-slide core story minimizes cognitive load: customer value first, then th
 
 | Time | Scene | Evidence shown |
 | --- | --- | --- |
-| 0:00–0:20 | Hook | Product result and one-line value |
-| 0:20–0:45 | Problem | Privacy versus auditability |
-| 0:45–1:15 | Architecture | Four responsibility domains |
-| 1:15–1:45 | Private input | Claim boundary and data location |
-| 1:45–2:35 | Live flow | Policy, proof job, device signature, transaction |
-| 2:35–2:55 | Public verification | Public evidence and Midnight identifiers |
-| 2:55–3:15 | Engineering proof | Compilation, tests, dated Midnight record, and benchmark |
-| 3:15–3:30 | Progress / vision | Wave 1 results and next step |
+| 0:00–0:12 | Hook | Product value and privacy question |
+| 0:12–0:32 | Minimum evidence | Cross-organization problem and selective disclosure |
+| 0:32–0:49 | Register | User-controlled account, proof subject, and pre-registered policy |
+| 0:49–1:06 | Private input | Raw readings, fixed 24 slots, and STOPPED hours |
+| 1:06–1:22 | Prove | Proof against the already registered policy |
+| 1:22–1:40 | Authorize | User authorization separated from service-funded submission |
+| 1:40–1:59 | Public verification | Policy, result, commitment, and transaction evidence |
+| 1:59–2:18 | Claim boundary | What is proved and explicitly not established |
 
 Include one OUTSIDE or tamper-rejection path. Prerecorded fallback captures must be tied to the same commit and labeled honestly.
 
 ## Evidence and README
 
-The initial evidence set covers local raw-data retention, the threshold registered before operation, private hourly minimum / maximum values, WITHIN / OUTSIDE, STOPPED hours, key separation, a proof server that cannot sign for the Device, public-only browser responses, 1,440 readings/day, and proof-circuit compilation. Each row must include date, command, commit SHA, publishable evidence, and validation boundary.
+The initial evidence set covers private synthetic inputs, the threshold registered before the selected day, private hourly minimum / maximum values, WITHIN / OUTSIDE, STOPPED hours, authority separation, a proof service that cannot authorize for the user, public-only verification responses, 1,440 readings/day, and proof-circuit compilation. Supporting field-runtime behavior is identified separately from the primary Wave 1 review path. Each row must include date, command, commit SHA, publishable evidence, and validation boundary.
 
 The top README should cover value, problem, exact claim, four-domain architecture, Midnight integration, demo, quick verification, evidence and limitations, repository map, detailed guides, Wave 1 progress, roadmap, license, attribution, and topic.
 
 ## Production and completion
 
-![Wave 1 validated scope and the planned Wave 2 and Wave 3 expansion](../assets/review/three-wave-roadmap-en.png)
+Use the canonical [three-wave product and business roadmap](../architecture/three_wave_roadmap.md). It defines Wave 1 as the Core Proof PoC, Wave 2 as an operational partner pilot with real field measurement systems and production controls, and Wave 3 as trust minimization plus PMF through recurring commercial use.
 
 Freeze the evidence inventory and technical gates first. Then finalize submission copy and README, generate language-specific diagrams and screenshots, build the decks, capture the demo, and audit terminology, links, numbers, commits, and language separation.
 
-Completion requires public links, reproducible sensor-registry compilation, one-to-one claim evidence, separate English and Japanese assets, consistent four-domain vocabulary, explicit planned-work labels, and confirmed Apache 2.0 / public repository / midnightntwrk gates.
+Completion requires public links, reproducible sensor-registry compilation, one-to-one claim evidence, language-specific assets when both languages are published, consistent capability vocabulary, explicit planned-work labels, and confirmed Apache 2.0 / public repository / midnightntwrk gates.

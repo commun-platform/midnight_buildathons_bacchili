@@ -18,9 +18,10 @@
 | 日英分離 | PASS | 文書、図版、Deck Outputを分離 |
 | Public Repository | PENDING EXTERNAL | 公開後に確認 |
 | GitHub Topic midnightntwrk | PASS | GitHub Repositoryで設定済みと確認 |
-| 最終提出Commit | PENDING | GUI実装・最終Capture後に固定 |
-| 最終GUI Screenshot | PENDING | GUI安定後にCapture |
+| 最終提出Commit | PENDING | 現在のRoadmap／文書更新後に固定 |
+| 最終GUI Screenshot | PASS（LOCAL） | 審査済み英語Still 6枚と1920×1080 Submission Thumbnailを`docs/submission/captures/`へ保存済み |
 | Demo / Video Pitch | PASS（LOCAL） | 英語H.264／AAC 1080p動画`bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、公開URL設定は外部作業 |
+| Slide Package | PASS（LOCAL） | 英語9枚PPTXと9 Page PDFが2分18秒動画のStoryと一致 |
 | Slide Public Link | PENDING EXTERNAL | 生成Deck / PDFを公開後URL追加 |
 | AKINDO Form / Official Rules | PENDING EXTERNAL | 締切時刻、制限、Team、Link Fieldを再確認 |
 

@@ -29,7 +29,7 @@ Output: `bacchiri-demo-pitch-en.mp4`; produce a separate Japanese version only i
 | 1:06.296–1:22.216 | ZK proof GUI; source 3:58.000–4:13.920 | Show proof generation against the threshold already registered on Midnight. |
 | 1:22.216–1:39.864 | Device approval GUI; source 4:58.000–5:15.648 | Show Device approval of the exact payload and separate Sponsor Wallet DUST contribution. |
 | 1:39.864–1:58.664 | Third-party GUI and Explorer; source 5:54.000–6:12.800 | Show the public policy, result, observed hours, commitment, and transaction evidence while private values remain redacted. |
-| 1:58.664–2:18.040 | Exact claim-boundary slide | State what Midnight proves and explicitly exclude physical sensor accuracy, complete sampling, and correct Device aggregation. |
+| 1:58.664–2:18.040 | Exact claim-boundary slide | State what Midnight proves and explicitly exclude physical sensor accuracy, complete sampling, and correct measurement-source aggregation. |
 
 The burned-in captions reproduce the TTS script exactly and use speech/silence boundaries measured from the generated narration. Browser chrome, the Windows taskbar, and the password-entry sequence are excluded.
 

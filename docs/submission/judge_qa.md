@@ -14,7 +14,7 @@ A third party can check the day, target Device, public threshold, observed hours
 
 ## What does it not prove?
 
-It does not prove that the physical sensor produced correct values, that sampling was continuous, that no readings were withheld, or that the Edge Device aggregated the readings correctly. An hour with no readings is published as STOPPED; it is not automatically classified as WITHIN or fraudulent.
+It does not prove that a physical sensor produced correct values, that sampling was continuous, that no readings were withheld, or that the measurement source aggregated the readings correctly. An hour with no readings is published as STOPPED; it is not automatically classified as WITHIN or fraudulent.
 
 ## Why use Midnight?
 
@@ -26,11 +26,11 @@ Cloudflare D1 is the database used for screen display and workflow progress. The
 
 ## Who handles the private hourly minima and maxima?
 
-The Edge Device creates them, and the trusted Backend handles them only while generating the proof. They are not returned to the browser or stored on Midnight. End-to-end encryption that also hides them from the Backend is not a current feature.
+In the Wave 1 review path, the browser-based simulated measurement source creates them and keeps the raw capture and private opening in browser-private state. Bounded hourly summaries are stored as restricted operator data in the trusted managed backend, which also handles the private proof request. They are not returned by the third-party API or stored on Midnight. End-to-end encryption that also hides them from the backend is not a current feature.
 
-## Can the Backend sign the transaction for the Device?
+## Can the Backend authorize the transaction for the user?
 
-No. The Backend generates the proof but does not hold the Device transaction signing key. The Edge Device signs the Midnight transaction.
+No. The managed backend generates the proof but does not hold the user's transaction authority. The user-controlled account authorizes the exact call, while a separate service pays only the submission fee.
 
 ## Why normalize one day into 24 hourly slots?
 
@@ -50,12 +50,12 @@ Yes for the public chain evidence. Without a Wallet or private input, the browse
 
 ## Who holds which keys?
 
-The Device API authentication key, Midnight transaction signing key, administrator key, and deployment wallet are separated. The Backend that generates the proof does not hold the Device transaction signing key.
+User transaction authority, field API identity, administrative authority, service fee authority, and deployment authority are separated. The managed backend that generates the proof does not hold the user's transaction authority.
 
 ## Can it scale to many Devices?
 
 Each daily proof input remains fixed at 24 hourly slots, but the number of proofs grows with the number of active Devices multiplied by the number of days. The 10,000-Device figure is a planning estimate, not a completed load-test result.
 
-## Where will it be deployed first?
+## What is the adoption plan?
 
-The first planned field trial is construction-site measurement verification. The team is discussing a field proof of concept with an industry partner using existing measurement equipment and sales or rental channels. This is commercialization progress, not a completed technical field trial.
+Wave 2 targets a paid operational pilot with an established company, using real field measurement systems in an existing business workflow. Wave 3 targets product-market fit through recurring revenue, renewal, expansion, and sustainable unit economics. Sector-specific opportunities are commercial hypotheses rather than completed field validation.

@@ -19,14 +19,15 @@ This directory contains the judging package. The final English demo pitch was pr
 | Final GUI capture pack | Ready; six reviewed stills plus submission thumbnail | [captures/](captures/) |
 | English video pitch | Produced (2:18); public URL pending | `bacchiri-demo-pitch-en.mp4`; add the final public link to [submission_copy.md](submission_copy.md) |
 
-## Rebuild
+## Deck source and legacy generator
 
-Use the bundled workspace Node module path when pptxgenjs or pdf-lib is not installed in this repository:
+The final English nine-slide PPTX is the editable source synchronized with the video; the PDF is its
+review export. `tools/submission-media/build-submission-decks.cjs` and
+`build-submission-pdfs.cjs` reproduce the earlier twelve-page bilingual technical deck and are retained
+only for historical/reference material. They do **not** reproduce the final pitch and must not be run
+against the submitted English filenames.
 
-    NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-submission-decks.cjs
-    NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-submission-pdfs.cjs
-
-The current English PPTX and PDF use the same nine-slide story as the 2:18 video: value, trust problem, use-case order, Device/policy binding, private sensor evidence, proof generation, Device/Sponsor authority separation, third-party verification, and the exact claim boundary.
+The current English PPTX and PDF use the same nine-slide story as the 2:18 video: value, trust problem, use-case order, proof-subject/policy binding, private sensor evidence, proof generation, user/service authority separation, third-party verification, and the exact claim boundary.
 
 ## Finalization order
 

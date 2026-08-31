@@ -18,7 +18,7 @@ Last local check: 2026-08-31 JST
 | English / Japanese separation | PASS | Separate docs, figures, and deck outputs |
 | Public repository visibility | PENDING EXTERNAL | Confirm after publishing |
 | GitHub topic midnightntwrk | PASS | Confirmed on the GitHub repository |
-| Final submission commit | PENDING | Freeze after GUI implementation and final capture |
+| Final submission commit | PENDING | Freeze after the current roadmap/documentation update |
 | Final GUI screenshots | PASS (LOCAL) | Six reviewed English stills and a 1920×1080 submission thumbnail are under `docs/submission/captures/` |
 | Demo / video pitch | PASS (LOCAL) | English H.264/AAC 1080p video produced: `bacchiri-demo-pitch-en.mp4` (2:18); public URL remains external |
 | Slide package | PASS (LOCAL) | English 9-slide PPTX and independently generated 9-page PDF match the 2:18 video story |

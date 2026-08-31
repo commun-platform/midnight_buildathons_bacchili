@@ -13,21 +13,17 @@
 | 提出前の技術確認表 | 作成済み、外部確認待ち | [technical_gate_checklist.md](technical_gate_checklist.md) |
 | 審査員向けQ&A | 作成済み | [judge_qa.md](judge_qa.md) |
 | 1ページ概要 | 作成済み | [one_page_brief.md](one_page_brief.md) |
-| 編集用日本語スライド | 作成済み | [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) |
-| 閲覧用日本語スライド | 作成済み | [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
+| 日本語Technical Reference | 参考資料。提出対象は最終英語9枚 | [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
 | Cloudflare UC別技術補足 | 作成済み | [説明](../architecture/cloudflare_use_cases.md)・[PPTX](deck/cloudflare-use-cases-ja.pptx)・[PDF](deck/cloudflare-use-cases-ja.pdf) |
 | 最終画面の録画台本 | 英語動画で使用済み | [demo_script.md](demo_script.md) |
-| 最終画面の画像素材 | 動画素材は取得済み、静止画は未追加 | [captures/](captures/) |
+| 最終画面の画像素材 | 審査済み英語Still 6枚とSubmission Thumbnailを作成済み | [captures/](captures/) |
 | 英語紹介動画 | 作成済み（2分18秒）、公開URL待ち | `bacchiri-demo-pitch-en.mp4`の公開リンクを[submission_copy.md](submission_copy.md)へ追加 |
 
-## スライドの再生成
+## Deck Sourceと旧Generator
 
-リポジトリに`pptxgenjs`／`pdf-lib`がない場合は、Codex作業環境のNode.jsモジュールパスを指定します。
-
-    NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-submission-decks.cjs
-    NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-submission-pdfs.cjs
-
-PPTXとPDFは、同じ主要10ページと技術補足2ページから個別に生成します。最終画面は確定・録画済みで、第8ページには動画から選んだ静止画を差し替える作業が残っています。
+最終英語9枚PPTXを、2分18秒動画と同期した編集用正本とします。PDFはその審査用Exportです。
+`tools/submission-media/build-submission-decks.cjs`と`build-submission-pdfs.cjs`は旧12 Pageの日英Technical Deckを
+再現するために残しており、最終Pitchを再現しません。提出用英語Filenameに対して実行してはいけません。
 
 Cloudflare UC別技術補足は、次のコマンドで5枚のSVG／PNG、PPTX、PDFを一括再生成します。
 
@@ -35,9 +31,8 @@ Cloudflare UC別技術補足は、次のコマンドで5枚のSVG／PNG、PPTX�
 
 ## 最終化の順序
 
-1. 最終画面を確定して検証する。
-2. 言語別の画面画像を作る。
-3. 日英スライドの第8ページを差し替え、PDFも再生成する。
-4. 完成した英語動画を公開し、必要な場合だけ日本語版を別途制作する。
-5. コミットを固定して検証を再実行し、リポジトリとスライドを公開して仮URLを置き換える。
-6. 公開設定、Apache 2.0、`midnightntwrk`トピック、AKINDO提出フォームを確認する。
+1. 現在のRoadmap／文書Commitを固定して検証を再実行する。
+2. 完成した英語動画、最終英語9枚Deck／PDF、Thumbnailを公開する。
+3. リポジトリとスライドを公開して仮URLを置き換える。
+4. 公開設定、Apache 2.0、`midnightntwrk`トピック、AKINDO提出フォームを確認する。
+5. 審査Audienceから求められた場合だけ、日本語版を最終英語9枚から別制作する。

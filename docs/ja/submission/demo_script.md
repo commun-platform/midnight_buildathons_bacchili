@@ -5,8 +5,6 @@
 状態: 最終GUIを使った英語デモ動画を作成済み
 実時間: 2分18秒
 出力: `bacchiri-demo-pitch-en.mp4`。必要な場合だけ日本語版を別途制作
-目標時間: 3分30秒
-Output: 英語版・日本語版を別制作し、Burn-in字幕を流用しない
 
 ## 録画時の不変条件
 
@@ -16,26 +14,22 @@ Output: 英語版・日本語版を別制作し、Burn-in字幕を流用しな�
 - システムが都合のよいResultを強制しないことを示せるため、真のOUTSIDE Dayを優先する。
 - OUTSIDE表示ではPublic Policyも同時に見せる。
 - 記録済みPreprod Resultを使う場合は、その事実と日付を明示する。
-- Browserを独立Midnight Verifierと説明しない。
+- BrowserはPublic Midnight TX／Contract Stateを直接照合しますが、ZK Verifierを再実行しないと正確に説明する。
 
 ![最終画面の動画で示す6段階と、公開・非公開情報の境界](../assets/guides/judge-review-path-ja.png)
 
-## StoryboardとNarration
+## 最終2分18秒StoryboardとNarration
 
 | 時間 | 画面 / 操作 | 日本語Narration |
 | --- | --- | --- |
-| 0:00–0:18 | 最終Verifier ResultからTitleへ | このシステムは、Sensor値を第三者へ開示せず、登録済みThreshold以内であることを示します。 |
-| 0:18–0:40 | Value Proposition図 | 第三者が見るのはWITHIN、OUTSIDE、STOPPEDというThreshold Resultであり、Sensor値ではありません。 |
-| 0:40–1:02 | 4領域Architecture | Edge DeviceはRaw Dataと署名鍵を保持します。FrontendはRedacted Evidenceを表示します。Trusted BackendがAdmissionとProvingを担い、MidnightがPolicy、Assignment、Confirmed ResultのPublic正本になります。 |
-| 1:02–1:20 | Exact Claim / Non-claim | Proofは提出された全Observed HourのMinimum / Maximumを検査します。Sensor Integrity、Continuous Sampling、完全性、Local集計の正しさは証明しません。 |
-| 1:20–1:30 | Device Workflowを開きWallet接続 | Workflowは明示的に認可されたWallet Connectionから開始します。 |
-| 1:30–1:43 | Review Deviceを作成または復旧し登録Step表示 | API Identity、Compact Authority、Midnight Walletの責任を分離しています。 |
-| 1:43–1:57 | 完了日を選択して最終Generation / Capture | Raw ReadingはLocalに保持され、Privateな固定24 Slot Daily Inputになります。Missing HourはSTOPPEDです。 |
-| 1:57–2:12 | Proof ProcessingをRequestしJob ID表示 | D1-backedのIdempotent Proof JobがAdmissionを制御します。Deviceは別Threshold Boundを送れません。 |
-| 2:12–2:35 | Proof生成とSubmit、Confirmedまで表示 | Trusted Proof ServerがProofを生成し、DeviceがMidnight Transaction 1件へ署名します。Proof ServerはDeviceの代理署名をできません。 |
-| 2:35–2:55 | Verify daily ZKP / Third-Party Verification | Public ViewはAssigned Policy、WITHIN / OUTSIDE、Observed / STOPPED Count、Commitment、Transaction IDを表示します。Private ExtremaとNonceは表示しません。 |
-| 2:55–3:15 | Engineering Evidence図 | Review TreeはCompact 6 CircuitをCompileし、288 Test、全Typecheck / Build、Wrangler dry-runに成功しています。Preprod記録には自己負担WITHIN／OUTSIDEとSponsor負担Schema-5があります。 |
-| 3:15–3:30 | Roadmap図 | Wave 2はLocal／複数Source照合を強化し、署名付きProvenance Evidenceを追加します。Wave 3は建設現場PoCと導入に向けた校正Device Proofを計画します。 |
+| 0:00–0:11.984 | Title／Value Slide | 監査者がSensor値を受け取らずにThreshold Resultを確認できるかを問い、BACCHIRIを検証可能な計測Layerとして紹介する。 |
+| 0:11.984–0:32.392 | Minimum Evidence説明Slide | 組織をまたぐ帳票共有の課題と、信頼に必要なEvidenceだけを共有する価値を説明する。 |
+| 0:32.392–0:48.816 | Device Workflow GUI、素材0:20.500–0:36.924 | User管理Account、Device Identity、計測前に紐付けたPolicyを示す。 |
+| 0:48.816–1:06.296 | Private Sensor Evidence説明Slide | Raw Reading、順序付き24 SlotのHourly MIN／MAX、明示的なSTOPPED Hourを説明する。このSceneではProof TX画面を出さない。 |
+| 1:06.296–1:22.216 | ZK Proof GUI、素材3:58.000–4:13.920 | Midnightへ事前登録したThresholdに対するProof生成を示す。 |
+| 1:22.216–1:39.864 | Device Approval GUI、素材4:58.000–5:15.648 | 正確なPayloadへのUser認可と、Service側のFee負担を分離して示す。 |
+| 1:39.864–1:58.664 | Third-party GUIとExplorer、素材5:54.000–6:12.800 | Private値を隠したまま、Public Policy、Result、Observed Hour、Commitment、Transaction Evidenceを示す。 |
+| 1:58.664–2:18.040 | Exact Claim Boundary Slide | Midnightが証明する範囲を説明し、物理Sensor精度、完全なSampling、計測元側Aggregationの正しさを明示的に除外する。 |
 
 ## 正確なGUI操作順序
 
