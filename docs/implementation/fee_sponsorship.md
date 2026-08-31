@@ -74,12 +74,11 @@ sequenceDiagram
     S->>R: Return integrity-addressed sponsored bytes
     Q->>S: Submit the prepared transaction
     S->>M: Submit to Midnight
-    Q->>W: Record submitted identifiers, hash, fee, and timestamps
+    S->>M: Confirm exact ID, hash, success, and block through the official Indexer
+    Q->>W: Record confirmed identifiers, hash, block, fee, and timestamps
 
     E->>W: Poll Proof Job status
-    E->>M: Confirm the expected transaction through the Indexer
-    E->>W: POST /proof-jobs/{id}/result
-    W->>W: Set confirmed
+    Note over Q,M: If submission reports replay protection after an accepted send,<br/>the Queue reconciles the same ID and hash from the Indexer before any retry
     Note over E,R: Target cleanup: delete retained copies only after confirmed
 ```
 
@@ -106,7 +105,8 @@ There are two retention stages:
    polls after acceptance, but a stopped process can later resume from the same local bytes and D1
    state.
 
-The Edge copy is a recovery copy until the Proof Job is confirmed. If the result of the acceptance
+The Backend owns Indexer confirmation after `202 Accepted`; the browser or Device may disconnect and
+later observe the same Job state. The Edge copy is a recovery copy until the Proof Job is confirmed. If the result of the acceptance
 request is ambiguous, the Device resends the same bytes. It must never create new bytes for the same
 Proof Job.
 

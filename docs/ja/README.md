@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-現行ソースは、6つの証明回路のコンパイル、182件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
+現行ソースは、6つの証明回路のコンパイル、287件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
 
 | 審査成果物 | 文書 |
 | --- | --- |
@@ -87,7 +87,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 | 2 | [Wave 1仕様](architecture/wave1_spec.md)と[複数デバイスの登録](security/device_registry.md) | デバイス、しきい値、運用担当者の信頼境界を確認します。 |
 | 3 | [システム構成](architecture/system_architecture.md) | 各構成要素とデータ保存先を確認します。 |
 | 4 | [非公開情報の境界](security/private_spec.md) | 非公開入力、管理者向け情報、第三者への公開情報を区別します。 |
-| 5 | [仕様と実装の対応](implementation/implement_spec.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、各証明回路、DUSTだけを負担する権限を確認します。 |
+| 5 | [仕様と実装の対応](implementation/implement_spec.md)、[GUI操作と処理場所](implementation/gui_action_reference.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、各画面操作の実行場所、各証明回路、DUSTだけを負担する権限を確認します。 |
 | 6 | [デバイス認証](security/device_authentication.md)と[デバイス用ソフトウェア](operations/device_firmware.md) | 初期登録、APIセッション、導入、復旧を理解します。 |
 | 7 | [開発環境](operations/development_environment.md)と[実演手順](operations/demo_runbook.md) | 準備後、順番に配備して動作確認します。 |
 | 8 | [費用実測](implementation/cost_benchmark.md) | 標準1,440件／日の実測と10,000台の計画値を確認します。 |
@@ -111,7 +111,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の時間枠からなる非公開入力を検査し、範囲内または範囲外の結果をMidnightへ記録します。デバイスが取引内容を承認して署名し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、デバイスが署名した内容を変更できません。
 
-ブラウザには、Laceを使うデバイス管理画面、管理者向けの処理状況、第三者向けの公開画面があります。公開画面は、コントラクトで確定した対象日・しきい値・判定結果・Midnight取引識別子を表示します。ただし現状では、ブラウザ自身がMidnightへ直接問い合わせてゼロ知識証明を再検証するわけではありません。独立検証はWave 2の計画です。
+ブラウザには、Laceを使うデバイス管理画面、管理者向けの処理状況、第三者向けの公開画面があります。公開画面は、コントラクトで確定した対象日・しきい値・判定結果・Midnight取引識別子を表示します。確定済みRecordを開くと、ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract LedgerからCommitment、Result、Policy、Device-bound Assignmentを照合します。Raw Sensor値やPrivate Openingは使いません。
 
 ## リポジトリ構成
 
@@ -151,21 +151,21 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-期待結果は、運用する6つの証明回路のコンパイル、182件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用する6つの証明回路のコンパイル、287件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 
 - スポンサー負担経路をMidnight事前公開ネットワークで一連確認済みです。P-256によるAPI認証、公開しきい値とDevice-bound Assignment、標準1,440件を固定24時間枠へまとめた証明、CloudflareでのProof生成、FeeなしDevice承認、専用Sponsor WalletによるDUST追加、Block確定、同一バイト列での冪等復旧、第三者向け非公開化Resultまで確認しました。[同期中のトランザクション保留](implementation/fee_sponsorship.md#現在の連携境界)と[費用実測](implementation/cost_benchmark.md#標準1440件preprod-e2ecost実測)に記録しています。
 - 日次提出には運用担当者の操作が必要です。`device:submit`は証明処理を要求して状態を確認しますが、デバイス用ウォレットは常時自動送信する仕組みではありません。
 - 24件、96件、1,440件の入力で同じ固定形状の回路を使えること、時刻情報への署名、外れ値理由を追記保存する仕組みは開発用実験として実装済みです。
-- ブラウザはD1に保存した処理状況とMidnight取引識別子を表示しますが、Midnightへ直接問い合わせて証明を独立検証するものではありません。
+- ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract StateからCommitment、Result、Policy、Device-bound Assignmentを照合します。Browser内でZK Verifierを再実行したりWitnessを開示したりはしません。
 
 ## 3段階の展開
 
 ![技術実証から建設現場への導入までを示す3 Wave Roadmap](assets/review/three-wave-roadmap-ja.png)
 
 - Wave 1 — 検証済み: デバイス承認の日次証明、24個の時間枠の最小値・最大値、事前公開ネットワークでの範囲内／範囲外、管理者／第三者画面、`submitDailyAttestation`。
-- Wave 2 — 計画: ブラウザからの独立検証、署名付きのデータ来歴、運用自動化、復旧手順、複数デバイスの監視。
+- Wave 2 — 計画: Local／複数Source照合の強化、署名付きのデータ来歴、運用自動化、復旧手順、複数デバイスの監視。
 - Wave 3 — 計画: 校正済みデバイスの証明、校正記録、ファームウェア識別情報、セキュアハードウェア連携、組織をまたぐ監査。
 
 導入経路は、技術実証、建設現場での実証実験、既存の販売・レンタル商流への組み込みです。Wave 2とWave 3は現行機能ではなく計画です。

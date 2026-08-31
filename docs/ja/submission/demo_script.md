@@ -32,8 +32,8 @@ Output: 英語版・日本語版を別制作し、Burn-in字幕を流用しな�
 | 1:57–2:12 | Proof ProcessingをRequestしJob ID表示 | D1-backedのIdempotent Proof JobがAdmissionを制御します。Deviceは別Threshold Boundを送れません。 |
 | 2:12–2:35 | Proof生成とSubmit、Confirmedまで表示 | Trusted Proof ServerがProofを生成し、DeviceがMidnight Transaction 1件へ署名します。Proof ServerはDeviceの代理署名をできません。 |
 | 2:35–2:55 | Verify daily ZKP / Third-Party Verification | Public ViewはAssigned Policy、WITHIN / OUTSIDE、Observed / STOPPED Count、Commitment、Transaction IDを表示します。Private ExtremaとNonceは表示しません。 |
-| 2:55–3:15 | Engineering Evidence図 | Review TreeはCompact 6 CircuitをCompileし、182 Test、全Typecheck / Build、Wrangler dry-runに成功しています。Preprod記録には自己負担WITHIN／OUTSIDEとSponsor負担Schema-5があります。 |
-| 3:15–3:30 | Roadmap図 | Wave 2は独立検証と署名付きProvenance Evidenceを追加します。Wave 3は建設現場PoCと導入に向けた校正Device Proofを計画します。 |
+| 2:55–3:15 | Engineering Evidence図 | Review TreeはCompact 6 CircuitをCompileし、287 Test、全Typecheck / Build、Wrangler dry-runに成功しています。Preprod記録には自己負担WITHIN／OUTSIDEとSponsor負担Schema-5があります。 |
+| 3:15–3:30 | Roadmap図 | Wave 2はLocal／複数Source照合を強化し、署名付きProvenance Evidenceを追加します。Wave 3は建設現場PoCと導入に向けた校正Device Proofを計画します。 |
 
 ## 正確なGUI操作順序
 
@@ -67,7 +67,7 @@ Output: 英語版・日本語版を別制作し、Burn-in字幕を流用しな�
 | GUI-08 | Public Verifier | Policy、Result、Observed / STOPPED、Commitment、TX |
 | GUI-09 | Negative / Boundary | OUTSIDEまたは明示的Tamper Reject |
 | EVD-01 | Compile | 6 Circuit、submitDailyAttestation Rows |
-| EVD-02 | Test | 182成功 |
+| EVD-02 | Test | 287成功 |
 
 ## Fallback Policy
 

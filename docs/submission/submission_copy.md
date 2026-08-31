@@ -38,7 +38,7 @@ Wave 1 produced the daily threshold proof, multi-Device registration, a public t
 The current working source was validated on 2026-08-29 JST:
 
 - all 6 proof circuits compiled;
-- all 182 automated tests passed;
+- all 287 automated tests passed;
 - all workspace type checks and builds passed; and
 - the Cloudflare pre-deployment check passed.
 
@@ -48,13 +48,13 @@ Midnight preproduction-network records from 2026-08-28 JST include both WITHIN a
 - Transaction: 00e12efda5f33b4804f3659a811d2f5e86c9ce838255a63028d41df85cb0762da9
 - Block: 2,302,213
 
-The current source validation and the earlier Midnight preproduction-network record are separate evidence. The current source was not redeployed during this documentation run.
+Source validation and dated Midnight preproduction-network records remain separate evidence. The current Worker and GUI were deployed on 2026-08-31 JST; no new daily attestation was manufactured merely to update this document.
 
 ## Exact proof claim
 
 A confirmed daily proof establishes that the private minimum and maximum values for every observed hour are within the registered threshold, or that at least one observed hour is outside it. It also binds the day, observed hours, counts, target Device, registered threshold, and proof-input commitment.
 
-It does not prove physical sensor integrity, continuous sampling, that no readings were withheld, or correct Edge Device aggregation. The Backend and Proof Server are trusted in the current architecture. The browser displays public information but does not yet independently verify the zero-knowledge proof or query Midnight directly.
+It does not prove physical sensor integrity, continuous sampling, that no readings were withheld, or correct Edge Device aggregation. The Backend and Proof Server are trusted in the current architecture. The browser now queries the public Midnight Indexer directly and compares the confirmed Contract state, but it does not rerun the ZK verifier locally or expose the witness.
 
 ## Target users and adoption
 
@@ -65,10 +65,10 @@ The team is discussing a field proof of concept with an industry partner using e
 ## Three-stage delivery plan
 
 - Wave 1 — verified: Device-authenticated daily proof, one day normalized into 24 hourly slots, WITHIN / OUTSIDE confirmed on the Midnight preproduction network, and administrator / third-party views.
-- Wave 2 — planned: independent browser verification, signed provenance proof, operational automation, recovery, and multi-Device monitoring.
+- Wave 2 — planned: local/multi-source verification hardening, signed provenance proof, operational automation, recovery, and multi-Device monitoring.
 - Wave 3 — planned: calibrated-device proof, firmware identity, secure-hardware integration, and cross-organization audit.
 
-The browser does not independently verify Midnight today. Calibration and firmware binding are also planned rather than current capabilities.
+The browser independently checks public Midnight transaction and Contract state today. Local proof-verifier execution, calibration, and firmware binding remain planned rather than current capabilities.
 
 ## Submission links
 

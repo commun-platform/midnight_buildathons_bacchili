@@ -20,7 +20,7 @@ Current source validation and Midnight preproduction-network transactions record
 | Backend | Device authentication, proof-request admission, workflow-state storage, proof generation, and APIs that return public information only | 32 Backend API tests and the Cloudflare pre-deployment check pass |
 | Frontend | Administrator workflow, third-party public view, and English / Japanese display | 26 Frontend tests and the production build pass |
 | Midnight integration | Public threshold, target Device, and a Device-signed daily transaction | Simulator tests and the 2026-08-28 preproduction-network transactions were confirmed |
-| Safety | Tamper rejection, duplicate prevention, execution locking, configuration-downgrade rejection, and corrupt-state quarantine | These failure cases are included in the 182 automated tests |
+| Safety | Tamper rejection, duplicate prevention, execution locking, configuration-downgrade rejection, and corrupt-state quarantine | These failure cases are included in the 287 automated tests |
 | Judge materials | Architecture, privacy boundary, demo procedure, measured cost, English / Japanese figures, and submission package | Documents are categorized and cross-links are checked |
 
 See the [claim-to-evidence map](evidence_matrix.md) for detailed commits and validation locations.
@@ -40,7 +40,7 @@ See the [claim-to-evidence map](evidence_matrix.md) for detailed commits and val
 
 - Repository portability validation passed.
 - All 6 `sensor-registry` proof circuits compiled.
-- All 182 automated tests passed across 8 workspaces.
+- All 287 automated tests passed across 9 workspaces.
 - All workspace type checks and Frontend / TypeScript builds passed.
 - The Cloudflare pre-deployment check passed.
 
@@ -48,18 +48,18 @@ Midnight preproduction-network records from 2026-08-28 include both WITHIN and O
 
 ## Current limitations
 
-- The current source was not redeployed to the Midnight preproduction network during this documentation run.
+- The current Worker and GUI were deployed on 2026-08-31 JST; existing dated attestations remain the chain evidence used by this document.
 - The Backend and Proof Server are trusted while handling private proof input.
-- The third-party view displays public information and Midnight transaction identifiers, but it does not independently verify the proof in the browser or query Midnight directly.
+- The third-party view directly queries the public Midnight Indexer and compares transaction and Contract state; it does not rerun the ZK verifier locally.
 - Daily submission requires an explicit operator action; the Device wallet is not a continuously running submission service.
 - This proof alone does not guarantee physical sensor accuracy, continuous sampling, that no readings were withheld, or correct Edge Device aggregation.
-- Final GUI captures and English / Japanese videos will be produced after the GUI implementation stabilizes.
+- An English deployed third-party capture is available; narration and final Japanese editing remain production tasks.
 
 ## Next waves
 
 ![Three-stage delivery plan](../assets/review/three-wave-roadmap-en.png)
 
-- Wave 2 plans independent browser verification, signed data provenance, operational automation, failure recovery, and multi-Device monitoring.
+- Wave 2 plans local/multi-source verification hardening, signed data provenance, operational automation, failure recovery, and multi-Device monitoring.
 - Wave 3 plans calibrated-device proof, firmware identity, secure-hardware integration, audit exports, and cross-organization verification.
 - The adoption path is a construction-site field trial followed by integration into existing sales and rental channels.
 

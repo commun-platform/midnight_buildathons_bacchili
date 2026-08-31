@@ -3,7 +3,7 @@
 [Japanese](../ja/security/device_registry.md)
 
 Status: Wave 1 normative design
-Last updated: 2026-08-29 JST
+Last updated: 2026-08-30 JST
 
 This document defines the trust boundary for adding, rotating, disabling, and using devices. It is
 normative together with [`wave1_spec.md`](../architecture/wave1_spec.md).
@@ -33,10 +33,12 @@ policyAssignments[assignmentKey]
   └ { policyKey, deviceCommitment, validFrom, validUntil, version }
 ```
 
-The Operator Authority secret is held only on the development/operations host. The development
-wallet pays for and signs administration transactions, while the domain-separated Operator
-Authority proves authorization inside the Compact circuit. A Device Contract Authority secret is
-held only by its Edge Device. A public registration or self-enrollment circuit is forbidden.
+The Operator Authority secret is held on the development/operations host and as a deployment secret
+inside the private Sponsor Wallet Container. The development wallet performs controlled Edge Device
+administration; the Sponsor Wallet performs the same fixed Device-registration circuits for the
+Lace-signed browser review flow. The domain-separated Operator Authority proves authorization inside
+the Compact circuit. A Device Contract Authority secret is held only by its Device. A public
+self-enrollment circuit is forbidden: every registration still executes the Operator-only circuit.
 Each public Device Authority can be registered only once. Rotation permanently reserves both the
 old and new authorities, so neither can be reused by another Device.
 
@@ -52,7 +54,7 @@ The daily commitment contains and constrains the explicit domain `vsp:daily-extr
 
 ## 2. Enrollment order
 
-Enrollment is an authenticated operator/factory workflow, never a public API:
+Edge enrollment is an authenticated operator/factory workflow:
 
 1. Provision the business inventory row in D1 with `midnight_registry_status=unregistered`. This row
    alone grants no Session or ingestion access.
@@ -90,6 +92,41 @@ The first command uses a process-only `contract_admin` Proof Lease, completes th
 updates the owner-only local deployment record, mirrors the confirmed public state to D1, and revokes
 the lease. The second activates the independent P-256 API identity.
 
+The browser review flow uses the same contract authorization but moves the former loopback bridge
+behind the Worker. Before enrollment, both browser and Worker independently derive the Device ID as
+`device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)` from the Lace public
+verification-key identifier. The field is read-only; arbitrary IDs and cross-Wallet browser-storage
+fallbacks are rejected.
+
+Before this enrollment flow, Lace signs a separate one-time Project-session challenge. The Worker
+returns only the Projects associated with that Wallet identifier and issues a 24-hour opaque bearer
+token. A Wallet may be associated with at most ten Projects; the API check and
+`browser_wallet_projects_limit` D1 trigger enforce the same limit. A new Project starts without a
+Policy and does not create an on-chain transaction by itself. The owner may separately create up to
+ten Project-associated Policies. Lace signs the exact Project, immutable Policy ID, mode, centi-degree
+bounds, nonce, and timestamp; the Worker queues Operator-only `registerThresholdPolicy`, and exposes
+the Policy only after Indexer confirmation. Explicit pre-existing Project/Policy associations remain
+readable so already registered Device assignments are not invalidated.
+
+1. the browser derives its Device ID, creates a non-exported P-256 Device Identity, and selects a registered public Policy;
+2. the Worker issues a five-minute one-time challenge;
+3. Lace signs the canonical Device ID, P-256 key ID, Device Authority, Policy, challenge, nonce, and
+   timestamp with `signData`;
+4. the Worker verifies the Lace signature, recomputes the Device ID, and enforces one review Device per Lace verification key and Project;
+5. the private Sponsor Wallet Container executes only `registerDevice` and
+   `registerPolicyAssignment` with the configured Operator Authority;
+6. the Indexer must show the exact Device, Authority, Policy, Assignment, and versions; and
+7. only then does one D1 batch activate the P-256 key and public mirrors.
+
+Migration `0019_worker_browser_provisioning.sql` stores one-time enrollment challenge hashes.
+Migration `0021_wallet_projects.sql` adds hashed Project Sessions, the ten-Project limit, explicit
+Project/Policy associations, and the Wallet/Project/Device binding. Migration
+`0022_project_policies.sql` adds Lace-authorized Policy operations, the ten-Policy-per-Project limit,
+actual proof-generation timestamps, and initial current state for registered Devices. Neither Lace
+signing data nor these endpoints can select another contract, rotate/disable a Device, transfer
+tokens, or retrieve an Operator/Sponsor secret. Concurrent registration is leased in D1 and
+duplicate calls fail closed.
+
 ## 3. Rotation and disabling
 
 Device Contract Authority rotation is Operator-only and requires a strictly higher registration
@@ -124,7 +161,8 @@ evidence to `devices`, adds
 Leases. Migration `0012_device_operation_configuration.sql` adds the monotonically increasing public
 configuration revision and the dedicated `configuration:read` scope. Migration
 `0013_daily_threshold_result.sql` binds the claimed public WITHIN/OUTSIDE result to each idempotent
-daily Proof Job. Secrets are never stored in D1.
+daily Proof Job. Migration `0019_worker_browser_provisioning.sql` adds hashed one-time browser
+challenges and hashed Lace verification-key bindings. Secrets are never stored in D1.
 
 The Worker requires all of these before issuing a Session or accepting operational input:
 
@@ -150,7 +188,7 @@ the Device does not choose or send bounds in a Proof request.
 This Fleet Registry ledger and the domain-tagged daily commitment are incompatible with the
 selected-leaf deployment, the intermediate singleton daily-attestation implementation, and the
 WITHIN-only Fleet Registry. Adoption requires Compact recompilation, a new contract deployment,
-migrations through `0017`, re-registering
+migrations through `0020`, re-registering
 every Device/Policy/Assignment, updating the Worker contract address, allowing Devices to pull the
 new operation configuration, and regenerating private
 daily commitments under schema `5` / circuit `3`.

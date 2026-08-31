@@ -42,11 +42,11 @@ Each hour is recorded as either observed or STOPPED. A third party can check whi
 
 ## What has been verified so far?
 
-For the current source on 2026-08-30, all 6 proof circuits compiled, 182 automated tests passed, and the type checks, builds, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are separate evidence.
+For the current source on 2026-08-31, all 6 proof circuits compiled, 287 automated tests passed, and the type checks, builds, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are separate evidence.
 
 ## Can the third-party view verify independently?
 
-Not yet. It displays public information and Midnight identifiers, but browser-only zero-knowledge-proof verification and direct Midnight queries are planned for Wave 2.
+Yes for the public chain evidence. Without a Wallet or private input, the browser directly queries the public Midnight Indexer, matches the successful transaction and block, decodes the Contract Ledger at that block, and compares the commitment, verified result, Policy, presence/counts, and Device-bound Assignment. It does not rerun the proof verifier locally or expose the witness; Midnight performed proof verification as part of accepting the transaction.
 
 ## Who holds which keys?
 

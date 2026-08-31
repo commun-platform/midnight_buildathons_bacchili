@@ -45,3 +45,7 @@ Use concise imperative Conventional Commit messages, following the scoped histor
 ## Security & Configuration Tips
 
 Copy `.env.development.example` into the ignored development file. `.env.device` is only a staging input and is moved during installation to `~/.midnight/midnight-cloudflare-demo/config/device.env`. Never commit environment files, `.dev.vars`, wallet mnemonics, raw sensor data, or private-state passwords. The development wallet recovery source is `.env.development` and must be backed up securely. Device wallet material belongs only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`, never in an environment file. Edge collector code must not import Compact, wallet, proving, deployment, or development modules. Treat the current Cloudflare backend/prover as trusted. Keep browser APIs free of wallet, ingestion, and attestation secrets; configure Worker secrets with Wrangler.
+
+# ExecPlans
+
+When writing complex features or significant refactors, use an ExecPlan (as described in .agents/PLANS.md) from design to implementation.

@@ -14,7 +14,7 @@ Output: separate English and Japanese videos; do not reuse burned-in captions ac
 - Prefer a truthful OUTSIDE day because it proves the system does not force a successful-looking result.
 - Keep the public threshold visible when showing OUTSIDE.
 - If using a previously recorded Midnight preproduction-network result, state that clearly and keep it tied to the same review package.
-- Do not describe the browser as an independent Midnight verifier.
+- Describe the browser precisely: it independently compares public Midnight transaction/Contract state, but does not rerun the ZK verifier locally.
 
 ![The six steps that the final GUI video must show while keeping private values out of view](../assets/guides/judge-review-path-en.png)
 
@@ -32,8 +32,8 @@ Output: separate English and Japanese videos; do not reuse burned-in captions ac
 | 1:57–2:12 | Request proof processing; show the proof-request ID and status | D1 records the request and prevents duplicate execution. The Device cannot substitute a different threshold at proof time. |
 | 2:12–2:35 | Generate proof and submit; show progress through confirmed | The trusted Proof Server creates the proof, then the Device signs one Midnight transaction. The Proof Server cannot sign for the Device. |
 | 2:35–2:55 | Open Verify daily ZKP / Third-Party Verification | The public view shows the threshold, WITHIN or OUTSIDE result, observed and STOPPED counts, commitment, and transaction identifier—never the private hourly minimum / maximum values or nonce. |
-| 2:55–3:15 | Show Engineering Evidence | The current source compiles six proof circuits and passes 182 tests, all type checks, builds, and the Cloudflare pre-deployment check. Dated Preprod evidence includes self-funded WITHIN/OUTSIDE and Sponsor-funded schema-5. |
-| 3:15–3:30 | Show roadmap | Wave 2 adds independent verification and signed provenance evidence. Wave 3 plans calibrated-device proof for a construction-site PoC and wider adoption. |
+| 2:55–3:15 | Show Engineering Evidence | The current source compiles six proof circuits and passes 287 tests, all type checks, builds, and the Cloudflare pre-deployment check. Dated Preprod evidence includes self-funded WITHIN/OUTSIDE and Sponsor-funded schema-5. |
+| 3:15–3:30 | Show roadmap | Wave 2 hardens local/multi-source verification and adds signed provenance evidence. Wave 3 plans calibrated-device proof for a construction-site PoC and wider adoption. |
 
 ## Exact GUI capture sequence
 
@@ -67,7 +67,7 @@ Output: separate English and Japanese videos; do not reuse burned-in captions ac
 | GUI-08 | Public verifier | Policy, result, observed / STOPPED, commitment, TX |
 | GUI-09 | Negative / boundary | OUTSIDE or one explicit tamper-rejection result |
 | EVD-01 | Compile | Six circuits and submitDailyAttestation rows |
-| EVD-02 | Tests | 182 passed |
+| EVD-02 | Tests | 287 passed |
 
 ## Fallback policy
 

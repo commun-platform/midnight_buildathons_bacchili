@@ -24,7 +24,9 @@ Raw values may be retained locally until transaction confirmation and the config
 
 ## Administrator data
 
-The loopback administrator GUI can display hourly minimum, maximum, average, count, anomaly transitions, Device status, and Proof/TX processing state. These aggregate values are not included in the public third-party API.
+The sensor-administrator GUI requires a Device Session and can display only that Device's hourly
+minimum, maximum, average, count, anomaly transitions, status, and Proof/TX processing state. These
+aggregate values are not included in the public third-party API.
 
 ## Public evidence
 
@@ -45,6 +47,20 @@ caused it.
 
 ## Trusted Wave 1 components
 
-The Cloudflare Worker and Proof Server Container are trusted with an in-transit private proving request. TLS protects that hop. The Worker removes authorization headers before forwarding, does not log request bodies, and streams the body without storing it in D1, R2, or Queue messages. Cloudflare never receives a Midnight wallet secret and cannot sign the device transaction.
+The Cloudflare Worker and Proof Server Container are trusted with an in-transit private proving
+request. TLS protects that hop. The Worker removes authorization headers before forwarding, does not
+log request bodies, and streams the body without storing it in D1, R2, or Queue messages. The Device
+or Lace retains the Device transaction key and explicitly approves the fee-free transaction. The
+private Sponsor Wallet Container holds a separate Sponsor seed for DUST balancing/submission and an
+Operator Authority secret for the fixed browser-registration circuits; neither secret is exposed by
+a public route or returned to the browser.
 
-The browser does not independently execute the ZK verifier. It presents D1 workflow evidence and links it to public Midnight transaction/contract identifiers. A stronger independent verifier is a later extension.
+The two Container secrets are runtime inputs, not image contents. The production Worker obtains them
+from Cloudflare Secret bindings and passes them to the Sponsor Wallet Container as startup environment
+variables. The Docker build context and resulting image must remain free of the seed, Operator
+Authority secret, `.env`, `.dev.vars`, wallet checkpoints, and wallet state. Compiled Compact
+prover/verifier artifacts are build artifacts rather than secret key material. For local development,
+ignored `.dev.vars` values may replace Cloudflare Secret bindings, but they must not be committed or
+copied into the image.
+
+The browser does not independently execute the ZK verifier. It renders the redacted D1 record, then directly queries the public Midnight Indexer and independently compares the successful transaction and Contract state at that block. Local proof-verifier execution and multi-source Indexer hardening remain later extensions.

@@ -21,7 +21,7 @@ npm run cloudflare:config:sponsor
 
 `.env.development`とOwner-only Sponsor Credential Fileは分離して安全にBackupします。運用開始前に
 `sponsor:wallet`が表示したSponsor AddressだけへtNIGHTを送ります。Cloudflare DeployはWorker、D1 Migration
-`0017`まで、Queue／DLQ、GUI、Proof Server Container、Sponsor Wallet Container、暗号化Sponsor Checkpoint用
+`0020`まで、Queue／DLQ、GUI、Proof Server Container、Sponsor Wallet Container、暗号化Sponsor Checkpoint用
 R2 Bindingを作成します。`cloudflare:config:sponsor`はSeedを標準入力でWranglerへ渡し、表示しません。
 
 ## 2. Edge Device導入・登録
@@ -118,37 +118,14 @@ npm run development:admit-proof-job -- \
 npm run device:benchmark -- --samples 1440 --period-date YYYY-MM-DD --run-id cost-1440-a --confirm-synthetic
 ```
 
-## 4. Local Review GUI
+## 4. Hosted Review GUI
 
-Loopback Provisioning BridgeとWorker-hosted GUIを別Terminalで起動します。BridgeはOn-chain Device登録と
-Policy Assignmentを行うDevelopment Operator境界であり、PublicなDevice管理EndpointとしてDeployしません。
+Deploy済みWorkerがDevice Workflow、センサーデバイス管理者画面、Publicな第三者検証画面を同一Originで
+提供します。Browser操作にProvisioning Bridgeや別のLocalhost Serviceは不要です。Asset開発時だけ
+`npm run dashboard:dev`で同じWorker RouteをLocal起動できます。
 
-```bash
-npm run dashboard:sync
-# Terminal 1
-npm run dashboard:provisioning
-# Terminal 2
-npm run dashboard:dev
-```
-
-Wranglerの既定Portは`8787`です。使用中の場合は一度Buildし、Workspace Scriptへ空きLoopback Portを
-指定します。Browser Deviceは引き続きPort `8790`のProvisioning Bridgeを使用します。
-
-```bash
-npm run dashboard:build
-npm run dev -w @midnight-demo/proof-gateway -- \
-  --port <free-port> --enable-containers=false
-```
-
-`dashboard:sync`がRemote D1から複製するのはProject／Device公開Metadata、Device公開鍵、Policy／Assignment Mirror、1時間集計、Anomaly State／Transition、Redacted Daily Proof Job Stateだけです。Reading、Session、Challenge、Token Hash、Operator Lease、Transaction Object Key、R2 Artifactは除外します。Ignored File `apps/proof-gateway/.dev.vars`には公開Network LabelとContract Addressだけを設定します。
-
-Local Hostした管理者／第三者画面は、現行Local D1 Snapshotを直ちに表示します。最初にどちらかのData Viewを
-開いたときだけ、GUIがLoopback Bridge経由の`dashboard:sync`をBackgroundで開始し、現在のEvidenceを消さずに
-Progress Indicatorを表示します。画面遷移ではImplicit同期を繰り返しません。明示的な同期は**再読込**を使い、
-成功／失敗を画面内に表示しながら、最後に利用できたSnapshotを維持します。
-
-Browser Device Workflowでは、DApp Connector API 4.x互換Lace WalletをPreprodに設定した通常のChrome
-Profileを使い、`http://127.0.0.1:<gui-port>/#/device`を開きます。画面の順序は次です。
+DApp Connector API 4.x互換Lace WalletをPreprodに設定した通常のChrome ProfileでDeploy済みRootを開き、
+録画前に**English**を選択します。Rootは`#/device`から開始します。
 
 LaceへのtNIGHT入金やtDUST生成は不要です。Laceは`payFees: false`でDevice TXを承認・Bindし、Sensor
 Contract Proofは認証済みCloudflare Proof Server、DUST付与とSubmitは専用Sponsor Walletが担当します。
@@ -156,37 +133,32 @@ GUIはSponsorshipの処理段階とFee Evidenceを表示します。
 
 1. Laceへ接続し、Wallet側でDApp接続を承認
 2. Browser Private StorageへECDSA P-256 Device Identityを作成
-3. 登録済みPublic Threshold Policyを選択し、Local Development Operator Bridge経由でDevice登録
-4. 疑似Sensor値を1件取得し、Device SessionでUpload
+3. 登録済みPublic Threshold Policyを選択し、LaceでOne-time登録Messageを承認して非同期登録Jobを投入。
+   GUIはJob IDを表示して操作を直ちに解放し、ServerがWallet同期をRetryしてDevice／Assignmentを登録
+4. 完了済み1日分の疑似Sensor値1,440件を生成し、24個の1時間集計へ縮約してDevice SessionでUpload
 5. 監督下のProof Jobを要求して即時Admission
 6. Cloudflare Proof ServerでContract ZKPを生成し、LaceでFeeなしDevice TXを承認し、Sponsor Walletが
    DUSTを追加してTX送信
 7. Confirm済みClaimを管理者Viewと第三者Viewで確認
 
-LaceはBrowser Deviceの明示的なTX承認を担当し、Fee Payerではありません。Sponsor WalletはFeeだけを担当します。
-Device登録とPolicy Bindingの管理権限は別のDevelopment Wallet／Operator Authorityに残します。Wallet接続と
-Device TX承認は明示的なUser Confirmationです。
+Health Check、API Call、Unit TestだけではDeployの動作確認完了としません。Dashboard、Browser
+Provisioning、Operator経路、Sponsor Wallet Imageのいずれかを変更した場合は、通常のChrome Profileで
+審査用GUIを操作し、少なくとも手順1～3を再実行します。Device登録としきい値設定が画面上で完了表示となり、
+`ERROR`が残らず、`/api/v1/provisioning/devices`がHTTP 200を返し、Device登録TX IDとAssignment TX IDの
+両方が返ることを確認します。Operator経路より前で停止するDummy署名確認は、この受入確認の代用になりません。
 
-Dockerを意図的に停止し、GUI／D1だけ確認する場合：
+LaceはBrowser Deviceの登録Identityと明示的なTX承認を担当し、Fee Payerではありません。PrivateなSponsor
+Wallet Containerが承認済みDevice TXへDUSTだけを付与します。Browser登録時には固定されたOperator-onlyの
+Device／Assignment回路も実行しますが、Workerは先にLace署名を検証し、Operator Authorityを公開しません。
+Wallet接続、登録署名、Device TX承認は明示的なUser Confirmationです。
 
-```bash
-cd apps/proof-gateway
-npx wrangler dev --config wrangler.jsonc \
-  --enable-containers=false --port 8790
-```
-
-このGUI／D1のみのFallbackでは`http://127.0.0.1:8790/#/admin`を開きます。Wave 1の管理者APIはLoopback以外を拒否します。第三者Route `#/verify/<proofJobId>`はPublic Redacted Proof APIを使用し、1時間集計を表示しません。Device WorkflowではPort `8790`をProvisioning Bridgeが使うため、上記2 Process構成を使用します。
+**センサーデバイス管理者**Routeは同じDevice Sessionを使い、そのDeviceの1時間集計、Anomaly、Proof/TX
+Stateだけを表示します。**第三者検証**RouteはPublicなNewest-first Listで、Device SessionやPrivate値を
+含みません。
 
 Stepperの順序：Device登録・認証、1時間集計、Anomaly、Proof要求／Admission、Proof生成／Device承認／Sponsor Fee付与、Midnight Confirm。説明動画ではDevice発の疑似値、Proof前、Admission、Proof／Sponsorship、Confirm、値を開示しない第三者Claimを撮影します。
 
-Confirm後、Local Dashboardを起動したまま、日本語GUI Walkthroughを再現可能なCommandで撮影します。
-
-```bash
-npm run dashboard:capture-demo -- \
-  --proof-job-id <proofJobId>
-```
-
-Localに導入済みのChromeとFFmpegを使用し、Loopback URLだけを操作します。MP4、管理者Screenshot、第三者Screenshot、Checksum Metadataはgitignore済みの`.demo-output/`へ保存します。管理者から第三者Routeへの実際の遷移とScrollを記録し、Device Session、Wallet Material、Raw Sensor値、Private Hourly Extrema、Nonceは読み取りません。
+Confirm後は同じBrowser Profileを録画し、認証済みDevice／管理者画面を維持します。
 
 第三者画面では、公開情報だけから構成した**ゼロ知識証明（ZKP）の確認ステップ**、**第三者には非公開**と示す
 元のセンサー値の黒塗り欄、利用可能なコントラクト／トランザクション情報のMidnight Explorerリンクを少なくとも1つ撮影します。
@@ -194,9 +166,17 @@ Localに導入済みのChromeとFFmpegを使用し、Loopback URLだけを操作
 ## 5. 検証・Cleanup
 
 ```bash
+npm run sct:api
+npm run sct:gui
+npm run sct
 npm run verify
 npm run development:status
 npm run device:status
 ```
+
+`sct:api`はQueue登録Regressionを含むWorker／Sponsor Wallet API境界を検証します。`sct:gui`は英語版SPAを
+実描画して13 Checkpointを自動操作し、Git対象外の`.sct-output/dashboard/`へScreenshotと`result.json`を
+保存します。受入項目との対応は[SCT Matrix](../implementation/sct_matrix.md)を参照してください。これらの
+決定的SCTは、実Lace承認とMidnight TXを使うDeploy済みPreprod最終試験の代替ではありません。
 
 Public TX EvidenceをMidnight Contract Stateと比較してからConfirmed扱いにします。非Production Cloudflare Resourceは`npm run cloudflare:destroy`で削除できます。State削除前に開発WalletとDevice Walletを別々にBackupします。

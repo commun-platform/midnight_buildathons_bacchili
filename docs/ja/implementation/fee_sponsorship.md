@@ -75,12 +75,11 @@ sequenceDiagram
     S->>R: ハッシュで識別した手数料付きバイト列を返却
     Q->>S: 準備済みトランザクションの送信を要求
     S->>M: Midnightへ送信
-    Q->>W: 送信識別子、ハッシュ、手数料、日時を記録
+    S->>M: 公式Indexerで同一ID、Hash、成功状態、Blockを確認
+    Q->>W: 確定済み識別子、Hash、Block、手数料、日時を記録
 
     E->>W: Proof Jobの状態を確認
-    E->>M: Indexerで想定トランザクションの確定を確認
-    E->>W: POST /proof-jobs/{id}/result
-    W->>W: confirmedへ更新
+    Note over Q,M: 受付済み送信の後にReplay Protectionが返った場合は、<br/>再送前にQueueがIndexerの同一ID／Hashを照合
     Note over E,R: 完成形ではconfirmedの後だけ保留データを削除
 ```
 
@@ -104,7 +103,8 @@ Shielded、Unshielded、DUSTの状態を同期し、使用可能なDUSTを1つ�
    ウォレットの同期完了までバックエンドで保留できます。現行CLIは受付後に状態確認を続けますが、処理が
    停止しても、同じローカルバイト列とD1の状態から後で再開できます。
 
-エッジ側の保留ファイルは、Proof Jobが確定するまでの復旧用コピーです。受付結果が不明な場合は、同じ
+`202 Accepted`後のIndexer確定確認はバックエンドが所有します。ブラウザやデバイスが切断しても、後で同じ
+Job状態を参照できます。エッジ側の保留ファイルは、Proof Jobが確定するまでの復旧用コピーです。受付結果が不明な場合は、同じ
 バイト列を再送します。同じProof Jobに対して新しいバイト列を作ってはいけません。
 
 ## スポンサー処理の状態遷移

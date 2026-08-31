@@ -94,6 +94,9 @@ Midnight.js `4.1.1`, DApp Connector API `4.0.1`, and Proof Server `8.1.0`.
 | Edge Device pending-TX recovery check | Reused the 5,989-byte transaction from mode-`0600` storage; dataset preparation 73 ms, submission path 542 ms, no new Proof Server request; D1 became `device_bound` in 0.1823 ms SQL time | 21.389 s | — | — | — | — |
 | Final `npm run verify` after pending-TX recovery | Portability, six-circuit compile, 147 tests, all workspace type checks/builds, and Wrangler dry-run passed | 37.33 s | 59.60 s | 13.90 s | 196% | 887,636 KiB |
 | Final `npm run verify` after Sponsor-funded schema-5 confirmation | Portability, six-circuit compile, 182 tests, all workspace type checks/builds, GUI build, and Wrangler/Container dry-run passed | 46.30 s | 70.64 s | 20.33 s | 196% | 864,252 KiB |
+| Project/Policy and GUI restoration regression `npm test` | Compact `0.31.1` compiled six circuits; all 287 tests passed across Shared, Contract, Dashboard, CLI, Device, Gateway, and Sponsor workspaces | 25.95 s | 42.21 s | 11.44 s | 207% | 689,388 KiB |
+| Project-scoped Policy deployment | Migration `0022` SQL 3.92 ms; three changed GUI assets; Worker upload 12.95 s; trigger deployment 6.86 s; Worker `d88891bc-17b3-40c1-9771-5fc92fbd9cc0`; Sponsor image `sha256:45265f8d4fc...` | — | — | — | — | — |
+| Deployed English third-party capture | Chrome `149.0.7827.200`, FFmpeg `6.1.1`, direct Midnight verification passed; 62 frames at 5 fps; MP4 1,139,853 bytes, SHA-256 `59d8c40285279dce1b1159d4637427c1ba074d003830ff212c1b098e861c9a4a` | — | — | — | — | — |
 
 The first Docker run exposed an approximately 900.82 MB build context. The final `.dockerignore` and
 explicit Dockerfile copies admit only the Sponsor source, package metadata, TypeScript base config,
@@ -498,6 +501,28 @@ Production scaling therefore requires sharded Container identities, a larger dis
 decoupling proof capacity from Midnight confirmation. Merely increasing `max_instances` is not enough.
 
 The preceding 24-hour-Session Worker/GUI deployment completed in **13.42 seconds wall time** with **263,908 KiB maximum client RSS** (`1.85 s` user, `0.37 s` system, `16%` CPU), version `4c2e4d95-eccb-4252-ae52-cd49e12d4919`. It changed the opaque Device Session lifetime from one hour to 24 hours, retained the existing Container image, and applied no new D1 migration. The longer lifetime reduces challenge/session D1 writes for continuously operating devices while retaining token hashing, scope checks, revocation, and key-rotation invalidation. From the Edge Device, an earlier valid P-256 Device Session reached `/ready` with HTTP 200 in **11,879 ms** after scale-to-zero. The corresponding Worker log measured **6,541 ms** inside the Container route while the fresh Proof Server downloaded and verified its public SRS/key material. A second request while the Container was running measured **117 ms** in the Worker log. These readiness figures do not include proof generation and are setup diagnostics rather than separate per-sample cost profiles. The newer operation-configuration deployment and its migration are recorded above.
+
+The 2026-08-30 hosted browser-provisioning release applied
+`0019_worker_browser_provisioning.sql` in **2.20 seconds wall time** with **258,900 KiB maximum
+client RSS** (`0.78 s` user, `0.13 s` system, `41%` CPU); D1 executed its six migration commands in
+`1.55 ms`. The successful Worker, GUI, and Sponsor Wallet Container deployment completed in
+**1 minute 13.04 seconds wall time** with **689,164 KiB maximum client RSS** (`26.62 s` user,
+`12.67 s` system, `53%` CPU), Worker startup time `4 ms`, and version
+`5016c1a1-3648-49c2-b1f0-eb8be248b2ce`. A full post-deployment `npm run verify` completed in
+**1 minute 13.40 seconds wall time** with **794,324 KiB maximum client RSS** (`72.70 s` user,
+`21.24 s` system, `127%` CPU). These measurements used Compact `0.31.1`, Wrangler `4.127.0`,
+Proof Server `8.1.0`, Wallet SDK `1.2.0`, and Midnight.js `4.1.1`. They are setup and validation
+measurements, not per-Device operating-cost inputs.
+
+The follow-up Sponsor Wallet runtime-export correction deployed in **1 minute 00.41 seconds wall
+time** with **398,396 KiB maximum client RSS** (`2.65 s` user, `1.04 s` system, `6%` CPU), Worker
+startup time `5 ms`, and version `e2e36520-947b-4073-979f-517c76ebaacf`. The first production
+initialization after that deployment reached `ready` in 44.57 seconds. The next scheduled probe
+completed in 717 ms with the same boot identifier, a healthy supervisor, a live Wallet process, and
+shielded, unshielded, and DUST synchronization complete. The final repository-wide `npm run verify`
+after this correction completed in **1 minute 20.45 seconds wall time** with **831,860 KiB maximum
+client RSS** (`83.27 s` user, `22.78 s` system, `131%` CPU) and no test, type-check, build, or
+Wrangler/Container dry-run failures.
 
 The Proof Server does not begin listening until it has obtained missing public parameters. The Container SDK's HTTPS egress proxy therefore permits only `srs.midnight.network`, and the image trusts the Cloudflare-provided interception CA. Live logs confirmed that the cold start fetched only SRS, Zswap, and DUST parameter paths from that host. The Container receives no Midnight wallet or Device Identity material.
 

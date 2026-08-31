@@ -30,7 +30,7 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 ## Verified in Wave 1
 
 - All 6 proof circuits compile.
-- All 182 automated tests pass across 8 workspaces.
+- All 287 automated tests pass across 9 workspaces.
 - Type checks, builds, and the Cloudflare pre-deployment check pass.
 - Midnight preproduction-network records from 2026-08-28 include both WITHIN and OUTSIDE.
 - A day with 1,440 readings is reduced to one daily proof with 24 hourly slots.
@@ -39,10 +39,10 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 
 It does not prove that the physical sensor produced correct values, that sampling continued for 24 hours, or that the Edge Device aggregated the readings correctly. In the current architecture, the trusted Backend handles hourly minimum / maximum values while generating the proof.
 
-The third-party view displays public records, but independent browser-only zero-knowledge-proof verification is planned for Wave 2.
+The third-party view directly compares public Midnight transaction and Contract state. Browser-local proof-verifier execution and multi-source Indexer comparison remain planned for Wave 2.
 
 ## Adoption path
 
-The plan is to begin with a construction-site temperature-measurement field trial and add verification to existing equipment and sales or rental channels. Wave 2 plans independent browser verification and operational automation. Wave 3 plans calibrated-device proof and secure-hardware integration.
+The plan is to begin with a construction-site temperature-measurement field trial and add verification to existing equipment and sales or rental channels. Wave 2 plans local/multi-source verification hardening and operational automation. Wave 3 plans calibrated-device proof and secure-hardware integration.
 
 Repository, deck, and video URLs will be added after the final public release.

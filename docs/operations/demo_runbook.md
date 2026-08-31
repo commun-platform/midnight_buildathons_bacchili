@@ -21,7 +21,7 @@ npm run cloudflare:config:sponsor
 
 Back up `.env.development` and the owner-only Sponsor credential file separately. Fund only the
 Sponsor address printed by `sponsor:wallet` with tNIGHT before enabling operations. The Cloudflare
-deployment creates the Worker, D1 migrations through `0017`, Queue/DLQ, GUI assets, Proof Server
+deployment creates the Worker, D1 migrations through `0020`, Queue/DLQ, GUI assets, Proof Server
 Container, Sponsor Wallet Container, and encrypted Sponsor checkpoint R2 binding. The
 `cloudflare:config:sponsor` command sends the seed to Wrangler over stdin and never prints it. No
 Device private key is created on this host.
@@ -145,40 +145,15 @@ npm run device:benchmark -- --samples 1440 --period-date YYYY-MM-DD --run-id cos
 
 Use unique run IDs. Results below `device-wallet/benchmarks/` contain timing, request size, transaction size, DUST fee, public commitment, observed/STOPPED counts, and attestation evidence, but no raw values, private hourly extrema, nonce, wallet recovery material, or Session token.
 
-## 4. Local review GUI
+## 4. Hosted review GUI
 
-Start the loopback provisioning bridge and the Worker-hosted GUI in separate terminals. The bridge is
-the development-operator boundary for on-chain Device registration and Policy Assignment; it is not
-deployed as a public Device-management endpoint.
+The deployed Worker serves the Device Workflow, sensor-administrator view, and public third-party
+view from one origin. No browser action requires a provisioning bridge or another localhost service.
+For local asset development only, `npm run dashboard:dev` serves the same Worker routes.
 
-```bash
-npm run dashboard:sync
-# Terminal 1
-npm run dashboard:provisioning
-# Terminal 2
-npm run dashboard:dev
-```
-
-Wrangler uses port `8787` by default. If it is already occupied, build once and start the Workspace
-script on a free loopback port; the Browser Device continues to use the provisioning bridge on
-`8790`:
-
-```bash
-npm run dashboard:build
-npm run dev -w @midnight-demo/proof-gateway -- \
-  --port <free-port> --enable-containers=false
-```
-
-`dashboard:sync` copies only Project/Device public metadata, public Device keys, policy/assignment mirrors, hourly windows, anomaly state/transitions, and redacted daily Proof Job state from remote D1. It excludes readings, sessions, challenges, token hashes, Operator leases, transaction object keys, and R2 artifacts. Configure only the public network label and contract address in the ignored `apps/proof-gateway/.dev.vars` file.
-
-The locally hosted administrator and verifier read the current local D1 snapshot immediately. On the
-first visit to either data view, the GUI starts `dashboard:sync` through the loopback bridge in the
-background and shows a progress indicator without clearing the current evidence. Navigation does not
-repeat that implicit synchronization. Use **Refresh** for an explicit synchronization; success and
-failure are shown in-place while the last usable snapshot remains visible.
-
-For the browser Device workflow, use a normal Chrome profile with a DApp Connector API 4.x-compatible
-Lace Wallet on Preprod, then open `http://127.0.0.1:<gui-port>/#/device`. The guided flow is:
+Use a normal Chrome profile with a DApp Connector API 4.x-compatible Lace Wallet on Preprod and open
+the deployed root. Select **English** before recording. The root starts at `#/device`; the guided flow
+is:
 
 Lace needs neither tNIGHT nor generated tDUST. It approves and binds the Device transaction with
 `payFees: false`; the authenticated Cloudflare Proof Server creates the sensor-contract proof and the
@@ -186,28 +161,33 @@ dedicated Sponsor Wallet adds DUST and submits. The GUI shows the sponsorship st
 
 1. connect Lace and approve the DApp connection in the Wallet;
 2. create an ECDSA P-256 Device Identity in browser-private storage;
-3. select an already registered public Threshold Policy and register the Device through the local
-   development-operator bridge;
-4. capture and upload one synthetic sensor value with the Device Session;
+3. select an already registered public Threshold Policy, approve the one-time registration message
+   in Lace, and submit the asynchronous registration Job. The GUI shows its Job ID and releases the
+   action immediately. The server retries Wallet synchronization and registers the Device and
+   Assignment without keeping the browser request open;
+4. generate and upload one completed day of 1,440 synthetic readings, reduced to 24 hourly summaries,
+   with the Device Session;
 5. request and immediately admit one supervised Proof Job;
 6. generate the contract ZK proof through the Cloudflare Proof Server, approve the fee-free Device
    transaction in Lace, and let the Sponsor Wallet add DUST and submit it; and
 7. inspect the confirmed claim in the administrator and third-party views.
 
-Lace provides the Browser Device's explicit transaction approval; it is not the fee payer. The
-Sponsor Wallet has fee-only responsibility. The local development wallet and Operator Authority
-retain separate administrative power to register the Device and bind its Policy. Wallet connection
-and Device transaction approval remain explicit user confirmations.
+A deployment is not accepted from health checks, API calls, or unit tests alone. After every change
+to the Dashboard, browser provisioning, Operator path, or Sponsor Wallet image, repeat at least steps
+1–3 through the rendered review GUI in a normal Chrome profile. Confirm that the Device and Threshold
+steps are visibly complete, no `ERROR` notice remains, `/api/v1/provisioning/devices` returns HTTP
+200, and both the Device registration TX ID and Assignment TX ID are returned. A dummy signature that
+stops before the Operator path does not satisfy this acceptance check.
 
-If Docker is intentionally stopped and only the GUI/D1 API needs review:
+Lace provides the Browser Device's registration identity and explicit transaction approval; it is not
+the fee payer. The private Sponsor Wallet Container adds only DUST to the approved Device
+transaction. For browser registration it also executes the fixed Operator-only Device and Assignment
+circuits; the Worker verifies Lace first and does not expose the Operator Authority. Wallet connection,
+registration signature, and Device transaction approval remain explicit user confirmations.
 
-```bash
-cd apps/proof-gateway
-npx wrangler dev --config wrangler.jsonc \
-  --enable-containers=false --port 8790
-```
-
-Open `http://127.0.0.1:8790/#/admin` only for this GUI/D1-only fallback. The administrator API deliberately rejects non-loopback hosts in Wave 1. The third-party route `#/verify/<proofJobId>` uses the public redacted Proof API and does not show hourly aggregates. The Device Workflow requires the two-process setup above because port `8790` is reserved for the provisioning bridge.
+The **Administrator** route uses the same Device Session and displays only that Device's hourly
+summaries, anomaly transitions, and Proof/TX state. The **Third-Party Verification** route is public,
+newest-first, and contains no Device Session or private values.
 
 Review the stepper in order:
 
@@ -218,26 +198,28 @@ Review the stepper in order:
 5. Proof generated, Device transaction approved, and Sponsor fee added.
 6. Midnight transaction confirmed.
 
-After confirmation, capture the repeatable Japanese GUI walkthrough with the local dashboard still running:
-
-```bash
-npm run dashboard:capture-demo -- \
-  --proof-job-id <proofJobId>
-```
-
-The command uses the locally installed Chrome and FFmpeg, operates only against a loopback URL, and writes an MP4, administrator screenshot, third-party screenshot, and checksum metadata below the gitignored `.demo-output/` directory. It records the actual administrator-to-verifier route transition and scrolling; it does not read Device Sessions, wallet material, raw sensor values, private hourly extrema, or nonces.
-
-The recording should show device-origin synthetic data, the pending Proof state, admission,
+After confirmation, record the same browser profile so the authenticated Device and administrator
+views remain available. The recording should show Device-origin synthetic data, the pending Proof state, admission,
 proof/signing, confirmation, and the third-party claim without revealing a sensor value. In the
 third-party view, capture the public-only ZKP steps, the **HIDDEN FROM THIRD PARTIES** Raw
 Sensor Values mask, and at least one Midnight Explorer link for available Contract/TX evidence.
+
 ## 5. Validation and cleanup
 
 ```bash
+npm run sct:api
+npm run sct:gui
+npm run sct
 npm run verify
 npm run development:status
 npm run device:status
 ```
+
+`sct:api` covers the Worker and Sponsor Wallet API boundaries, including the queued registration
+regression. `sct:gui` drives the rendered English SPA through thirteen deterministic checkpoints and
+writes ignored screenshots plus `result.json` below `.sct-output/dashboard/`. See the
+[SCT matrix](../implementation/sct_matrix.md) for the acceptance mapping. These deterministic SCTs
+do not replace the final deployed Preprod run with real Lace approvals and Midnight transactions.
 
 Compare public transaction evidence with the Midnight contract state before calling the demo confirmed. To remove non-production Cloudflare resources:
 

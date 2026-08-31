@@ -91,6 +91,9 @@ DApp Connector API `4.0.1`、Proof Server `8.1.0`を使用しました。
 | Edge Device Pending TX復旧確認 | mode `0600`に保存した5,989-byte TXを再利用。Dataset準備73 ms、Submission経路542 ms、新規Proof Server Requestなし。D1はSQL 0.1823 msで`device_bound`へ移行 | 21.389 s | — | — | — | — |
 | Pending TX復旧後の最終`npm run verify` | Portability、6回路Compile、147 Test、全Workspace Type Check／Build、Wrangler Dry-run成功 | 37.33 s | 59.60 s | 13.90 s | 196% | 887,636 KiB |
 | Sponsor負担Schema-5確定後の最終`npm run verify` | Portability、6回路Compile、182 Test、全Workspace Type Check／Build、GUI Build、Wrangler／Container Dry-run成功 | 46.30 s | 70.64 s | 20.33 s | 196% | 864,252 KiB |
+| Project／Policy・GUI復帰Regression `npm test` | Compact `0.31.1`で6回路Compile、Shared／Contract／Dashboard／CLI／Device／Gateway／Sponsorの全287 Test成功 | 25.95 s | 42.21 s | 11.44 s | 207% | 689,388 KiB |
+| Project単位Policy Deploy | Migration `0022` SQL 3.92 ms、変更GUI Asset 3件、Worker Upload 12.95 s、Trigger Deploy 6.86 s、Worker `d88891bc-17b3-40c1-9771-5fc92fbd9cc0`、Sponsor Image `sha256:45265f8d4fc...` | — | — | — | — | — |
+| Deploy済み英語第三者画面Capture | Chrome `149.0.7827.200`、FFmpeg `6.1.1`、Direct Midnight照合成功、5 fps・62 Frame、MP4 1,139,853 bytes、SHA-256 `59d8c40285279dce1b1159d4637427c1ba074d003830ff212c1b098e861c9a4a` | — | — | — | — | — |
 
 初回Docker実行ではBuild Contextが約900.82 MBでした。最終`.dockerignore`とDockerfileの明示COPYはSponsor
 Source、Package Metadata、TypeScript Base Config、Sensor Registry Managed Proof Artifactだけを許可します。
@@ -460,6 +463,26 @@ Monitoring、税、Margin、翌月以降のRetention Costは未算入です。D1
 CostはActive Device-dayにほぼ線形で、Device数やRaw Sampling頻度に対して指数増加しません。ただし現行DeployはPilotです。`max_instances=1`、Admission 1件、5分ごと8件Dispatchのため、4時間で10,000 Jobを処理できません。標準実測のProof時間だけなら`standard-2`約14 Instance、現行のProof＋Chain確定直列Cycleなら約44 Instance、25%余裕込みで55 Instanceが必要です。本番ScaleにはContainer IDのSharding、Dispatcher拡張、Proof CapacityとMidnight確定待ちの分離が必要で、`max_instances`変更だけでは足りません。
 
 直前の24時間Session対応Worker／GUI Deploymentは、**wall time 13.42秒**、**Client最大RSS 263,908 KiB**（user `1.85秒`、system `0.37秒`、CPU `16%`）で完了し、Versionは`4c2e4d95-eccb-4252-ae52-cd49e12d4919`です。Opaque Device Sessionの有効期間を1時間から24時間へ変更し、既存Container Imageを保持して、新しいD1 Migrationはありません。有効期間延長により常時稼働DeviceのChallenge／Session D1 Writeを削減しつつ、Token Hash、Scope確認、失効、Key Rotation時の無効化を維持します。以前のscale-to-zero後実測では、Edge Deviceの有効なP-256 Device Sessionから`/ready`へ接続し、**11,879 ms**でHTTP 200を確認しました。対応するWorker Logでは、freshなProof Serverが公開SRS／key materialを取得・検証するContainer経路を**6,541 ms**と計測しました。Container起動中の2回目はWorker Logで**117 ms**でした。これらはProof生成を含まないSetup診断値であり、Sample数別のCost Profileではありません。後続の運用設定取得DeploymentとMigration実測は上に記録しています。
+
+2026-08-30のHosted Browser Provisioning Releaseでは、`0019_worker_browser_provisioning.sql`を
+**wall time 2.20秒**、**Client最大RSS 258,900 KiB**（user `0.78秒`、system `0.13秒`、CPU
+`41%`）で適用し、D1の6 Migration Command自体は`1.55 ms`でした。Worker、GUI、Sponsor
+Wallet Containerの成功Deploymentは、**wall time 1分13.04秒**、**Client最大RSS 689,164 KiB**
+（user `26.62秒`、system `12.67秒`、CPU `53%`）、Worker Startup `4 ms`、Version
+`5016c1a1-3648-49c2-b1f0-eb8be248b2ce`でした。Deploy後の全`npm run verify`は、
+**wall time 1分13.40秒**、**Client最大RSS 794,324 KiB**（user `72.70秒`、system
+`21.24秒`、CPU `127%`）で完了しました。使用VersionはCompact `0.31.1`、Wrangler
+`4.127.0`、Proof Server `8.1.0`、Wallet SDK `1.2.0`、Midnight.js `4.1.1`です。
+これらはSetup／Validation実測であり、Device単位の運用Cost入力には使用しません。
+
+続くSponsor Wallet Runtime Export修正のDeploymentは、**wall time 1分00.41秒**、**Client
+最大RSS 398,396 KiB**（user `2.65秒`、system `1.04秒`、CPU `6%`）、Worker Startup
+`5 ms`、Version `e2e36520-947b-4073-979f-517c76ebaacf`で完了しました。修正後最初の本番
+初期化は44.57秒で`ready`へ到達しました。次の定期Probeは717 msで完了し、同一Boot ID、
+Supervisor正常、Wallet Process生存、Shielded／Unshielded／DUST同期完了を確認しました。
+この修正後のRepository全体`npm run verify`は、**wall time 1分20.45秒**、**Client最大RSS
+831,860 KiB**（user `83.27秒`、system `22.78秒`、CPU `131%`）で完了し、Test、Type
+Check、Build、Wrangler／Container Dry-runの失敗はありませんでした。
 
 廃止済みSelected-leaf `sensor-registry`をDevelopment WalletからDeployした処理全体は、**wall time 9分08.82秒**、**最大RSS 588,880 KiB**（user `516.69秒`、system `4.91秒`、CPU `95%`）でした。Contract `2a191c5871e2532a1b728173628a696fcb9e30575be17ea99d86900b05758ec3`の履歴値で、Preprod DUST History Scan、Proof Server Access、Proof Construction、TX Submit、Operator Proof Lease Revokeを含みます。新ContractのDeploy時間または単独Proof時間として報告してはいけません。
 

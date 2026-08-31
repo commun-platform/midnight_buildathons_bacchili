@@ -42,11 +42,11 @@ Cloudflare D1は画面表示と処理進捗の管理に使うデータベース�
 
 ## 現時点でどこまで検証済みですか
 
-2026-08-30の現行ソースで、6つの証明回路のコンパイル、182件の自動テスト、型検査、ビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークには、2026-08-28の自己負担WITHIN／OUTSIDEと2026-08-30のSponsor負担Schema-5記録があります。ソース検証と日付付きネットワーク記録は別のEvidenceです。
+2026-08-31の現行ソースで、6つの証明回路のコンパイル、287件の自動テスト、型検査、ビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークには、2026-08-28の自己負担WITHIN／OUTSIDEと2026-08-30のSponsor負担Schema-5記録があります。ソース検証と日付付きネットワーク記録は別のEvidenceです。
 
 ## 第三者画面だけで独立検証できますか
 
-現時点ではできません。画面は公開情報とMidnight識別子を表示しますが、ブラウザ単体でゼロ知識証明を再検証したり、Midnightを直接照会したりする機能はWave 2の計画です。
+Public Chain Evidenceは独立に照合できます。WalletやPrivate Inputを使わず、BrowserがPublic Midnight Indexerへ直接問い合わせ、成功TX／Blockを一致させ、そのBlockのContract LedgerからCommitment、Verified Result、Policy、Presence／Count、Device-bound Assignmentを照合します。Browser内でProof Verifierを再実行したりWitnessを開示したりはしません。Proof自体はTX受理時にMidnightが検証しています。
 
 ## 誰がどの鍵を持ちますか
 

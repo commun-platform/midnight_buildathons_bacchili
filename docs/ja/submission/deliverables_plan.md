@@ -151,8 +151,8 @@ Progressは機能一覧ではなく、Wave開始時点との差分として書�
 | Before | Wave開始時点で存在したPrototype、未接続部分、制約 |
 | Built in Wave 1 | Compact、Private State、Device認証、Proof Job、GUIなど実際に追加・拡張した内容 |
 | Evidence | Commit、Test、Preprod TX、Screenshot、Benchmark |
-| Current Limitation | Operator操作、Trusted Backend、Browser非独立検証など |
-| Next Wave | 独立検証、運用自動化、Hardening、Pilotに向けた作業 |
+| Current Limitation | Operator操作、Trusted Backend、Browser内Proof Verifier未実行など |
+| Next Wave | Local／複数Source照合の強化、運用自動化、Hardening、Pilotに向けた作業 |
 
 日付とCommit SHAを付け、既存のCloudflareやSensor収集部分と、Wave中に構築したMidnight Integrationを区別します。
 
@@ -165,7 +165,7 @@ Progressは機能一覧ではなく、Wave開始時点との差分として書�
 - 導入単位: まず1 Site / 数Device、次にFleet管理、最終的に複数組織間のVerification。
 - 価値: Data最小化、改ざん耐性のあるPolicy / Result履歴、監査時の共有範囲削減。
 - 収益仮説: Device / Site単位の運用Subscriptionと、Attestation / Retention Tier。
-- 実証計画: Wave 1技術実証、Wave 2運用自動化と独立検証、Wave 3 Pilot-ready Hardening。
+- 実証計画: Wave 1技術実証、Wave 2運用自動化とLocal／複数Source照合強化、Wave 3 Pilot-ready Hardening。
 
 市場規模や法令適合は裏付けが整うまで断定せず、現在は対象者、利用場面、採用経路を中心に説明します。
 
@@ -183,7 +183,7 @@ Progressは機能一覧ではなく、Wave開始時点との差分として書�
 - Sensor値そのものが真実であることを証明する。
 - Continuous SamplingやDevice非改ざん性を保証する。
 - 完全にTrustless、End-to-End Encrypted、Production-ready。
-- BrowserだけでMidnightを独立検証できる。
+- BrowserだけでPublic Midnight TX／Contract Stateを独立照合できる。
 
 ## 12. 制作順序
 

@@ -37,6 +37,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 ## Implementation and evidence
 
 - [Implementation map](implementation/implement_spec.md): specification-to-code, API, storage, and contract-field mapping.
+- [GUI action and processing reference](implementation/gui_action_reference.md): every reviewer control, execution location, asynchronous state, reload behavior, and privacy boundary.
 - [Operational ZK circuit specification](implementation/zk_circuit_spec.md): six proof circuits, private/public inputs, checks, ledger effects, diagrams, and explicit non-claims.
 - [Future feature backlog](implementation/future_features.md): contract-first changes, later operational features, priorities, and completion conditions.
 - [Midnight fee sponsorship](implementation/fee_sponsorship.md): DUST-only fee payer, key boundaries, asynchronous Wallet synchronization, exact-byte transaction hold, retries, and current integration status.

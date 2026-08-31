@@ -55,13 +55,13 @@
 | 日次準備 | `packages/shared`の`prepareDailyExtremaAttestation`が24 JST Slot、Canonical STOPPED Slot、Public Metadata、Private Commitment Openingを作ります。 |
 | Fleet管理 | `apps/development/operator-cli/src/operator-authority.ts`がOwner-only Operator Authorityを保持し、Operator限定の登録／Rotation／無効化Commandを提供します。 |
 | Compact回路 | `contracts/sensor-registry/src/sensor-registry.compact`がMulti-Device Registry、Device-bound Assignment、1 Callの日次Attestationを定義します。 |
-| D1 Schema | Migration `0010`～`0017`がPolicy／Job、Fail-closed Fleet Registry Mirror、Device運用設定Revision、ClaimしたThreshold Result、非同期Sponsored Submission State、安定Measurement Group冪等性、冪等なJST日次Sponsor予約、旧回路の未送信Sponsor予約を1回だけ解放するMarkerを追加します。 |
+| D1 Schema | Migration `0010`～`0022`がPolicy／Job、Fail-closed Fleet Registry Mirror、Device運用設定Revision、ClaimしたThreshold Result、非同期Sponsored Submission State、安定Measurement Group冪等性、冪等なJST日次Sponsor予約、Contract履歴、Wallet所有Project、Project単位Policy Operation、Browser Enrollment State、実際のZKP生成日時、永続Provisioning Progressを追加します。 |
 | Proof Admission | `POST /api/v1/proof-jobs`がAuthenticated Device、登録済みAssignment Metadata、ClaimしたBoolean Resultを検証しますが、Threshold Boundは受け取りません。Cronは02:00～06:00 JSTにAdmissionします。 |
 | Proof生成 | Wallet AgentがPrivate Proving Requestを認証済みWorker RouteからContainerへStreamし、Bodyは永続化しません。 |
 | Device TX Bind | Edge Device Transaction Identity、または`payFees: false`のLaceが、NIGHT／DUSTなしでProof済み`submitDailyAttestation` CallをBindします。 |
 | 送信手数料の負担 | `POST /api/v1/proof-jobs/:proofJobId/sponsor`は利用回数を原子的に予約し、1つのトランザクションハッシュへ固定し、非公開バイト列をR2へ保存します。`awaiting_sponsor`を記録し、Queueへ処理IDだけを入れて`202`を返します。同じ内容の再送は、追加の上限予約、R2保存、Queue投入、Wallet処理より前に止めて既存状態を返し、異なる内容は`409`で拒否します。ウォレット同期後、Queue処理が保存データを再検査し、DUSTだけを追加して送信します。デバイスは状態を確認し、保留した同じバイト列から再開できます。 |
-| 管理者GUI | Loopback限定Dashboardが1時間AggregateをJST日付別に表示し、Threshold外れ値を示し、該当日の日次Proof操作とProof／TX状態を表示します。 |
-| 第三者GUI | Public Endpoint／Viewが日次Proof Jobを新しい順にRedacted List表示し、日付から直接開けます。Extremaを隠したまま証明済みWITHIN／OUTSIDE／STOPPED Result、Bound、正確なClaim、Commitment、Assignment、Network、Contract、Attestation TXを表示します。 |
+| 管理者GUI | Device Session保護DashboardがそのDeviceの1時間AggregateをJST日付別に表示し、Threshold外れ値、明示的な現在の正常／異常状態、該当日の日次Proof操作とProof／TX状態を表示します。 |
+| 第三者GUI | Public Endpoint／Viewが日次Proof Jobを新しい順にRedacted List表示し、日付から直接開けます。Extremaを隠したまま証明済みWITHIN／OUTSIDE／STOPPED Result、Bound、正確なClaim、Commitment、Assignment、実際のZKP生成日時、Network、Contract、Attestation TXを表示します。 |
 
 旧`proof_jobs`、Reading単位Attestation Table／Endpoint、Shared Merkle Helper TestはMigrationまたは開発互換用に残ります。運用Worker／Wallet Pathは`daily_proof_jobs`へ書き、Selected-leaf Circuitを呼びません。
 
@@ -79,18 +79,33 @@ Cloudflare QueuesはProof Admission／Sponsor処理のJob参照を運びます�
 POST /auth/challenge
 POST /auth/session
 
+GET  /api/v1/provisioning/configuration           Publicな登録済みPolicy Metadata
+POST /api/v1/projects/challenge                   5分間Wallet Project Challenge
+POST /api/v1/projects/session                     24時間Wallet所有Project Session
+GET  /api/v1/projects                             Wallet所有Project List
+POST /api/v1/projects                             Project作成。Walletごとに最大10件
+POST /api/v1/policies/challenge                   One-time Project Policy Challenge
+GET  /api/v1/policies                             Project単位の登録済み／処理中Policy
+POST /api/v1/policies                             Lace署名付きImmutable Policy登録
+GET  /api/v1/policy-operations/:operationId       非同期Policy進捗
+POST /api/v1/provisioning/challenge               5分のOne-time Challenge
+POST /api/v1/provisioning/devices                 Lace署名付きWorker Enrollment
+GET  /api/v1/provisioning/operations/:operationId Token保護された非同期進捗
+GET  /api/v1/device/configuration                 認証済みDeviceのみ
+GET  /api/v1/device/dashboard                     認証済みDevice自身のみ
+GET  /api/v1/device/history                       認証済みDeviceのみ
 POST /api/v1/measurement-windows
 POST /api/v1/anomaly-events
 POST /api/v1/proof-jobs
 GET  /api/v1/proof-jobs/:proofJobId
+POST /api/v1/proof-jobs/:proofJobId/admit          認証済みReview Admission
 POST /api/v1/proof-jobs/:proofJobId/sponsor
 POST /api/v1/proof-jobs/:proofJobId/result
-GET  /api/v1/device/history                       認証済みDeviceのみ
 GET  /api/v1/sponsor-quota                        認証済みDeviceのみ
 
-GET  /api/v1/projects/:projectId/dashboard       loopback administrator only
+GET  /api/v1/projects/:projectId/dashboard       Legacy Loopback Administratorのみ
 GET  /api/v1/projects/:projectId/measurement-windows
-GET  /api/v1/projects/:projectId/anomaly-events  loopback administrator only
+GET  /api/v1/projects/:projectId/anomaly-events  Legacy Loopback Administratorのみ
 GET  /api/v1/public/proofs                        Public Redacted最新順List
 GET  /api/v1/public/proofs/:proofJobId            Public Redacted Evidence
 
@@ -116,8 +131,8 @@ POST /prove                                      admitted Device Session only
 
 ## Deploy境界
 
-新Contract Ledgerは旧Selected-leaf Deploy／Singleton Daily実装／WITHIN専用Fleet Registryと互換性がありません。運用反映にはD1 Migration `0017`までの適用、新Contract Deploy、全Device／Public Policy／Device-bound Assignment登録、D1 Mirror同期、Worker Public Contract Address更新、各Deviceによる新設定取得が必要です。この変更ではP-256 Device Identity、Device Transaction Identity、Sponsor Wallet、Deployment Walletを再利用・Rotationしません。
+新Contract Ledgerは旧Selected-leaf Deploy／Singleton Daily実装／WITHIN専用Fleet Registryと互換性がありません。運用反映にはD1 Migration `0022`までの適用、新Contract Deploy、全Device／Public Policy／Device-bound Assignment登録、D1 Mirror同期、Worker Public Contract Address更新、各Deviceによる新設定取得が必要です。この変更ではP-256 Device Identity、Device Transaction Identity、Sponsor Wallet、Deployment Walletを再利用・Rotationしません。
 
-管理者APIは引き続きLoopback限定です。Remote管理者UIには別途Cloudflare Accessによる暗号学的検証が必要です。第三者Proof ViewはPublicかつRedactedです。
+Deploy済みセンサーデバイス管理者UIは24時間Device Sessionで`GET /api/v1/device/dashboard`を使用し、自身のDevice Recordだけを取得します。Project全体のLegacy EndpointはLoopback限定のままです。第三者Proof ViewはPublicかつRedactedです。
 
-Lifecycle、Trust Boundary、E2E Gate、Costの扱いは[`device_registry.md`](../security/device_registry.md)を正本とします。2026-08-28 JST、新Fleet Registryに対する自己負担Edge DeviceのWITHIN／OUTSIDE TXがPreprodでConfirmedとなり、Public Verifierから取得できることを確認しました。これは履歴Evidenceとして保持します。Sponsor負担経路は新しいPreprod E2E Gate通過後に誘導付き審査動画を作成します。
+各GUI操作と処理場所の対応は[`gui_action_reference.md`](gui_action_reference.md)にまとめています。Lifecycle、Trust Boundary、E2E Gate、Costの扱いは[`device_registry.md`](../security/device_registry.md)を正本とします。2026-08-28 JST、新Fleet Registryに対する自己負担Edge DeviceのWITHIN／OUTSIDE TXがPreprodでConfirmedとなり、Public Verifierから取得できることを確認しました。これは履歴Evidenceとして保持します。Sponsor負担経路は新しいPreprod E2E Gate通過後に誘導付き審査動画を作成します。

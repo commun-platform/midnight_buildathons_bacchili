@@ -61,13 +61,13 @@ excluded. A fully STOPPED day is displayed as STOPPED from its zero observed cou
 | Daily preparation | `prepareDailyExtremaAttestation` in `packages/shared` creates 24 JST slots, canonical STOPPED slots, public metadata, and the private commitment opening. |
 | Fleet administration | `apps/development/operator-cli/src/operator-authority.ts` keeps an owner-only Operator Authority and exposes Operator-only register/rotate/disable commands. |
 | Compact circuit | `contracts/sensor-registry/src/sensor-registry.compact` defines the multi-Device Registry, Device-bound immutable assignments, and one-call daily attestation. |
-| D1 schema | Migrations `0010`–`0017` add policy/job data, the fail-closed Fleet Registry mirror, Device operation-configuration revisions, the claimed threshold result, asynchronous sponsored-submission state, stable measurement-group idempotency, idempotent JST-day Sponsor reservations, and one-time release marking for pre-upgrade unsent Sponsor reservations. |
+| D1 schema | Migrations `0010`–`0022` add policy/job data, the fail-closed Fleet Registry mirror, Device operation-configuration revisions, the claimed threshold result, asynchronous sponsored-submission state, stable measurement-group idempotency, idempotent JST-day Sponsor reservations, contract history, Wallet-owned Projects, Project-scoped Policy operations, browser enrollment state, actual ZKP generation time, and durable provisioning progress. |
 | Proof admission | `POST /api/v1/proof-jobs` validates authenticated device, registered assignment metadata, and the claimed Boolean result, but accepts no threshold bounds. Cron admits jobs during 02:00–06:00 JST. |
 | Proof generation | The Wallet Agent streams private proving requests through authenticated Worker routes to the Container; bodies are not persisted. |
 | Device transaction binding | The Edge Device transaction identity, or Lace with `payFees: false`, binds the proved `submitDailyAttestation` call without NIGHT or DUST. |
 | Sponsored submission | `POST /api/v1/proof-jobs/:proofJobId/sponsor` atomically reserves quota, binds one TX hash, stores its private bytes in R2, records `awaiting_sponsor`, enqueues only the Job ID, and returns `202`. Identical retries are stopped before quota, R2, Queue, or Wallet work and return the existing state; conflicting reuse returns `409`. After Wallet synchronization, the Sponsor consumer revalidates the artifact, adds only DUST, submits, and persists status for Device polling. The Device client polls and can resume from its retained identical bytes. |
-| Administrator GUI | The loopback-only dashboard groups hourly operational aggregates by JST date, marks threshold outliers, and provides the matching daily Proof action and Proof/TX state. |
-| Third-party GUI | The public endpoint/view lists redacted daily Proof Jobs newest-first and opens a date directly, then shows proven WITHIN/OUTSIDE/STOPPED result, bounds, exact claim, commitment, assignment, network, contract, and attestation TX without extrema. |
+| Administrator GUI | The Device-Session-protected dashboard groups that Device's hourly operational aggregates by JST date, marks threshold outliers, shows the explicit current normal/anomaly state, and provides the matching daily Proof action and Proof/TX state. |
+| Third-party GUI | The public endpoint/view lists redacted daily Proof Jobs newest-first and opens a date directly, then shows proven WITHIN/OUTSIDE/STOPPED result, bounds, exact claim, commitment, assignment, actual ZKP generation time, network, contract, and attestation TX without extrema. |
 
 Legacy `proof_jobs`, reading-based Attestation tables/endpoints, and shared Merkle helper tests remain for
 migration or development compatibility. The operational Worker and Wallet path writes
@@ -91,18 +91,33 @@ an end-to-end claim.
 POST /auth/challenge
 POST /auth/session
 
+GET  /api/v1/provisioning/configuration           public registered Policy metadata
+POST /api/v1/projects/challenge                   five-minute Wallet Project challenge
+POST /api/v1/projects/session                     24-hour Wallet-owned Project Session
+GET  /api/v1/projects                             Wallet-owned Project list
+POST /api/v1/projects                             create Project; maximum 10 per Wallet
+POST /api/v1/policies/challenge                   one-time Project Policy challenge
+GET  /api/v1/policies                             Project-scoped registered/pending Policies
+POST /api/v1/policies                             Lace-signed immutable Policy registration
+GET  /api/v1/policy-operations/:operationId       asynchronous Policy progress
+POST /api/v1/provisioning/challenge               five-minute one-time challenge
+POST /api/v1/provisioning/devices                 Lace-signed Worker enrollment
+GET  /api/v1/provisioning/operations/:operationId token-protected asynchronous progress
+GET  /api/v1/device/configuration                 authenticated Device only
+GET  /api/v1/device/dashboard                     authenticated Device only; same Device only
+GET  /api/v1/device/history                       authenticated Device only
 POST /api/v1/measurement-windows
 POST /api/v1/anomaly-events
 POST /api/v1/proof-jobs
 GET  /api/v1/proof-jobs/:proofJobId
+POST /api/v1/proof-jobs/:proofJobId/admit          authenticated review admission
 POST /api/v1/proof-jobs/:proofJobId/sponsor
 POST /api/v1/proof-jobs/:proofJobId/result
-GET  /api/v1/device/history                       authenticated Device only
 GET  /api/v1/sponsor-quota                        authenticated Device only
 
-GET  /api/v1/projects/:projectId/dashboard       loopback administrator only
+GET  /api/v1/projects/:projectId/dashboard       legacy loopback administrator only
 GET  /api/v1/projects/:projectId/measurement-windows
-GET  /api/v1/projects/:projectId/anomaly-events  loopback administrator only
+GET  /api/v1/projects/:projectId/anomaly-events  legacy loopback administrator only
 GET  /api/v1/public/proofs                        public redacted newest-first list
 GET  /api/v1/public/proofs/:proofJobId            public redacted evidence
 
@@ -143,17 +158,18 @@ The operational circuit instead accepts extrema aggregated from all three freque
 ## Deployment boundary
 
 The new contract ledger is incompatible with the prior selected-leaf and WITHIN-only Fleet Registry
-deployments. Operational adoption requires applying D1 migrations through `0017`, deploying the new contract, registering every Device
+deployments. Operational adoption requires applying D1 migrations through `0022`, deploying the new contract, registering every Device
 plus its public policy/Device-bound assignment, syncing the D1 mirror, updating the Worker public
 contract address, and letting each Device pull its new configuration. This change
 does not reuse or rotate the P-256 Device Identity, Device transaction identity, Sponsor Wallet, or
 deployment wallet.
 
-The administrator API remains loopback-only. A remote administrator UI requires a separately
-configured and cryptographically validated Cloudflare Access layer. The third-party proof view remains
-public and redacted.
+The deployed sensor-administrator UI uses `GET /api/v1/device/dashboard` with a 24-hour Device
+Session, so it can read only its own Device records. The project-wide endpoints remain loopback-only
+legacy development APIs. The third-party proof view remains public and redacted.
 
-The complete lifecycle, trust boundary, E2E gate, and cost treatment are defined in
+The exact GUI control-to-processing mapping is documented in
+[`gui_action_reference.md`](gui_action_reference.md). The complete lifecycle, trust boundary, E2E gate, and cost treatment are defined in
 [`device_registry.md`](../security/device_registry.md). On 2026-08-28 JST, self-funded Edge Device
 WITHIN and OUTSIDE transactions against the newly deployed Fleet Registry were confirmed and
 returned by the public verifier. That remains historical evidence. Sponsor-funded submission must

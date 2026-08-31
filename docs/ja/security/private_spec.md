@@ -22,10 +22,17 @@
 
 Raw値はTX ConfirmとLocal Retention Policyが削除を許可するまでDevice内に保持できます。D1、R2、Queue Message、Worker Log、Browser Storageへ書きません。
 
-Loopback管理者GUIは1時間のMinimum／Maximum／Average／Count、Anomaly Transition、Device状態、Proof／TX状態を表示します。第三者Public APIにこれら集計値を含めません。
+センサーデバイス管理者GUIはDevice Sessionを要求し、そのDeviceの1時間Minimum／Maximum／Average／Count、Anomaly Transition、Device状態、Proof／TX状態だけを表示します。第三者Public APIにこれら集計値を含めません。
 
 Public Proof画面はPeriod、Sample Count、Daily Attestation Commitment、仮名Proof Job ID、Policy Mode／Public Bound／ID／Version／Assignment、Observed／STOPPED Count、証明済みWITHIN／OUTSIDE Result、Attestation TX ID／Hash、Block Height、Network、Contract Addressを表示できます。Observed HourがZeroの場合はSTOPPEDを導出表示します。
 
 運用ContractはThreshold Mode、Minimum／Maximum、Scale、Sensor／Unit Code、Policy Assignment、`thresholdSatisfied`をPublic Ledger Stateへ保存します。そのため製品説明でもThreshold PolicyとWITHIN／OUTSIDE Resultは公開と明記します。ZKが隠すのは提出済みHourly ExtremaとCommitment Nonceであり、OUTSIDEを発生させたHour／実値は開示しません。
 
-Cloudflare Worker／Proof Server ContainerはTransit中のPrivate Proving Requestを扱うTrusted Componentです。Workerは転送前にAuthorization Headerを除去し、BodyをLog／D1／R2／Queueへ保存せずStreamします。CloudflareはMidnight Wallet Secretを受け取らず、Device TXへ署名できません。
+Cloudflare Worker／Proof Server ContainerはTransit中のPrivate Proving Requestを扱うTrusted Componentです。Workerは転送前にAuthorization Headerを除去し、BodyをLog／D1／R2／Queueへ保存せずStreamします。DeviceまたはLaceがDevice TX Keyを保持し、FeeなしTXを明示承認します。PrivateなSponsor Wallet ContainerはDUST付与／送信用の分離Sponsor Seedと、固定されたBrowser登録回路用のOperator Authority秘密値を保持します。どちらもPublic RouteやBrowserへ公開しません。
+
+2つのContainer Secretは実行時入力であり、Container Imageの内容ではありません。本番WorkerがCloudflare
+Secret Bindingから取得し、Sponsor Wallet Container起動時の環境変数として渡します。Docker Build
+Contextと生成Imageには、Sponsor Seed、Operator Authority秘密値、`.env`、`.dev.vars`、Wallet
+Checkpoint、Wallet Stateを含めてはいけません。Compile済みCompact Prover／Verifier ArtifactはBuild
+Artifactであり、秘密鍵素材ではありません。Local開発ではGit Ignore済みの`.dev.vars`等でCloudflare
+Secret Bindingを代替できますが、CommitまたはImageへのCopyは禁止します。

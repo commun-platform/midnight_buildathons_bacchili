@@ -3,7 +3,7 @@
 [English](../../architecture/wave1_spec.md)
 
 状態：実装基準
-最終更新：2026-08-29 JST
+最終更新：2026-08-30 JST
 
 本書をWave 1の製品・実装仕様の正本とします。過去の設計文書と矛盾する場合、本書を優先します。
 
@@ -47,7 +47,28 @@ Wave 1はEdge Deviceを認証し、コストを抑えた運用Summaryを保存�
 | Sponsor Wallet | 登録済みNIGHTを保持し、DUSTを同期し、Device Bind済みTXへDUST Feeだけを追加して送信する専用Backend Walletです。 |
 | Operator Authority | Device LifecycleとPolicy／Assignmentを管理するOperator専用Compact Authorityです。 |
 | Deployment Wallet | Contract Deploy／管理用の開発ホストWalletです。 |
-| Proof Job | Admission、Proof進捗、Attestation TXを管理する冪等なD1 Workflow Recordです。 |
+| ZK Job | Admission、Proof進捗、Attestation TXを管理する冪等なD1 Workflow Recordです。既存API Pathでは`proof-jobs`という名称を使います。 |
+
+### 2.1 ID形式
+
+システムが生成する履歴レコードのIDは、`<種別を表す3〜5文字のPrefix>_<UUIDv7>`とします。`zjb`は
+ZK Job、`mbt`はMeasurement Batch、`aev`はAnomaly Eventを表します。`zjb`の`z`はZKの一部であり、
+共通の名前空間ではありません。
+
+IDは初回作成時に生成・永続化し、再送、Process再起動、Queue再配信でも同じIDを使用します。UUIDv7に
+より同種レコードを概ね作成順に並べられます。Random UUIDや内容Hashと比べてB-tree Indexの局所性が
+高く、ID CursorによるPaginationも効率化できます。同じIDの再利用により再送を冪等にします。厳密な
+時系列表示は用途に応じて`createdAt`、`periodStart`、`occurredAt`を使用します。
+
+運用Edge Deviceの`deviceId`はDevice Identityと同時に一度生成し、登録要求の再送、再登録、認証鍵の
+更新後も同じIDを使用します。審査用Browser Deviceだけは意図的な例外で、12節のとおり、検証済みPublic
+Wallet KeyとProjectから決定的に導出します。人が管理する設備コードは`deviceCode`、画面上の表示名は
+`deviceName`として分離します。
+
+2026-08-30時点の移行状態：Deploy済み実装は、Operator入力のDevice Slug、Timestamp由来のBatch／Event
+ID、内容から導出するProof Job IDをまだ使用しています。上記は移行後の必須形式であり、現行IDが準拠済み
+という意味ではありません。既存Recordは明示的な対応表を保って移行し、旧`deviceId`を暗黙に新しい
+`deviceCode`として扱いません。
 
 ## 3. 正確なProof Claimと非Claim
 
@@ -163,6 +184,14 @@ DUST登録、DUST残高、DUST履歴Scan、DUST Proofを必要としません。
 待ちはありません。ただし、ActiveなDevice登録／Assignment、公開運用設定、Proof Job Admission、最新
 Contract State取得、Proof生成、Sponsor Capacityは必要です。
 
+> **ContainerのSecret境界：** Docker Build ContextとImageに含めるのは、Application Code、Dependency、
+> Compile済みCompact Prover／Verifier Artifactだけです。Sponsor Seed、Operator Authority秘密値、`.env`、
+> `.dev.vars`、Wallet Checkpoint、Wallet Stateを含めてはいけません。本番ではWorkerがCloudflare Secret
+> Bindingから`SPONSOR_WALLET_SEED`と`OPERATOR_AUTHORITY_SECRET`を読み、Container起動時にPrivateな
+> Sponsor Wallet Containerの環境変数へ注入します。ContainerがCloudflare Secret Storeを直接読み出す
+> 構成ではありません。Local開発ではGit Ignore済みの`.dev.vars`等を環境変数の供給元にできますが、
+> CommitまたはContainer Imageへ含めてはいけません。
+
 SponsorのCold Sync中は、開発環境の1分Health Cronを契機に最大5分間隔で暗号化Wallet CheckpointをR2へ
 保存し、Ready後は30分間隔にします。認証済みSponsorship Retryも同じStale Checkを呼べますが、R2 Write
 頻度は増えません。Signalによる停止前には、Containerが利用可能な最新StateをSerializeし、Sponsor Process
@@ -235,7 +264,8 @@ proof:generate     transaction:submit  configuration:read  device:status
 
 ## 7. Sensor DataとAnomaly Lifecycle
 
-Raw Samplingは数秒間隔でも構いません。標準PlanのRaw ReadingはLocal保持します。Edge Agentは1時間に1回、冪等なAggregateを送ります。
+Raw Samplingは数秒間隔でも構いません。標準PlanのRaw ReadingはLocal保持します。Edge Agentは1時間ごとに
+`mbt_<UUIDv7>`形式のBatch IDを生成・永続化し、冪等なAggregateを送ります。
 
 ```text
 batchId, deviceId, projectId, sensorType, unit,
@@ -254,7 +284,9 @@ NORMAL -> ANOMALY_OPEN
 ANOMALY_OPEN -> RECOVERED
 ```
 
-Edge AgentがHysteresis、Cooldown、Local Rate Capを適用します。D1にはAppend-only Event MetadataとCurrent Stateを保存します。このWeb2 Alert Policyは運用上有用ですが、Daily Proofで使うMidnight Policyの代わりにはなりません。
+Edge AgentはTransition発生時に`aev_<UUIDv7>`形式のEvent IDを生成・永続化し、再送でも同じIDを使用します。
+また、Hysteresis、Cooldown、Local Rate Capを適用します。D1にはAppend-only Event MetadataとCurrent Stateを
+保存します。このWeb2 Alert Policyは運用上有用ですが、Daily Proofで使うMidnight Policyの代わりにはなりません。
 
 ## 8. Public Threshold Policy Lifecycle
 
@@ -282,6 +314,14 @@ PolicyAssignment {
 
 Policy／AssignmentはImmutableで、変更には新IDを使います。回路がどのRangeを適用したか第三者が識別できるようThresholdは公開します。DeviceのProof Job RequestにはPolicy／Assignment Identifierだけを含め、Boundは含めません。回路がAuthenticated Contract Ledger StateからPolicyを読み、Private Commitment OpeningへBindingします。
 
+Application Registry上で各Projectが表示できるのは、明示的に関連付けられたPolicyだけです。GUIから作る
+新規Policyは1つのOwner Projectを持ち、作成元Projectだけに関連付けます。登録済みDevice Assignmentに必要な
+既存の関連付けは保持します。認証済みProject Ownerは、関連する登録済みと処理中を合計して最大10 Policyを
+作れます。作成時はProject、Policy ID、名称、Mode、0.01 °C精度のCenti-degree BoundをFresh Lace署名へ
+Bindingします。WorkerはOperator限定Midnight登録をQueueへ投入し、Indexer確定後だけそのProjectへPolicyを
+公開します。新規ProjectはPolicy 0件から開始し、しきい値変更は既存Policy編集ではなく新しいImmutable
+Policy登録として行います。
+
 D1はAdmission前検査とGUI用にConfirmed Policy／Assignment MetadataをMirrorします。Proofの正本はMidnightであり、D1だけを変更しても不一致Proofは成功しません。
 
 各Assignmentは1つの登録済みDevice Commitmentだけに属します。1つのFleet Registry Contractで複数Deviceを扱います。期間付き再Assignmentにより将来のRental／工期管理へ回路変更なしで拡張できますが、自動Overlap Governanceは対象外です。
@@ -303,7 +343,7 @@ Private `DailyExtremaInput`はMeasurement Group／Device／Policy／Assignment B
 Default Proof Server Admission時間は02:00～06:00 JSTです。時間外もIngestion／Anomaly Alertは継続します。
 
 1. DeviceがJST日次をCloseし、Private 24 Slot Attestationを準備
-2. Deterministic `proofJobId`を作りPublic Metadataだけを送信
+2. `proofJobId`を`zjb_<UUIDv7>`として生成・永続化し、Public Metadataだけを送信する。再送でも同じIDを使う
 3. WorkerがD1 Policy／Assignment Mirrorを検査し、`daily_proof_jobs`へ`pending`で1件保存
 4. 営業時間内にCronがDue RowをConditional Claimし、Job参照をQueueへ送信
 5. Queue Consumerが短い`ready_for_input` Leaseを付与しContainerをWarm Up
@@ -351,7 +391,7 @@ Framework-free GUIをReview／撮影用にLocal Hostでき、Workerからも配�
 
 1. Device登録／認証
 2. Hourly Data受信
-3. Anomaly State表示
+3. 現在の正常／異常状態を取得
 4. Daily Proof Job要求／Admission
 5. Proof生成とDevice TX署名
 6. Midnight Attestation Confirmed
@@ -359,7 +399,7 @@ Framework-free GUIをReview／撮影用にLocal Hostでき、Workerからも配�
 管理者画面はHourly Operational Minimum／Maximum／Average／Count、Anomaly Marker、Observed／STOPPED時間、Proof／TX状態を表示できます。Raw SampleやPrivate Daily Openingは表示しません。
 時系列はJST日付ごとにまとめ、新しい日を初期表示し、その日の日次Proof操作を同じ画面に表示します。
 
-第三者画面は証明済みWITHIN／OUTSIDE／STOPPED Result、正確なClaim、Public Policy Mode／Bound／Unit／Version、Assignment、Commitment、Observed／STOPPED Count、Network、Contract Address、Attestation TXを表示します。Hourly Extrema／Nonceは表示せず、物理的完全性を示唆しません。
+第三者画面はTransaction ID／Hash／Block Heightが揃ったConfirmed Recordだけを一覧表示します。証明済みWITHIN／OUTSIDE／STOPPED Result、正確なClaim、Public Policy Mode／Bound／Unit／Version、Assignment、Commitment、Observed／STOPPED Count、Network、Contract Address、Attestation TX、実際のZKP生成日時を表示します。Hourly Extrema／Nonceは表示せず、物理的完全性を示唆しません。
 最初に日次Proof Jobを新しい順で表示し、選択した日付を直接開きます。
 
 第三者画面には、意図的に黒塗りした**元のセンサー値**欄を設け、**第三者には非公開／値を見せずに証明**と
@@ -380,12 +420,34 @@ Indeterminate Progress Indicator付きで実行します。
 Midnight Explorerへのリンクにします。ブラウザ上のデバイスはMidnightの取引データから確定トランザクションハッシュを
 取得して記録し、今後の確定済み記録でもEdge Deviceと同じExplorerリンクを提供します。
 
-Local Host時の管理者／第三者画面は、同期より先に現行のRedacted Local D1 Snapshotを表示します。最初の
-Data View表示時だけBackground同期を1回開始し、**再読込**で明示的に再試行します。同期中も現在のSnapshotを
-消さず、Indeterminate Progress Indicatorで処理中／成功／失敗を示すため、遅い同期をGUI Freezeと誤認させません。
-同じPage Session内のRoute変更ではImplicit同期を繰り返しません。
+WorkerはDevice、センサーデバイス管理者、第三者の全Workflowを同一Originで配信します。Browser Deviceの
+Configuration、Enrollment、Device-scoped History、Proof Admission、Public VerificationはLoopback Bridgeを
+呼びません。**再読込**は現行Worker／D1 Stateを取得します。Page全体を再読込した場合も、同じWalletを
+再接続すると、Wallet所有Project、選択Project／Policy、決定的Device登録、現在の正常／異常状態、時間別履歴、
+Proof／TX JobをWorker／D1から復帰します。Device Private Identityと生成Raw値／OpeningだけはそのBrowserの
+IndexedDBから復帰します。期限切れまたはOne-time Wallet署名は再利用しません。
 
-Cryptographically Validated Cloudflare Accessを設定するまで管理者EndpointはLoopback限定です。第三者Proof EndpointはPublicかつRedactedです。
+Browser登録の読取専用Device IDは、Lace公開検証鍵の識別子を使い
+`device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)`として決定的に導出します。
+同じWallet／Projectは常に同じDevice ID、別Walletまたは別Projectは別IDになります。Wallet秘密鍵やBrowser
+Storage値は導出に使いません。Workerも検証済みWallet KeyからIDを再計算し、不一致の要求を拒否します。
+
+Wallet接続後、Workerは別の5分間One-time Lace Challengeを検証し、24時間のOpaque Project Sessionを
+発行します。GUIはそのPublic Wallet識別子に関連付けられたProjectだけをプルダウンへ表示し、
+**＋ 新規追加**を提供します。Wallet 1つあたり最大10 ProjectをWorkerとD1 Triggerの両方で強制します。
+初回Project Sessionでは既存の審査用Projectを関連付けます。新規ProjectはPolicy 0件から開始します。
+Project OwnerはCompact Contractを再Deployせず、Projectごとに最大10件のImmutable Policyを登録できます。
+Project Session TokenはSHA-256 Hashだけを保存します。
+
+その後、Workerが5分間のOne-time Challengeを発行します。LaceはDevice ID、P-256 Key ID、Device
+Authority、選択済み登録Policy、Challenge、Nonce、TimestampのCanonical Messageへ署名します。Workerが
+署名を検証し、Lace Verification Key／ProjectごとにReview Device 1台を強制した後、Internal Operator Pathが
+既存Operator AuthorityとSponsor WalletでDevice／Device-bound AssignmentをMidnightへ登録します。Indexerで
+両方を確認した後だけP-256 KeyとD1 Mirrorを有効化します。Operator Secret／Sponsor SeedはBrowserへ返しません。
+
+センサーデバイス管理者Endpointは24時間Device Sessionを要求し、そのSessionのDevice、1時間集計、Anomaly、
+Proof／TX Stateだけを返します。Project全体のLegacy管理者EndpointはDeploy Hostから利用できません。
+第三者Proof EndpointはPublicかつRedactedです。
 
 ## 13. CostとScalability
 
@@ -415,12 +477,12 @@ Compact language  0.23
 daily schema      5
 circuit           3
 contract schema   3
-D1 migrations     0017_release_stale_sponsor_reservations.sqlまで
+D1 migrations     0020_browser_provisioning_progress.sqlまで
 ```
 
 旧Selected-Merkle-leaf／Singleton／WITHIN専用Fleet Registry Ledgerとは互換性がありません。採用には新Fleet Registry Deploy、
 運用前のOperator限定Device／Policy／Device-bound Assignment TX、管理TX Evidence付きD1 Migration／Mirror
-Sync、D1 Migration `0017`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
+Sync、D1 Migration `0020`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
 
 Wave 1 Acceptance：
 

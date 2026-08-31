@@ -59,13 +59,14 @@ These items use the contract capabilities above but do not require further circu
 
 | ID | Priority | Planned feature | Current state | Completion condition |
 | --- | --- | --- | --- | --- |
-| `FF-O01` | P0 | Loopback system-administration GUI | The Operator secret is held on the development/operations PC and administrative calls use commands or the limited local bridge. | A loopback-only GUI reads the local Operator private state and manages Device registration, Device Authority rotation, disabling, Owner Authority recovery, and Operator Authority rotation. The secret is not moved to Cloudflare. |
+| `FF-O01` | P0 | System-administration GUI | Commands retain rotation, disabling, recovery, and authority-management operations. The hosted review flow exposes only fixed Device/Assignment registration through an internal Operator path. | A separately protected GUI manages the remaining Operator operations with explicit authorization, audit evidence, and no browser access to the Operator secret. |
 | `FF-O02` | P0 | Device-owner threshold Frontend | Only the Operator can currently register Policies and Assignments. | The authenticated Device owner selects a Device, threshold, and effective period in the existing Frontend and explicitly approves the owner-authorized Midnight transition. The Browser, Backend, and Device never receive the Operator secret. |
 | `FF-O03` | P0 | One-step threshold change workflow | Policy registration, Assignment registration, and D1 synchronization are separate operations. | One owner action creates the new immutable Policy, replaces the active Assignment, waits for Midnight confirmation, and only then publishes a new D1 configuration revision. Partial failure remains visible and retryable. |
 | `FF-O04` | P1 | Startup configuration-revision synchronization | The authenticated configuration endpoint and monotonic revision exist, but installation is manually invoked. | On startup, the Edge Device compares the remote and locally verified revisions. It atomically installs a newer confirmed Policy/Assignment for its own Device, retains the previous version for historical work, and continues with the last verified unexpired configuration when offline. |
 | `FF-O05` | P1 | Scheduled daily proof submission | `device:submit` is operator-invoked, although Proof Job admission is scheduled. | A completed day is prepared and submitted automatically with idempotent retry, while manual execution remains available for recovery. |
 | `FF-O06` | P1 | Complete sponsored-transaction lifecycle | The exact transaction is retained and resumable while the Sponsor Wallet synchronizes; confirmed pending-file cleanup remains incomplete. | Confirmation removes or archives the pending file safely, and timeout, retry, and operator-visible failure states are monitored. |
 | `FF-O07` | P2 | Guided Device Authority rotation | The Device generates a replacement public enrollment and the development operator runs the rotation and D1 synchronization. | The local administration GUI coordinates Device-side secret generation, public enrollment transfer, Midnight rotation, D1 synchronization, and rollback-safe status reporting without transferring the Device secret. |
+| `FF-O08` | P1 | Sortable typed-ID migration | Current Device IDs are operator slugs, Batch/Event IDs embed timestamps, and Proof Job IDs are content-derived hashes. | New records use persisted UUIDv7 IDs with `dvc`, `zjb`, `mbt`, and `aev` prefixes; retries reuse the first ID; D1 separates `deviceCode`/`deviceName`; legacy and chain-bound records remain readable without silent rewriting; keyset pagination, index locality, restart recovery, and logical uniqueness are tested. |
 
 The Device never chooses its own threshold during proof submission. It receives only a Policy and
 Assignment already authorized by the owner and confirmed on Midnight. A new configuration becomes
@@ -80,7 +81,7 @@ owner and cannot change the threshold or the Device-authorized transaction.
 | ID | Priority | Planned feature | Boundary |
 | --- | --- | --- | --- |
 | `FF-P01` | P2 | Additional measurement types | Noise, vibration, humidity, and other measurements require explicit encoding, unit, policy, input-validation, and evidence work before support is claimed. |
-| `FF-P02` | P2 | Independent browser verification | The public view currently presents contract-confirmed evidence through the Backend. A future verifier should query the relevant Midnight state independently. |
+| `FF-P02` | P2 | Local and multi-source verifier hardening | The public view already queries the public Midnight Indexer and compares transaction/Contract state. A future verifier may execute the proof verifier locally and compare multiple independent Indexer sources. |
 | `FF-P03` | P2 | Multi-organization administration | Organization-specific authorization, tenant isolation, approval policy, and audit ownership must be defined. Direct organization-held on-chain authority would require a separate contract design; Backend-mediated roles do not. |
 
 ## 6. Planned implementation order
@@ -88,7 +89,10 @@ owner and cannot change the threshold or the Device-authorized transaction.
 1. Specify and implement `FF-C01` and `FF-C02`, including separate Operator, Owner, and Device authorities, together with rejection tests.
 2. Recompile Compact, regenerate all affected artifacts, update clients and D1 mirrors, and redeploy.
 3. Validate the new contract lifecycle on Preprod without treating local tests as network evidence.
-4. Implement the loopback system-administration GUI without moving the Operator secret to Cloudflare.
-5. Implement owner-authorized threshold changes, then publish confirmed configuration revisions for Edge startup synchronization.
-6. Add daily automation, sponsored-transaction cleanup, and monitoring.
-7. Add product-expansion items only after their proof and trust boundaries are specified.
+4. Before production identifiers and history are frozen, implement `FF-O08`, including the D1
+   migration, Device write-ahead persistence, compatibility reads, and controlled Device/Commitment
+   transition or a documented clean Preprod reset.
+5. Implement the loopback system-administration GUI without moving the Operator secret to Cloudflare.
+6. Implement owner-authorized threshold changes, then publish confirmed configuration revisions for Edge startup synchronization.
+7. Add daily automation, sponsored-transaction cleanup, and monitoring.
+8. Add product-expansion items only after their proof and trust boundaries are specified.

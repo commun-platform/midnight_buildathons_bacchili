@@ -3,7 +3,7 @@
 [日本語版](../ja/architecture/wave1_spec.md)
 
 Status: implementation baseline
-Last updated: 2026-08-29 JST
+Last updated: 2026-08-30 JST
 
 This is the normative Wave 1 product and implementation specification. If an older design note
 conflicts with this document, this document takes precedence.
@@ -50,7 +50,32 @@ value stream or separate premium proof capacity without changing the Wave 1 atte
 | Sponsor Wallet | Dedicated backend Midnight wallet that holds registered NIGHT, synchronizes DUST, adds only a DUST fee offer to a Device-bound transaction, and submits it. |
 | Operator Authority | Operator-only Compact authorization for Device lifecycle, policies, and assignments. |
 | Deployment wallet | Development-host wallet used to deploy/administer contracts. |
-| Proof Job | Idempotent D1 workflow record for admission, proof progress, and the attestation TX. |
+| ZK Job | Idempotent D1 workflow record for admission, proof progress, and the attestation TX. Existing API paths use the name `proof-jobs`. |
+
+### 2.1 Identifier formats
+
+System-generated history-record IDs use `<type-prefix>_<UUIDv7>`. The lowercase prefix is a
+three-to-five-letter abbreviation of the record type: `zjb` means ZK Job, `mbt` means Measurement
+Batch, and `aev` means Anomaly Event. The `z` in `zjb` belongs to ZK; it is not a common namespace.
+
+The producer creates and durably stores an ID once. Retries, process restarts, and Queue redelivery
+reuse that same ID. UUIDv7 makes records of the same type approximately sortable by creation time.
+Compared with random UUIDs or content hashes, this improves B-tree index locality and supports
+efficient ID-cursor pagination, while stable reuse makes retransmission idempotent. Exact
+chronological views still sort by the relevant field such as `createdAt`, `periodStart`, or
+`occurredAt`.
+
+Operational Edge Device provisioning uses a stable `deviceId` generated once with its Device Identity
+and reuses it across enrollment retries, re-enrollment, and authentication-key rotation. The review
+Browser Device is the deliberate exception: its ID is deterministically derived from the verified
+public Wallet key and Project as specified in section 12. Human-managed inventory values are
+separate: `deviceCode` is the equipment code and `deviceName` is the display name.
+
+Transition status as of 2026-08-30: the deployed format still uses an operator-provided Device slug,
+timestamp-based Batch/Event IDs, and a content-derived Proof Job ID. The convention above is the
+required migration target, not a claim that those deployed identifiers already conform. Migration
+must preserve an explicit mapping for existing records and must not silently reinterpret a former
+`deviceId` as the new `deviceCode`.
 
 ## 3. Exact proof claim and non-claims
 
@@ -175,6 +200,15 @@ proof. Starting operation therefore has no per-Device DUST-generation delay. It 
 active Device registration and assignment, public operation configuration, Proof Job admission,
 current contract-state lookup, proof generation, and Sponsor capacity.
 
+> **Container secret boundary:** the Docker build context and image contain application code,
+> dependencies, and compiled Compact prover/verifier artifacts only. They must not contain the
+> Sponsor seed, Operator Authority secret, `.env`, `.dev.vars`, wallet checkpoints, or wallet state.
+> In production, the Worker reads `SPONSOR_WALLET_SEED` and `OPERATOR_AUTHORITY_SECRET` from
+> Cloudflare Secret bindings and injects them into the private Sponsor Wallet Container environment
+> when the Container starts; the Container does not read the Cloudflare secret store directly. Local
+> development may use ignored `.dev.vars` values as the environment source, but those files must
+> never be committed or included in a Container image.
+
 During cold Sponsor synchronization, the one-minute development health Cron causes the Worker to save
 an encrypted R2 wallet checkpoint at most once every five minutes; after readiness the interval is 30
 minutes. An authenticated sponsorship retry may invoke the same stale-check without increasing that
@@ -277,7 +311,7 @@ proof:generate     transaction:submit  configuration:read  device:status
 ## 7. Sensor data and anomaly lifecycle
 
 Raw sampling may occur every few seconds. Standard-plan raw readings remain local. Once per hour, the
-Edge Agent sends an idempotent aggregate:
+Edge Agent creates and persists an `mbt_<UUIDv7>` Batch ID, then sends an idempotent aggregate:
 
 ```text
 batchId, deviceId, projectId, sensorType, unit,
@@ -303,9 +337,10 @@ NORMAL -> ANOMALY_OPEN
 ANOMALY_OPEN -> RECOVERED
 ```
 
-The Edge Agent applies hysteresis, cooldown, and a local rate cap. D1 stores append-only event metadata
-and current state. This Web2 alert policy is operationally useful but is not substituted for the
-Midnight policy used by the daily proof.
+The Edge Agent creates and persists an `aev_<UUIDv7>` Event ID when the transition occurs, and reuses
+it for retries. It also applies hysteresis, cooldown, and a local rate cap. D1 stores append-only
+event metadata and current state. This Web2 alert policy is operationally useful but is not
+substituted for the Midnight policy used by the daily proof.
 
 ## 8. Public threshold policy lifecycle
 
@@ -335,6 +370,15 @@ Policies and assignments are immutable. Changes use new IDs. Thresholds are publ
 verifier must be able to identify the exact range the circuit enforced. The device's Proof Job
 request contains policy and assignment identifiers but no bounds. The circuit loads the policy from
 the authenticated contract ledger state and binds it to the private commitment opening.
+
+Each Project exposes only Policies explicitly associated with it in the application registry. Every
+new GUI-created Policy has one owning Project and is associated only with that Project; existing
+associations are retained for already registered Device assignments. An authenticated Project owner
+may create up to ten associated registered plus pending Policies. Creation binds Project, Policy ID,
+name, mode, and 0.01 °C centi-degree bounds to a fresh Lace signature. The Worker queues the
+Operator-only Midnight registration and publishes the Policy to that Project only after Indexer
+confirmation. A new Project starts with no Policy; changing a threshold creates a new immutable
+Policy rather than editing an existing one.
 
 D1 mirrors confirmed policy/assignment metadata for pre-admission checks and the GUI. Midnight remains
 the proof source of truth; changing only D1 cannot make a mismatched proof pass.
@@ -372,7 +416,8 @@ The default Proof Server admission window is 02:00–06:00 JST. Ingestion and an
 outside the window.
 
 1. The device closes the JST day and prepares the private 24-slot attestation.
-2. It creates a deterministic `proofJobId` and posts only public metadata.
+2. It creates and persists `proofJobId` as `zjb_<UUIDv7>`, then posts only public metadata. A retry
+   reuses that ID.
 3. The Worker checks the D1 policy/assignment mirror and stores one `daily_proof_jobs` row as `pending`.
 4. During the window, Cron conditionally claims due rows and sends job references to Queue.
 5. The Queue consumer grants a short `ready_for_input` lease and warms the Container.
@@ -435,7 +480,7 @@ Administrator stepper:
 
 1. Device registered/authenticated
 2. Hourly data received
-3. Anomaly state available
+3. Current normal/anomaly state available
 4. Daily Proof Job requested/admitted
 5. Proof generated and device transaction signed
 6. Midnight attestation confirmed
@@ -445,9 +490,11 @@ observed/STOPPED hours, and Proof/TX state. It does not expose raw samples or th
 It groups the time series by JST date, selects the newest date by default, and places the applicable
 daily Proof action beside that date.
 
-The public verifier shows the proven WITHIN/OUTSIDE/STOPPED result, exact claim, public policy
+The public verifier lists only confirmed records whose transaction ID, hash, and block height are
+available. It shows the proven WITHIN/OUTSIDE/STOPPED result, exact claim, public policy
 mode/bounds/unit/version, assignment, commitment, observed/STOPPED count, network, contract address,
-and attestation TX. It never shows hourly extrema or nonce and must not imply physical completeness.
+attestation TX, and the actual ZKP generation timestamp. It never shows hourly extrema or nonce and
+must not imply physical completeness.
 It starts with a newest-first daily Proof list and opens the selected date directly.
 
 The verifier deliberately includes a visually redacted **Raw Sensor Values** panel labeled **HIDDEN
@@ -471,14 +518,42 @@ Explorer when the corresponding public value is available. A Browser Device reco
 transaction hash returned by the Midnight ledger transaction object so future confirmed records can
 provide the same link as Edge Device records.
 
-When locally hosted, the administrator and verifier render the current redacted local D1 snapshot
-before synchronization. The first data-view load starts one background synchronization; **Refresh**
-starts an explicit retry. An indeterminate progress indicator keeps the current snapshot visible and
-reports success or failure, so a slow synchronization cannot make the GUI appear frozen. Route changes
-within the same page session do not start another implicit synchronization.
+The Worker serves the complete Device, sensor-administrator, and third-party workflows from one
+origin. Browser Device configuration, enrollment, Device-scoped history, Proof admission, and public
+verification therefore never call a loopback bridge. **Refresh** reads the current Worker/D1 state.
+After a full page reload, reconnecting the same Wallet restores Wallet-owned Projects, the selected
+Project/Policy, deterministic Device registration, current anomaly state, hourly history, and Proof/TX
+Jobs from Worker/D1. Device private identity and generated raw values/openings are restored only from
+that browser's IndexedDB. No expired or one-time Wallet signature is replayed.
 
-The administrator endpoint is loopback-only until a cryptographically validated Cloudflare Access
-layer is configured. The third-party proof endpoint remains public and redacted.
+Browser registration deterministically derives the read-only Device ID as
+`device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)`, where
+`walletKeySha256` identifies the public Lace verification key. This is address-like: the same Wallet
+and project always produce the same Device ID, while another Wallet or project produces another ID.
+No Wallet private key or browser storage value participates in the derivation. The Worker recomputes
+the ID from the verified Wallet key and rejects a caller-supplied mismatch.
+
+After the Wallet connection, the Worker verifies a separate five-minute one-time Lace challenge and
+issues a 24-hour opaque Project Session. The GUI lists only Projects associated with that public
+Wallet identifier, selects them from a dropdown, and provides **+ New Project**. The Worker and a D1
+trigger both enforce at most ten Projects per Wallet. The existing review Project is associated on
+the Wallet's first Project Session. Each newly created Project starts with no Policy. A Project owner
+can then register up to ten immutable, Project-scoped Policies without redeploying the Compact
+contract. Project Session tokens are stored only as SHA-256 hashes.
+
+Registration then starts with a five-minute, one-time Worker challenge. Lace signs the canonical
+Device ID, P-256 key ID, Device Authority, selected registered Policy, challenge, nonce, and timestamp.
+The Worker verifies that signature and enforces one review Device per Lace verification key and
+Project. Its
+internal Operator path then registers the Device and Device-bound Policy Assignment on Midnight with
+the existing Operator Authority and Sponsor Wallet. Only after both records are visible through the
+Indexer does the Worker activate the P-256 key and D1 mirror. The Operator secret and Sponsor seed are
+never returned to the browser.
+
+The sensor-administrator endpoint requires the Device's 24-hour Session and returns only that
+Session's Device, hourly aggregates, anomaly transitions, and Proof/TX state. The project-wide legacy
+administrator endpoint remains unavailable from deployed hosts. The third-party proof endpoint is
+public and redacted.
 
 ## 13. Cost and scalability
 
@@ -518,13 +593,13 @@ Compact language  0.23
 daily schema      5
 circuit           3
 contract schema   3
-D1 migrations     through 0017_release_stale_sponsor_reservations.sql
+D1 migrations     through 0020_browser_provisioning_progress.sql
 ```
 
 The prior selected-Merkle-leaf, singleton, and WITHIN-only Fleet Registry ledgers are incompatible.
 Adoption requires a new Fleet
 Registry deployment, Operator-only Device/Policy/Device-bound Assignment transactions before
-operation, D1 migrations through `0017`/mirror sync with administration TX evidence, and public contract-address
+operation, D1 migrations through `0020`/mirror sync with administration TX evidence, and public contract-address
 update. The old fixed 24/96/1,440 `daily-attestation` profiles are development-only benchmarks.
 
 Wave 1 is accepted when:
