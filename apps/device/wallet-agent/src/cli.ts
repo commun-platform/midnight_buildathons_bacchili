@@ -186,6 +186,7 @@ async function runSubmit(
       deviceTransactionHash: sponsorship.deviceTransactionHash,
       deviceTransactionBytes: sponsorship.deviceTransactionBytes,
       transactionBytes: sponsorship.transactionBytes,
+      proofGeneratedAt: null,
       proofServerRequests: [],
     };
     await reportProofTransaction(network, admission.proofJobId, 'attest', attest);

@@ -112,6 +112,7 @@ export interface TransactionSummary {
   deviceTransactionHash: string;
   deviceTransactionBytes: number;
   transactionBytes: number;
+  proofGeneratedAt: string | null;
   proofServerRequests: ProofServerRequestMetric[];
 }
 
@@ -119,6 +120,7 @@ export interface ProofServerRequestMetric {
   endpoint: 'check' | 'prove';
   requestBytes: number;
   durationMs: number;
+  completedAt: string;
 }
 
 export interface SponsoredTransactionConfirmation {
@@ -206,6 +208,9 @@ function summarizeTransaction(
     deviceTransactionHash: finalized.deviceTransactionHash,
     deviceTransactionBytes: finalized.deviceTransactionBytes,
     transactionBytes: finalized.sponsorship?.transactionBytes ?? finalized.deviceTransactionBytes,
+    proofGeneratedAt: [...proofServerRequests].reverse().find((request) => (
+      request.endpoint === 'prove'
+    ))?.completedAt ?? null,
     proofServerRequests,
   };
 }
@@ -301,6 +306,7 @@ export function createProviders(
         endpoint: 'check' as const,
         requestBytes,
         durationMs: Math.round(performance.now() - started),
+        completedAt: new Date().toISOString(),
       });
       return result;
     },
@@ -321,6 +327,7 @@ export function createProviders(
         endpoint: 'prove' as const,
         requestBytes,
         durationMs: Math.round(performance.now() - started),
+        completedAt: new Date().toISOString(),
       });
       return result;
     },
