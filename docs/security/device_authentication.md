@@ -85,7 +85,7 @@ Contract deployment and fleet administration use the separate development wallet
 ![Sequence showing where the Bearer Session, Device Contract Authority, Device transaction identity, and public Midnight state are used](../assets/review/daily-attestation-key-sequence-en.png)
 
 The Bearer Session authorizes Backend API calls. The Device Contract Authority authorizes the Compact
-call. The Device transaction identity or Lace binds the proved call with no fee. The Sponsor Wallet
+call. The field transaction identity or Browser Wallet binds the proved call with no fee. The Sponsor Wallet
 then adds only DUST and submits the already-bound transaction. These credentials are separate: the
 Sponsor receives no Device Identity, Contract Authority, private extrema, nonce, or Compact private
 state. The trusted Proof Backend sees the private proving body in transit but stores no body; the

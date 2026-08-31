@@ -3,30 +3,37 @@
 [日本語版](../ja/architecture/wave1_spec.md)
 
 Status: implementation baseline
-Last updated: 2026-08-30 JST
+Last updated: 2026-08-31 JST
 
 This is the normative Wave 1 product and implementation specification. If an older design note
 conflicts with this document, this document takes precedence.
 
 ## 1. Product objective
 
-Wave 1 authenticates an Edge Device, stores cost-bounded operational summaries, and records a
-Midnight zero-knowledge claim for one day without publishing the hourly sensor extrema.
+Wave 1 validates the core proof value with a simulated measurement source in a user-authorized
+browser client. It creates a synthetic daily measurement record and records a Midnight
+zero-knowledge claim without publishing the private hourly extrema to third parties. Raw synthetic
+readings and the private opening remain in browser-private source state; authorized hourly summaries
+are stored by the trusted managed backend for the operator workflow.
 
-The standard plan must:
+The primary Wave 1 review path must:
 
-- authenticate each device with a unique ECDSA P-256 identity;
-- use a revocable 24-hour opaque Session instead of the long-term key on normal API calls;
-- keep Device Identity and Device Contract Authority secrets on the Edge Device;
-- retain raw readings locally rather than writing every sample to Cloudflare;
-- upload one hourly aggregate and immediate anomaly state transitions;
-- admit proof work through the 02:00–06:00 JST processing window;
-- use one fixed 24-slot circuit for 24, 96, 1,440, or denser daily samples;
+- use a user-authorized browser client as the simulated measurement source;
+- register the proof subject and public threshold condition before the measurement period;
+- generate a synthetic daily record and reduce it to one fixed 24-slot private proof input;
+- upload its bounded hourly summaries as authorized operational records to the trusted managed backend;
 - use only the public threshold policy registered on Midnight before operation;
 - treat an hour without readings as STOPPED rather than fraudulent;
-- have the Device prove, authorize, and bind one Midnight transaction per daily attestation;
-- have a dedicated Sponsor Wallet add only the DUST fee and submit that bound transaction; and
-- provide separate sensor-administrator and third-party-verifier views.
+- generate the proof through the trusted managed backend;
+- obtain explicit user authorization for the proof transaction without requiring the reviewer to
+  manage the transaction fee;
+- record the public result and evidence identifiers on Midnight; and
+- combine operator and third-party verification steps in one review-oriented GUI.
+
+The repository also contains field-runtime authentication, collection, transaction, packaging, and
+recovery implementations. They provide integration evidence and a migration base for Wave 2, but
+autonomous long-running field operation and production role separation are not Wave 1 completion
+claims.
 
 Continuous real-time values are outside the standard plan. A future premium plan may add a latest
 value stream or separate premium proof capacity without changing the Wave 1 attestation claim.
@@ -129,10 +136,11 @@ Edge Device
 ├ Use the authenticated Cloudflare Proof Server for the contract proof
 └ Bind the proved transaction without NIGHT, DUST generation, or DUST synchronization
 
-Browser review Device
-├ Keep its Device Identity and private daily opening in browser-private storage
+Browser review client
+├ Act as the simulated measurement source for the primary Wave 1 review path
+├ Keep its proof authority and private daily opening in browser-private storage
 ├ Use the authenticated Cloudflare Proof Server for the contract-circuit proof
-└ Use Lace to approve and bind the transaction with `payFees: false`
+└ Use a user-controlled Midnight account to approve and bind the transaction without paying fees
 
 Cloudflare
 ├ Worker: authentication, authorization, APIs, admission, GUI
@@ -153,7 +161,7 @@ Device Identity, Session, and private opening only in browser-private storage wh
 Device workflow; none of them is returned by a public verification API.
 
 The Edge Wallet Agent attaches the Device Session Token and `X-Proof-Job-Id` to the authenticated
-contract proof. It then binds the proved, value-neutral transaction without DUST. Lace follows the
+contract proof. It then binds the proved, value-neutral transaction without DUST. The browser review client follows the
 same separation through `balanceUnsealedTransaction(..., { payFees: false })`. The resulting
 serialized finalized transaction is already bound to the Device-authorized contract call before it
 crosses the sponsorship boundary.
@@ -190,7 +198,7 @@ mutations remain serialized.
 | Flow | Contract-circuit proof | Device binding/approval | DUST fee | TX submission |
 | --- | --- | --- | --- | --- |
 | Edge Device | Authenticated Cloudflare Proof Server Container | Edge Wallet Agent, no fee | Sponsor Wallet | Sponsor Wallet to Midnight |
-| Browser review Device with Lace | Authenticated Cloudflare Proof Server Container | Lace with `payFees: false` | Sponsor Wallet | Sponsor Wallet to Midnight |
+| Browser review client with a user-controlled Wallet | Authenticated Cloudflare Proof Server Container | Wallet with `payFees: false` | Sponsor Wallet | Sponsor Wallet to Midnight |
 
 The Proof Server Container only generates proofs and holds no Midnight wallet key. The separate
 Sponsor Wallet Container holds only sponsorship key material; it receives no Device Identity,
@@ -375,7 +383,7 @@ Each Project exposes only Policies explicitly associated with it in the applicat
 new GUI-created Policy has one owning Project and is associated only with that Project; existing
 associations are retained for already registered Device assignments. An authenticated Project owner
 may create up to ten associated registered plus pending Policies. Creation binds Project, Policy ID,
-name, mode, and 0.01 °C centi-degree bounds to a fresh Lace signature. The Worker queues the
+name, mode, and 0.01 °C centi-degree bounds to a fresh Wallet signature. The Worker queues the
 Operator-only Midnight registration and publishes the Policy to that Project only after Indexer
 confirmation. A new Project starts with no Policy; changing a threshold creates a new immutable
 Policy rather than editing an existing one.
@@ -422,7 +430,7 @@ outside the window.
 4. During the window, Cron conditionally claims due rows and sends job references to Queue.
 5. The Queue consumer grants a short `ready_for_input` lease and warms the Container.
 6. The Wallet Agent polls its job and streams private `/check` and `/prove` bodies when admitted.
-7. The Device or Lace binds the proved transaction without paying fees and uploads that finalized
+7. The field transaction agent or Browser Wallet binds the proved transaction without paying fees and uploads that finalized
    serialized transaction once. The Worker stores it in private R2, records `awaiting_sponsor` in D1,
    enqueues only the Job reference, and returns `202 Accepted`.
 8. The Worker reserves the authenticated Device's idempotent daily sponsorship slot in D1. An
@@ -528,12 +536,12 @@ that browser's IndexedDB. No expired or one-time Wallet signature is replayed.
 
 Browser registration deterministically derives the read-only Device ID as
 `device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)`, where
-`walletKeySha256` identifies the public Lace verification key. This is address-like: the same Wallet
+`walletKeySha256` identifies the public Wallet verification key. This is address-like: the same Wallet
 and project always produce the same Device ID, while another Wallet or project produces another ID.
 No Wallet private key or browser storage value participates in the derivation. The Worker recomputes
 the ID from the verified Wallet key and rejects a caller-supplied mismatch.
 
-After the Wallet connection, the Worker verifies a separate five-minute one-time Lace challenge and
+After the Wallet connection, the Worker verifies a separate five-minute one-time Wallet challenge and
 issues a 24-hour opaque Project Session. The GUI lists only Projects associated with that public
 Wallet identifier, selects them from a dropdown, and provides **+ New Project**. The Worker and a D1
 trigger both enforce at most ten Projects per Wallet. The existing review Project is associated on
@@ -541,9 +549,9 @@ the Wallet's first Project Session. Each newly created Project starts with no Po
 can then register up to ten immutable, Project-scoped Policies without redeploying the Compact
 contract. Project Session tokens are stored only as SHA-256 hashes.
 
-Registration then starts with a five-minute, one-time Worker challenge. Lace signs the canonical
+Registration then starts with a five-minute, one-time Worker challenge. The Browser Wallet signs the canonical
 Device ID, P-256 key ID, Device Authority, selected registered Policy, challenge, nonce, and timestamp.
-The Worker verifies that signature and enforces one review Device per Lace verification key and
+The Worker verifies that signature and enforces one review Device per Wallet verification key and
 Project. Its
 internal Operator path then registers the Device and Device-bound Policy Assignment on Midnight with
 the existing Operator Authority and Sponsor Wallet. Only after both records are visible through the
@@ -593,29 +601,34 @@ Compact language  0.23
 daily schema      5
 circuit           3
 contract schema   3
-D1 migrations     through 0020_browser_provisioning_progress.sql
+D1 migrations     through 0022_project_policies.sql
 ```
 
 The prior selected-Merkle-leaf, singleton, and WITHIN-only Fleet Registry ledgers are incompatible.
 Adoption requires a new Fleet
 Registry deployment, Operator-only Device/Policy/Device-bound Assignment transactions before
-operation, D1 migrations through `0020`/mirror sync with administration TX evidence, and public contract-address
+operation, D1 migrations through `0022`/mirror sync with administration TX evidence, and public contract-address
 update. The old fixed 24/96/1,440 `daily-attestation` profiles are development-only benchmarks.
 
-Wave 1 is accepted when:
+Wave 1 is accepted when the review-oriented PoC demonstrates that:
 
-- installer-generated Device Identity enrollment and 24-hour Session authentication succeed;
-- hourly aggregate upload and immediate anomaly transitions are visible to an administrator;
-- one circuit accepts summaries derived from 24, 96, and 1,440 raw samples;
+- a user-authorized browser client can create or restore a simulated measurement source;
+- the proof subject and threshold condition are registered before the selected measurement day;
+- a synthetic daily record is reduced to the fixed private input without exposing its values in the
+  public verification view;
+- its hourly summaries are available only through the authorized operator workflow;
 - STOPPED hours succeed, truthful WITHIN and OUTSIDE results are recorded, and malformed STOPPED or
   observed slots fail;
 - claiming WITHIN for outside data or OUTSIDE for within data fails;
-- the device cannot supply alternate threshold bounds;
+- the proof request cannot supply alternate threshold bounds;
 - policy, assignment, device, period, presence, count, and commitment tampering fail;
-- Device-authorized, Sponsor-funded WITHIN and OUTSIDE Preprod attestation TXs are confirmed and shown in the public verifier;
+- user-authorized, service-funded Preprod attestation transactions are confirmed and shown in the
+  public verifier;
 - the public verifier reveals policy and status but no hourly extrema or nonce; and
 - measured cost/version records are added to the benchmark documentation.
 
-Future items include TPM/Secure Element storage, remote attestation, multi-wallet Sponsor sharding,
-premium real-time values, premium proof queues, multi-tenant assignment governance, and remote
-administrator Access.
+Wave 2 adds autonomous field operation, production role separation, authentication and authorization,
+audit and diagnostic logs, monitoring, recovery, and a system-operations dashboard. Wave 3 adds
+hardware-protected identity, execution and calibration provenance, commercial multi-organization
+operation, and PMF validation. The canonical plan is
+[`three_wave_roadmap.md`](three_wave_roadmap.md).

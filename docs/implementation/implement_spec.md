@@ -64,7 +64,7 @@ excluded. A fully STOPPED day is displayed as STOPPED from its zero observed cou
 | D1 schema | Migrations `0010`–`0022` add policy/job data, the fail-closed Fleet Registry mirror, Device operation-configuration revisions, the claimed threshold result, asynchronous sponsored-submission state, stable measurement-group idempotency, idempotent JST-day Sponsor reservations, contract history, Wallet-owned Projects, Project-scoped Policy operations, browser enrollment state, actual ZKP generation time, and durable provisioning progress. |
 | Proof admission | `POST /api/v1/proof-jobs` validates authenticated device, registered assignment metadata, and the claimed Boolean result, but accepts no threshold bounds. Cron admits jobs during 02:00–06:00 JST. |
 | Proof generation | The Wallet Agent streams private proving requests through authenticated Worker routes to the Container; bodies are not persisted. |
-| Device transaction binding | The Edge Device transaction identity, or Lace with `payFees: false`, binds the proved `submitDailyAttestation` call without NIGHT or DUST. |
+| Device transaction binding | The field transaction identity, or a compatible Browser Wallet with `payFees: false`, binds the proved `submitDailyAttestation` call without NIGHT or DUST. |
 | Sponsored submission | `POST /api/v1/proof-jobs/:proofJobId/sponsor` atomically reserves quota, binds one TX hash, stores its private bytes in R2, records `awaiting_sponsor`, enqueues only the Job ID, and returns `202`. Identical retries are stopped before quota, R2, Queue, or Wallet work and return the existing state; conflicting reuse returns `409`. After Wallet synchronization, the Sponsor consumer revalidates the artifact, adds only DUST, submits, and persists status for Device polling. The Device client polls and can resume from its retained identical bytes. |
 | Administrator GUI | The Device-Session-protected dashboard groups that Device's hourly operational aggregates by JST date, marks threshold outliers, shows the explicit current normal/anomaly state, and provides the matching daily Proof action and Proof/TX state. |
 | Third-party GUI | The public endpoint/view lists redacted daily Proof Jobs newest-first and opens a date directly, then shows proven WITHIN/OUTSIDE/STOPPED result, bounds, exact claim, commitment, assignment, actual ZKP generation time, network, contract, and attestation TX without extrema. |
@@ -98,10 +98,10 @@ GET  /api/v1/projects                             Wallet-owned Project list
 POST /api/v1/projects                             create Project; maximum 10 per Wallet
 POST /api/v1/policies/challenge                   one-time Project Policy challenge
 GET  /api/v1/policies                             Project-scoped registered/pending Policies
-POST /api/v1/policies                             Lace-signed immutable Policy registration
+POST /api/v1/policies                             Wallet-signed immutable Policy registration
 GET  /api/v1/policy-operations/:operationId       asynchronous Policy progress
 POST /api/v1/provisioning/challenge               five-minute one-time challenge
-POST /api/v1/provisioning/devices                 Lace-signed Worker enrollment
+POST /api/v1/provisioning/devices                 Wallet-signed Worker enrollment
 GET  /api/v1/provisioning/operations/:operationId token-protected asynchronous progress
 GET  /api/v1/device/configuration                 authenticated Device only
 GET  /api/v1/device/dashboard                     authenticated Device only; same Device only

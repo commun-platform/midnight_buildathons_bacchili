@@ -2,7 +2,7 @@
 
 [English](../../implementation/future_features.md)
 
-状態：2026-08-30 JST時点の将来計画。現在の実装済み機能には含みません。
+状態：2026-08-31 JST時点の将来計画。現在の実装済み機能には含みません。
 製品：BACCHIRI!━━Verifiable Measurement Layer
 
 ## 1. 目的
@@ -12,6 +12,8 @@
 影響するため、長期運用するコントラクトを配備する前に優先して設計します。
 
 本書に記載する項目は、現在の実装済み機能を示すものではありません。
+製品・事業の到達成果は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)を正本とします。本書はその成果を
+実装作業へ展開するものであり、ロードマップを置き換えるものではありません。
 
 ## 2. コントラクトを先に変更する項目
 
@@ -51,13 +53,13 @@
 | --- | --- | --- | --- |
 | `FF-C03` | 無効化したデバイスの再有効化 | 現在は対応予定なし。新しいコミットメントと権限を持つ代替デバイスとして再登録します。 | 誤操作後も同じデバイス識別子を維持する運用要件が生じた場合に、専用の復旧回路を検討します。 |
 
-## 4. Frontend・ローカル管理・運用のバックログ
+## 4. Frontend・管理・運用のバックログ
 
 次の項目は上記コントラクト機能を利用しますが、それ以上の回路変更は必要としません。
 
 | ID | 優先度 | 将来機能 | 現在の状態 | 完了条件 |
 | --- | --- | --- | --- | --- |
-| `FF-O01` | P0 | システム管理画面 | 権限交換、無効化、復旧、運用管理者権限管理はCommandに残します。Hosted Review Flowが公開するのはInternal Operator Pathによる固定Device／Assignment登録だけです。 | 別途保護したGUIが残りのOperator操作を明示認可・Audit Evidence付きで管理し、BrowserへOperator Secretを渡しません。 |
+| `FF-O01` | P0 | システム管理画面 | 権限交換、無効化、復旧、運用管理者権限管理はCommandに残します。Hosted Review Flowが公開するのはInternal Operator Pathによる固定Device／Assignment登録だけです。 | 別途保護したSystem Operator Applicationが残りの操作を明示認可・Audit Evidence付きで管理し、BrowserへOperator Secretを渡しません。 |
 | `FF-O02` | P0 | デバイス所有者向けしきい値画面 | 現在は運用管理者だけがしきい値と適用設定を登録できます。 | 認証済み所有者が既存Frontendでデバイス、しきい値、有効期間を選び、所有者権限によるMidnight変更を明示承認します。ブラウザ、バックエンド、デバイスへ運用管理者秘密値は渡しません。 |
 | `FF-O03` | P0 | 1操作のしきい値変更 | しきい値登録、適用設定登録、D1同期は別々の操作です。 | 所有者の1操作で、新しい変更不可のしきい値作成、正式な適用設定の交換、Midnight確定待ちを行い、確定後だけD1の設定Revisionを公開します。途中失敗は確認・再試行できます。 |
 | `FF-O04` | P1 | 起動時の設定Revision同期 | 認証済み設定取得APIと単調増加するRevisionはありますが、デバイスへの導入は手動実行です。 | エッジデバイス起動時にCloud側とローカルの確認済みRevisionを比較します。自分のデバイスに紐付く確定済みPolicy／Assignmentだけを原子的に導入し、過去処理用に旧版を保持します。オフライン時は最後に確認済みで期限内の設定を使います。 |
@@ -65,6 +67,10 @@
 | `FF-O06` | P1 | スポンサー取引の完了処理 | ウォレット同期中も同じ取引を保留・再開できますが、確定後の保留ファイル削除は未完了です。 | 確定後に保留ファイルを安全に削除または保管し、時間切れ、再試行、運用者向け失敗状態を監視できます。 |
 | `FF-O07` | P2 | デバイス権限交換の案内機能 | デバイスが新しい公開登録情報を生成し、開発PCで交換とD1同期を実行します。 | ローカル管理画面が、デバイス側の秘密値生成、公開情報の受け渡し、Midnight交換、D1同期、失敗時の状態表示を、秘密値を転送せず一連で案内します。 |
 | `FF-O08` | P1 | Sortableな型付きIDへの移行 | 現行Device IDはOperator入力のSlug、Batch／Event IDはTimestamp埋込み、Proof Job IDは内容Hashです。 | 新規Recordを`dvc`、`zjb`、`mbt`、`aev` Prefix付きの永続化したUUIDv7とし、Retryでは初回IDを再利用します。D1で`deviceCode`／`deviceName`を分離し、既存およびChain Bind済みRecordを暗黙に書き換えず読み取れる状態を維持します。Keyset Pagination、Index局所性、再起動復旧、論理一意性をTestします。 |
+| `FF-O09` | P0 | 本番Role・Application分離 | Wave 1は審査のため運用操作と第三者検証を一つにまとめています。 | Operator、第三者Verifier、System Operatorが、最小権限の別Applicationまたは保護Routeを使います。 |
+| `FF-O10` | P0 | 組織・Project・Role認可 | Wave 1のOwnershipと審査認可はPoC範囲です。 | 全API／Workflow遷移で組織、Project、Role Claimを強制し、Tenant分離とNegative Authorization Testを実施します。 |
+| `FF-O11` | P0 | 監査・解析・運用ダッシュボード | Logと処理状態は主に開発・審査用途です。 | Security上重要な操作のAudit Trail、秘匿化済み構造化Log、Metric、Health、Queue Depth、Retry、Alert、Recovery Controlを認可済みSystem Operatorが確認できます。 |
+| `FF-O12` | P1 | パートナーPilot運用 | Wave 1では実Partner業務を本番Serviceとして運用していません。 | 実際の現場業務を合意期間運用し、信頼性、支援工数、原価、顧客価値、価格評価を測定します。 |
 
 デバイスは証明提出時にしきい値を選びません。所有者が認可し、Midnightで確定済みのしきい値と適用設定だけを
 受け取ります。新しい設定は次の計測期間境界から有効とし、保留中または過去期間の証明は元の版を維持します。
@@ -79,15 +85,26 @@
 | `FF-P01` | P2 | 計測種別の追加 | 騒音、振動、湿度などは、値の変換、単位、しきい値、入力検査、検証証拠を個別に定義してから対応済みとします。 |
 | `FF-P02` | P2 | Local／複数Source照合の強化 | 公開画面はPublic Midnight Indexerへ問い合わせてTX／Contract Stateを照合済みです。将来はBrowser内Proof Verifier実行と複数の独立Indexer Source比較を追加できます。 |
 | `FF-P03` | P2 | 複数組織の管理 | 組織別認可、テナント分離、承認規則、監査責任を定義します。組織がオンチェーン権限を直接持つ場合は別のコントラクト設計が必要ですが、バックエンド経由の権限管理だけなら不要です。 |
+| `FF-P04` | P1 | Hardware保護Identityと来歴 | 持ち出せないIdentity、承認済みSoftware／Configuration Evidence、検証可能な校正・保守・交換・更新履歴を追加します。物理計測値の真実性まで証明するとは主張しません。 |
+| `FF-P05` | P1 | 商用Service Control | 複数組織で反復運用するためのSLA、Backup／Disaster Recovery、利用量計測、Plan、Billing、Supportを追加します。 |
 
-## 6. 実装予定順
+## 6. 事業検証バックログ
+
+| 段階 | 完了Evidence |
+| --- | --- |
+| Wave 2 Partner Pilot | 既存事業者が合意期間中、自律生成された日次証明を既存業務で使い、信頼性、支援工数、運用原価、顧客価値、成立価格を測定できる。 |
+| Wave 3 PMF | 複数の有償顧客が反復利用し、継続売上が存在し、少なくとも1社が契約更新または利用拡大し、Unit Economicsが持続可能である。 |
+
+## 7. 実装予定順
 
 1. 運用管理者、デバイス所有者、デバイスの権限分離を含め、`FF-C01`と`FF-C02`を拒否テストと合わせて仕様化・実装します。
 2. Compactを再コンパイルし、生成物、Client、D1ミラーを更新して再配備します。
 3. ローカルテストとネットワーク証拠を区別し、新しいコントラクトのライフサイクルをPreprodで確認します。
 4. 本番ID／履歴を固定する前に`FF-O08`を実装します。D1 Migration、DeviceでのWrite-ahead永続化、
    旧形式の互換Read、管理されたDevice／Commitment移行、または明記したPreprod Clean Resetを含めます。
-5. 運用管理者秘密値をCloudflareへ移さず、ローカルのシステム管理画面を実装します。
-6. 所有者によるしきい値変更を実装し、Midnight確定後に設定Revisionを公開して起動時同期へつなげます。
-7. 日次自動実行、スポンサー取引の完了処理、監視を追加します。
-8. 製品拡張は、証明範囲と信頼境界を定義してから追加します。
+5. 本番Role／Application分離、組織／Project／Role認可、保護されたSystem Operations Applicationを実装し、Operator SecretをBrowserへ公開しません。
+6. Audit Trail、秘匿化済み解析Log、Metric、Health、Queue／Retry可視化、Alert、Recovery Controlを追加します。
+7. 所有者によるしきい値変更を実装し、Midnight確定後に設定Revisionを公開して現場起動時同期へつなげます。
+8. 日次自動実行、スポンサー取引の完了処理、制御されたUpdate／Rollbackを追加します。
+9. Wave 2 Partner Pilotを行い、信頼性、支援、原価、価値、価格の実測をWave 3投資判断に使います。
+10. Hardware保護Identity、Lifecycle来歴、商用Service Controlを追加し、継続売上、契約更新、利用拡大、Unit Economicsを確認してからPMFを主張します。

@@ -15,8 +15,7 @@
 | 審査成果物 | 文書 |
 | --- | --- |
 | 提出文 | [Wave 1提出文](submission/submission_copy.md) |
-| 編集用スライド | [日本語PPTX](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) |
-| 閲覧用スライド | [日本語PDF](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
+| 日本語Technical Reference | [PPTX](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) — 提出対象は最終英語9枚 |
 | Cloudflare UC別技術補足 | [説明](architecture/cloudflare_use_cases.md)・[PPTX](submission/deck/cloudflare-use-cases-ja.pptx)・[PDF](submission/deck/cloudflare-use-cases-ja.pdf) |
 | 主張と検証証拠 | [証拠対応表](submission/evidence_matrix.md) |
 | Wave進捗 | [Wave 1進捗](submission/wave1_progress.md) |
@@ -33,7 +32,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 既存の計測機器と販売・レンタル網を使う現場実証に向け、業界事業者との協議を進めています。これは事業化の進捗であり、完了済みの技術検証ではありません。
 
-このシステムの要点は、**生のセンサー値を公開せず、提出された時間別の最小値・最大値が、運用開始前に登録したしきい値の範囲内かどうかだけを証明する**ことです。エッジデバイスは生のセンサー値と署名鍵を保持し、画面は公開情報だけを表示し、バックエンドは認証・受付判定・証明処理を担います。第三者が判定の根拠として確認するのは、Midnightに記録された公開しきい値、対象デバイスとの紐付け、確定済み証明記録です。
+このシステムの要点は、**生のセンサー値を公開せず、提出された時間別の最小値・最大値が、運用開始前に登録したしきい値の範囲内かどうかだけを証明する**ことです。Wave 1の主要審査経路では、ユーザー認可済みBrowser Clientが疑似計測元として動き、Raw値とPrivate Openingを保持し、上限付き時間別Summaryを認可済み運用者Workflowへ送ります。Trustedな管理Backendはその制限付きSummaryを保存して証明処理を行います。第三者が確認する基準は、Midnightに記録された公開しきい値、証明対象、確定済み判定です。現場RuntimeはWave 2へ向けたIntegration Evidenceであり、主要審査経路ではありません。
 
 ![センサー値を1時間ごとの最小値・最大値へまとめ、値を隠したまま判定する](assets/review/hourly-extrema-zkp-ja.png)
 
@@ -52,7 +51,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 日本語のスライド図版は[`assets/review/`](assets/review/)、文書専用図版は[`assets/guides/`](assets/guides/)に集約し、英語図版とは分離しています。
 
-本リポジトリは、温度データ証明システムのWave 1を実装します。エッジデバイスは個々の測定値を内部に保持し、1時間ごとの集計と異常状態の変化をバックエンドへ送ります。1日分は24個の時間枠にそろえ、各時間の最小値・最大値を非公開入力として1件の証明にします。Midnightに記録するのは測定値ではなく、事前登録したしきい値、対象デバイス、判定結果、取引記録です。
+本リポジトリは、Wave 1のCore Proof PoCを実装します。主要な審査経路では、ユーザーが認可したブラウザクライアントを疑似計測元として使い、疑似の日次計測データと、計測期間より前に登録した判定条件との関係を証明します。Midnightには元の値ではなく、公開判定条件、証明対象、判定結果、取引記録を残します。現場側Runtimeの補助実装も含みますが、長期間の自律運用はWave 2の目標であり、Wave 1の主要Claimではありません。
 
 運用コントラクト`sensor-registry`は、観測された全時間帯の最小値・最大値が、運用前にMidnightへ登録したしきい値の範囲内であるか、少なくとも1時間が範囲外であるかを、値を隠したまま証明します。公開される「範囲内／範囲外」の結果から測定値は分かりません。測定値がない時間は、合格や不正とは扱わず「停止（`STOPPED`）」として区別します。この証明だけでは、センサー自体の正確さ、連続して測定した事実、測定漏れがないこと、デバイス側の集計が正しいことまでは保証しません。
 
@@ -60,11 +59,11 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 | 用語 | 本リポジトリでの意味 |
 | --- | --- |
-| Wave 1 | `wave1_spec.md`で定義する、現在の対応範囲です。 |
+| Wave 1 | `wave1_spec.md`で定義する、現在のCore Proof PoC範囲です。 |
 | Cloudflare | API、D1データベース、証明処理の受付、画面、証明生成サーバーを動かすバックエンドです。現状では信頼対象です。 |
 | Midnight | コントラクトの取引を検証し、しきい値・対象デバイス・判定結果などの公開記録を保持するネットワークです。 |
 | エッジデバイス | センサー収集、API認証、Midnight取引への署名を行う現場側の実行環境です。 |
-| 生の測定値 | 日時、温度、湿度を含む個々の実測値です。エッジデバイス内に保持します。 |
+| 生の測定値 | 日時、温度、湿度を含む個々の値です。Wave 1審査経路ではBrowser Privateな計測元に、補助的な現場経路ではLocalに保持します。 |
 | 1時間ごとの集計／状態変化 | 1時間単位の要約と、正常・異常が切り替わった時点の通知です。個々の測定値そのものではありません。 |
 | 1日分の非公開入力 | 観測済みまたは停止の24個の時間枠です。観測済みの枠には最小値、最大値、測定件数が入ります。 |
 | コミットメント | 1日分の非公開入力と証明用乱数を、元の値を逆算できない形で結び付けた値です。 |
@@ -84,7 +83,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 | 順序 | 文書 | 目的 |
 | --- | --- | --- |
 | 1 | 本README | 製品目的、証明内容、リポジトリ構成、現在状態を把握します。 |
-| 2 | [Wave 1仕様](architecture/wave1_spec.md)と[複数デバイスの登録](security/device_registry.md) | デバイス、しきい値、運用担当者の信頼境界を確認します。 |
+| 2 | [Wave 1仕様](architecture/wave1_spec.md)、[3 Waveロードマップ](architecture/three_wave_roadmap.md)、[複数デバイスの登録](security/device_registry.md) | 現行PoC、将来到達点、On-chain Authority境界を分けて確認します。 |
 | 3 | [システム構成](architecture/system_architecture.md) | 各構成要素とデータ保存先を確認します。 |
 | 4 | [非公開情報の境界](security/private_spec.md) | 非公開入力、管理者向け情報、第三者への公開情報を区別します。 |
 | 5 | [仕様と実装の対応](implementation/implement_spec.md)、[GUI操作と処理場所](implementation/gui_action_reference.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、各画面操作の実行場所、各証明回路、DUSTだけを負担する権限を確認します。 |
@@ -98,10 +97,14 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 ![エッジデバイス、画面、バックエンド、Midnightの責任分担](assets/review/wave1-system-overview-ja.png)
 
+この図には補助的な現場Runtime境界も含みます。Wave 1の主要審査経路は、Frontendを疑似計測元として使い、
+Trusted Backend、Midnightへ進みます。現場の自律運用と、運用者・第三者・System Operator Applicationの本番分離は
+Wave 2の到達点です。
+
 | 領域 | 主な責任 | 明確な境界 |
 | --- | --- | --- |
 | エッジデバイス | センサー収集、生の測定値の保持、24時間分の集計、API認証、Midnight取引への署名 | 生の測定値、時間別の最小値・最大値、証明用入力、署名鍵を内部に保持 |
-| 画面 | 認証が必要な管理者画面と、第三者が見る公開画面 | 許可された集計または公開情報だけを受け取り、秘密値を扱わない |
+| 画面 | User認可済み疑似計測Workflowと第三者Public View | 疑似CaptureをBrowser Private Stateに保持し、第三者ViewへはRedacted Public Evidenceだけを表示 |
 | バックエンド | 認証、API入力検査、処理状態の保存、同時実行数の制限、証明生成 | 証明生成中は非公開入力を扱う信頼対象だが、デバイスの代理署名はできない |
 | Midnight | しきい値、対象デバイス、コミットメント、確定済み判定の記録 | 第三者が確認する公開記録を保持し、生のセンサー値は保存しない |
 
@@ -109,9 +112,9 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 ## Midnightとの連携
 
-運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の時間枠からなる非公開入力を検査し、範囲内または範囲外の結果をMidnightへ記録します。デバイスが取引内容を承認して署名し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、デバイスが署名した内容を変更できません。
+運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の時間枠からなる非公開入力を検査し、範囲内または範囲外の結果をMidnightへ記録します。User管理Accountまたは現場Transaction Agentが取引内容を認可し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、認可済み内容を変更できません。
 
-ブラウザには、Laceを使うデバイス管理画面、管理者向けの処理状況、第三者向けの公開画面があります。公開画面は、コントラクトで確定した対象日・しきい値・判定結果・Midnight取引識別子を表示します。確定済みRecordを開くと、ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract LedgerからCommitment、Result、Policy、Device-bound Assignmentを照合します。Raw Sensor値やPrivate Openingは使いません。
+ブラウザには、ユーザー管理のMidnight Accountを使う疑似計測Workflow、運用者向けの処理状況、第三者向けの公開画面があります。公開画面は、コントラクトで確定した対象日・しきい値・判定結果・Midnight取引識別子を表示します。確定済みRecordを開くと、ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract LedgerからCommitment、Result、Policy、Device-bound Assignmentを照合します。Raw Sensor値やPrivate Openingは使いません。
 
 ## モノレポの境界
 
@@ -176,20 +179,20 @@ TMPDIR=/tmp npm run verify
 
 ## 現在の連携状況
 
-- スポンサー負担経路をMidnight事前公開ネットワークで一連確認済みです。P-256によるAPI認証、公開しきい値とDevice-bound Assignment、標準1,440件を固定24時間枠へまとめた証明、CloudflareでのProof生成、FeeなしDevice承認、専用Sponsor WalletによるDUST追加、Block確定、同一バイト列での冪等復旧、第三者向け非公開化Resultまで確認しました。[同期中のトランザクション保留](implementation/fee_sponsorship.md#現在の連携境界)と[費用実測](implementation/cost_benchmark.md#標準1440件preprod-e2ecost実測)に記録しています。
+- 現場連携の補助Evidenceとして、Service Fee負担経路をMidnight事前公開ネットワークで一連確認済みです。現場API認証、公開しきい値とDevice-bound Assignment、標準1,440件を固定24時間枠へまとめた証明、管理BackendでのProof生成、Feeなし認可、Service Fee負担、Block確定、同一Byte列での冪等復旧、第三者向けRedacted Resultまで確認しました。[Wallet同期中のトランザクション保留](implementation/fee_sponsorship.md#現在の連携境界)と[費用実測](implementation/cost_benchmark.md#標準1440件preprod-e2ecost実測)に記録しています。
 - 日次提出には運用担当者の操作が必要です。`device:submit`は証明処理を要求して状態を確認しますが、デバイス用ウォレットは常時自動送信する仕組みではありません。
 - 24件、96件、1,440件の入力で同じ固定形状の回路を使えること、時刻情報への署名、外れ値理由を追記保存する仕組みは開発用実験として実装済みです。
 - ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract StateからCommitment、Result、Policy、Device-bound Assignmentを照合します。Browser内でZK Verifierを再実行したりWitnessを開示したりはしません。
 
 ## 3段階の展開
 
-![技術実証から建設現場への導入までを示す3 Wave Roadmap](assets/review/three-wave-roadmap-ja.png)
+[製品・事業ロードマップ](architecture/three_wave_roadmap.md)は、次の成果順に進めます。
 
-- Wave 1 — 検証済み: デバイス承認の日次証明、24個の時間枠の最小値・最大値、事前公開ネットワークでの範囲内／範囲外、管理者／第三者画面、`submitDailyAttestation`。
-- Wave 2 — 計画: Local／複数Source照合の強化、署名付きのデータ来歴、運用自動化、復旧手順、複数デバイスの監視。
-- Wave 3 — 計画: 校正済みデバイスの証明、校正記録、ファームウェア識別情報、セキュアハードウェア連携、組織をまたぐ監査。
+- Wave 1 — Core Proof PoC：疑似計測元と審査用統合画面で、非公開証明の中核価値を検証します。
+- Wave 2 — Operational Partner Pilot：実際の現場計測システムを接続して日次処理を自律化し、画面と役割の分離、本番認証・認可、監査、解析、監視、復旧、運用ダッシュボードを実装します。
+- Wave 3 — Trust Minimization and PMF：ハードウェア保護Identityと来歴を導入し、複数組織・複数現場で商用運用して、継続売上、契約更新、利用拡大、持続可能なUnit Economicsを検証します。
 
-導入経路は、技術実証、建設現場での実証実験、既存の販売・レンタル商流への組み込みです。Wave 2とWave 3は現行機能ではなく計画です。
+Wave 2とWave 3は現行機能ではなく計画です。製品・提出資料はCapabilityで表現し、具体的な製品、Infrastructure Service、Algorithm、参照Hardwareは、再現に必要な実装・運用文書だけに記載します。
 
 ## 秘密情報の管理境界
 

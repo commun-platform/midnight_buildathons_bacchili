@@ -3,28 +3,29 @@
 [English](../../architecture/wave1_spec.md)
 
 状態：実装基準
-最終更新：2026-08-30 JST
+最終更新：2026-08-31 JST
 
 本書をWave 1の製品・実装仕様の正本とします。過去の設計文書と矛盾する場合、本書を優先します。
 
 ## 1. 製品目的
 
-Wave 1はEdge Deviceを認証し、コストを抑えた運用Summaryを保存し、時間別Sensor Extremaを公開せずに1日分のMidnight ZK Claimを記録します。
+Wave 1は、ユーザーが認可したブラウザクライアントを疑似計測元として使い、非公開証明の中核価値を検証します。疑似の日次計測データを作成し、時間別Extremaを第三者へ公開せずにMidnight ZK Claimを記録します。疑似Raw値とPrivate OpeningはBrowser Privateな計測元に残し、認可済み時間別Summaryは運用者Workflow用にTrustedな管理Backendへ保存します。
 
-標準Planの要件：
+Wave 1主要審査経路の要件：
 
-- Device固有のECDSA P-256 Identityで認証する
-- 通常APIでは長期鍵ではなく、失効可能な24時間Opaque Sessionを使う
-- Device IdentityとDevice Contract Authority秘密値をEdge Deviceに置く
-- 全Raw ReadingをCloudflareへ書かずLocal保持する
-- 1時間Aggregateと即時Anomaly状態遷移を送る
-- Proof処理を02:00～06:00 JSTの営業時間にAdmissionする
-- 24、96、1,440件またはより高頻度のSampleを同じ固定24 Slot回路で扱う
+- ユーザーが認可したブラウザクライアントを疑似計測元として使う
+- 証明対象と公開しきい値条件を計測期間より前に登録する
+- 疑似の日次計測データを作り、固定24 Slotの非公開入力へ集約する
+- 上限付き時間別Summaryを認可済み運用RecordとしてTrustedな管理Backendへ送る
 - 運用開始前にMidnightへ登録した公開しきい値だけを使う
 - 値がない時間は不正ではなくSTOPPEDとして扱う
-- 日次AttestationごとにDeviceが1つのMidnight TXをProof／認可／Bindする
-- 専用Sponsor WalletがBind済みTXへDUST Feeだけを追加して送信する
-- Sensor管理者画面と第三者検証画面を分ける
+- Trustedな管理Backendで証明を生成する
+- 審査員に取引手数料管理を要求せず、Proof TXへの明示的なUser認可を得る
+- 公開判定結果とEvidence IDをMidnightへ記録する
+- 運用者操作と第三者検証を一つの審査用GUIへまとめる
+
+リポジトリには、現場側の認証、収集、取引、配布、復旧に関する実装も含まれます。これらはWave 2へ進むための
+Integration Evidenceと移行基盤ですが、長期間の自律運用と本番Role分離はWave 1完了Claimではありません。
 
 連続Real-time値は標準Plan対象外です。将来Premium Planで最新値Streamまたは専用Proof Capacityを追加しても、Wave 1 Attestation Claimは変更しません。
 
@@ -114,10 +115,11 @@ Edge Device
 ├ Contract Proofに認証済みCloudflare Proof Serverを使用
 └ NIGHT、DUST生成、DUST同期なしでProof済みTXをBind
 
-審査用Browser Device
-├ Device IdentityとPrivate Daily OpeningをBrowser Private Storageに保持
+審査用Browser Client
+├ Wave 1主要審査経路の疑似計測元として動作
+├ Proof AuthorityとPrivate Daily OpeningをBrowser Private Storageに保持
 ├ Contract回路Proofに認証済みCloudflare Proof Serverを使用
-└ Laceで`payFees: false`を指定しTXを承認／Bind
+└ User管理のMidnight Accountで、Feeを支払わずTXを承認／Bind
 
 Cloudflare
 ├ Worker：認証、認可、API、Admission、GUI
@@ -137,7 +139,7 @@ Private Stateを渡しません。審査用Browser DeviceはDevice Workflow実�
 Private OpeningだけをBrowser Private Storageへ保持し、Public Verification APIからは一切返しません。
 
 Edge Wallet AgentはDevice Session Tokenと`X-Proof-Job-Id`を付与し、Compact Contract Proofを認証済み
-Cloudflare Containerへ送ります。その後、Proof済みで値移動を含まないTXをDUSTなしでBindします。Laceも
+Cloudflare Containerへ送ります。その後、Proof済みで値移動を含まないTXをDUSTなしでBindします。Browser Review Clientも
 `balanceUnsealedTransaction(..., { payFees: false })`によって同じ責務分離を行います。Sponsor境界を越える
 前に、Serialized Finalized TransactionはDevice認可済みContract CallへすでにBindされています。
 
@@ -175,7 +177,7 @@ ConsumerはWallet Ready後だけContainerを呼び、Container内のWallet Mutat
 | 経路 | Contract回路Proof | Device Bind／承認 | DUST Fee | TX Submit |
 | --- | --- | --- | --- | --- |
 | Edge Device | 認証済みCloudflare Proof Server Container | Edge Wallet Agent、Feeなし | Sponsor Wallet | Sponsor WalletからMidnightへ送信 |
-| Laceを使う審査用Browser Device | 認証済みCloudflare Proof Server Container | Lace、`payFees: false` | Sponsor Wallet | Sponsor WalletからMidnightへ送信 |
+| User管理Walletを使う審査用Browser Client | 認証済みCloudflare Proof Server Container | Wallet、`payFees: false` | Sponsor Wallet | Sponsor WalletからMidnightへ送信 |
 
 Proof Server ContainerはProof生成だけを担当し、Midnight Wallet Keyを保持しません。別のSponsor Wallet
 ContainerはSponsorship用の鍵素材だけを保持し、Device Identity、Device Contract Authority、Private
@@ -317,7 +319,7 @@ Policy／AssignmentはImmutableで、変更には新IDを使います。回路�
 Application Registry上で各Projectが表示できるのは、明示的に関連付けられたPolicyだけです。GUIから作る
 新規Policyは1つのOwner Projectを持ち、作成元Projectだけに関連付けます。登録済みDevice Assignmentに必要な
 既存の関連付けは保持します。認証済みProject Ownerは、関連する登録済みと処理中を合計して最大10 Policyを
-作れます。作成時はProject、Policy ID、名称、Mode、0.01 °C精度のCenti-degree BoundをFresh Lace署名へ
+作れます。作成時はProject、Policy ID、名称、Mode、0.01 °C精度のCenti-degree BoundをFresh Wallet署名へ
 Bindingします。WorkerはOperator限定Midnight登録をQueueへ投入し、Indexer確定後だけそのProjectへPolicyを
 公開します。新規ProjectはPolicy 0件から開始し、しきい値変更は既存Policy編集ではなく新しいImmutable
 Policy登録として行います。
@@ -348,7 +350,7 @@ Default Proof Server Admission時間は02:00～06:00 JSTです。時間外もIng
 4. 営業時間内にCronがDue RowをConditional Claimし、Job参照をQueueへ送信
 5. Queue Consumerが短い`ready_for_input` Leaseを付与しContainerをWarm Up
 6. Wallet AgentがJobをPollし、Admit後にPrivate `/check`／`/prove` BodyをStream
-7. DeviceまたはLaceがFeeを支払わずProof済みTXをBindして一度Upload。WorkerはPrivate R2へ保存し、D1を`awaiting_sponsor`にしてJob参照だけをQueueへ入れ、`202 Accepted`を返す
+7. 現場Transaction AgentまたはBrowser WalletがFeeを支払わずProof済みTXをBindして一度Upload。WorkerはPrivate R2へ保存し、D1を`awaiting_sponsor`にしてJob参照だけをQueueへ入れ、`202 Accepted`を返す
 8. Workerが認証済みDeviceの日次Sponsorship枠を冪等にD1へ予約。同一Retryは既存状態を返し、同じGroup IDでMetadata／TXが異なればProof／Feeの再消費前に`409 Conflict`
 9. Sponsor Wallet同期後、ConsumerがPrivate R2 ArtifactとHashを再検証し、DUSTだけを追加して直ちにTX送信
 10. D1へTX ID／Hash、Block Height、Sponsorship Attempt、次回Retry、Error Code、Confirmationを保存しDeviceからPoll可能にする
@@ -427,21 +429,21 @@ Configuration、Enrollment、Device-scoped History、Proof Admission、Public Ve
 Proof／TX JobをWorker／D1から復帰します。Device Private Identityと生成Raw値／OpeningだけはそのBrowserの
 IndexedDBから復帰します。期限切れまたはOne-time Wallet署名は再利用しません。
 
-Browser登録の読取専用Device IDは、Lace公開検証鍵の識別子を使い
+Browser登録の読取専用Device IDは、Wallet公開検証鍵の識別子を使い
 `device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)`として決定的に導出します。
 同じWallet／Projectは常に同じDevice ID、別Walletまたは別Projectは別IDになります。Wallet秘密鍵やBrowser
 Storage値は導出に使いません。Workerも検証済みWallet KeyからIDを再計算し、不一致の要求を拒否します。
 
-Wallet接続後、Workerは別の5分間One-time Lace Challengeを検証し、24時間のOpaque Project Sessionを
+Wallet接続後、Workerは別の5分間One-time Wallet Challengeを検証し、24時間のOpaque Project Sessionを
 発行します。GUIはそのPublic Wallet識別子に関連付けられたProjectだけをプルダウンへ表示し、
 **＋ 新規追加**を提供します。Wallet 1つあたり最大10 ProjectをWorkerとD1 Triggerの両方で強制します。
 初回Project Sessionでは既存の審査用Projectを関連付けます。新規ProjectはPolicy 0件から開始します。
 Project OwnerはCompact Contractを再Deployせず、Projectごとに最大10件のImmutable Policyを登録できます。
 Project Session TokenはSHA-256 Hashだけを保存します。
 
-その後、Workerが5分間のOne-time Challengeを発行します。LaceはDevice ID、P-256 Key ID、Device
+その後、Workerが5分間のOne-time Challengeを発行します。Browser WalletはDevice ID、P-256 Key ID、Device
 Authority、選択済み登録Policy、Challenge、Nonce、TimestampのCanonical Messageへ署名します。Workerが
-署名を検証し、Lace Verification Key／ProjectごとにReview Device 1台を強制した後、Internal Operator Pathが
+署名を検証し、Wallet Verification Key／ProjectごとにReview Device 1台を強制した後、Internal Operator Pathが
 既存Operator AuthorityとSponsor WalletでDevice／Device-bound AssignmentをMidnightへ登録します。Indexerで
 両方を確認した後だけP-256 KeyとD1 Mirrorを有効化します。Operator Secret／Sponsor SeedはBrowserへ返しません。
 
@@ -477,24 +479,27 @@ Compact language  0.23
 daily schema      5
 circuit           3
 contract schema   3
-D1 migrations     0020_browser_provisioning_progress.sqlまで
+D1 migrations     0022_project_policies.sqlまで
 ```
 
 旧Selected-Merkle-leaf／Singleton／WITHIN専用Fleet Registry Ledgerとは互換性がありません。採用には新Fleet Registry Deploy、
 運用前のOperator限定Device／Policy／Device-bound Assignment TX、管理TX Evidence付きD1 Migration／Mirror
-Sync、D1 Migration `0020`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
+Sync、D1 Migration `0022`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
 
-Wave 1 Acceptance：
+Wave 1は、審査用PoCで次を確認できた時点で完了とします。
 
-- Installer生成Device Identityの登録と24時間Session認証が成功
-- Hourly Aggregate Uploadと即時Anomaly Transitionを管理者が閲覧可能
-- 1つの回路が24、96、1,440 Raw Sample由来Summaryを受理
+- ユーザーが認可したブラウザクライアントで、疑似計測元を新規作成または復元できる
+- 証明対象としきい値条件を、選択した計測日より前に登録できる
+- 疑似の日次計測データを固定形状の非公開入力へ集約し、公開検証画面へ元の値を出さない
+- 時間別Summaryは認可済み運用者Workflowだけで閲覧できる
 - STOPPED時間は成功し、正しいWITHIN／OUTSIDE Resultを記録し、Malformed STOPPED／Observed Slotは失敗
 - 範囲外DataをWITHIN、範囲内DataをOUTSIDEとClaimすると失敗
-- Deviceが別Threshold Boundを指定できない
+- Proof Requestから別Threshold Boundを指定できない
 - Policy、Assignment、Device、Period、Presence、Count、Commitment改ざんが失敗
-- Device認可済み・Sponsor Fee負担のWITHIN／OUTSIDE Preprod Attestation TXがConfirmedとなり第三者画面へ表示
+- User認可済み・Service Fee負担のPreprod Attestation TXがConfirmedとなり第三者画面へ表示
 - 第三者画面がPolicy／Statusを公開し、Hourly Extrema／Nonceを公開しない
 - Cost／Version実測記録をBenchmark文書へ追加
 
-将来対象はTPM／Secure Element、Remote Attestation、複数Sponsor WalletへのSharding、Premium Real-time値、Premium Proof Queue、Multi-tenant Assignment Governance、Remote管理者Accessです。
+Wave 2では、自律的な現場運用、本番Role分離、認証・認可、監査・解析Log、監視、復旧、運用ダッシュボードを追加します。
+Wave 3では、Hardware保護Identity、実行・校正の来歴、複数組織での商用運用、PMF検証へ進みます。正本は
+[`three_wave_roadmap.md`](three_wave_roadmap.md)です。

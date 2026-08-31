@@ -33,7 +33,7 @@ The first commercial use case under discussion is construction-site measurement 
 
 The team is discussing a field proof of concept with an industry partner using equipment and sales or rental channels that already exist. This is commercialization progress, not completed technical validation.
 
-The central idea is to prove whether submitted hourly minimum and maximum values are within a threshold registered before operation, without publishing the sensor values. The Edge Device retains raw data and signing keys, the Frontend displays public information only, the Backend handles authentication, request admission, and proof processing, and Midnight holds the public threshold, its target Device, and the confirmed result record that a third party checks.
+The central idea is to prove whether submitted hourly minimum and maximum values are within a threshold registered before operation, without publishing those values to third parties. In the primary Wave 1 review path, a user-authorized browser client acts as the simulated measurement source, retains raw values and the private opening, and uploads bounded hourly summaries for the authorized operator workflow. The trusted managed backend stores those restricted summaries and handles proof processing; Midnight holds the public threshold, proof subject, and confirmed result that a third party checks. The field runtime is supporting integration evidence for Wave 2 rather than the primary review path.
 
 ![Sensor values are reduced to hourly minimum and maximum values, checked privately, and exposed only as a public result](docs/assets/review/hourly-extrema-zkp-en.png)
 
@@ -50,7 +50,7 @@ The documentation is organized by purpose. Submission copy, English / Japanese d
 
 English slide figures are under [`docs/assets/review/`](docs/assets/review/) and English document-specific figures are under [`docs/assets/guides/`](docs/assets/guides/). Japanese assets are kept separately below [`docs/ja/assets/`](docs/ja/assets/).
 
-This monorepo implements Wave 1 of a temperature-data proof system. The Edge Device keeps individual sensor readings locally, uploads hourly summaries and anomaly state changes to the Backend, and submits one private daily proof with 24 hourly slots. Midnight records the registered threshold, target Device, result, and transaction without publishing the hourly minimum / maximum values or raw readings.
+This monorepo implements the Wave 1 core-proof PoC. Its primary review path uses a user-authorized browser client as a simulated measurement source, creates a synthetic daily record, and proves its relationship to a condition registered before the measurement period. Midnight records the public condition, proof subject, result, and transaction without publishing the underlying values. Supporting field-runtime code is included, but autonomous long-running field operation is a Wave 2 objective rather than the primary Wave 1 claim.
 
 The operational `sensor-registry` contract proves either that the private minimum and maximum values for all observed hours are within the public threshold registered on Midnight before operation, or that at least one observed hour is outside it. The public WITHIN / OUTSIDE result reveals none of those values. An hour without readings is `STOPPED`, not fraud or a threshold failure. The contract does not prove physical sensor integrity, continuous sampling, completeness, or correct Device-side aggregation.
 
@@ -58,11 +58,11 @@ The operational `sensor-registry` contract proves either that the private minimu
 
 | Term | Meaning in this repository |
 | --- | --- |
-| Wave 1 | The current supported product scope defined by `docs/architecture/wave1_spec.md`. |
+| Wave 1 | The current core-proof PoC scope defined by `docs/architecture/wave1_spec.md`. |
 | Cloudflare | The trusted backend running the API, D1 database, proof queue, GUI, and Proof Server Container. |
 | Midnight | The network that verifies Compact contract transactions and records their public state. |
 | Edge Device | The device runtime boundary containing the Edge Agent, Device Identity, and Wallet Agent. |
-| Raw sample | One timestamped temperature/humidity reading. It remains on the device. |
+| Raw sample | One timestamped temperature/humidity reading. In the Wave 1 review flow it remains in browser-private source state; the supporting field path retains it locally. |
 | Hourly summary / anomaly transition | An aggregate uploaded once per hour, and an immediate event when the sensor changes between normal and anomalous states. Neither is the raw sample stream. |
 | Daily private input | A fixed private object with 24 observed / STOPPED hourly slots. Each observed slot has a minimum, maximum, and reported reading count. |
 | Commitment | A one-way binding to the complete private daily-extrema input using a nonce. |
@@ -82,7 +82,7 @@ The operational `sensor-registry` contract proves either that the private minimu
 | Step | Document | Purpose |
 | --- | --- | --- |
 | 1 | This README | Understand the product purpose, claim, repository structure, and current status. |
-| 2 | [Wave 1 specification](docs/architecture/wave1_spec.md) and [Fleet Device Registry](docs/security/device_registry.md) | Follow the normative lifecycle and operator-only multi-Device trust boundary. |
+| 2 | [Wave 1 specification](docs/architecture/wave1_spec.md), [three-wave roadmap](docs/architecture/three_wave_roadmap.md), and [Fleet Device Registry](docs/security/device_registry.md) | Separate the current PoC, future outcomes, and the on-chain authority boundary. |
 | 3 | [System architecture](docs/architecture/system_architecture.md) | See where each runtime component and data store runs. |
 | 4 | [Privacy boundary](docs/security/private_spec.md) | Distinguish private input, administrator data, and public evidence. |
 | 5 | [Implementation map](docs/implementation/implement_spec.md), [ZK circuit specification](docs/implementation/zk_circuit_spec.md), and [Midnight fee sponsorship](docs/implementation/fee_sponsorship.md) | Map the design to code, understand each proof circuit, and review the DUST fee-payer boundary. |
@@ -96,10 +96,15 @@ The operational `sensor-registry` contract proves either that the private minimu
 
 ![Wave 1 architecture across Edge Device, Frontend, Backend, and Midnight](docs/assets/review/wave1-system-overview-en.png)
 
+This figure includes the supporting field-runtime boundary. The primary Wave 1 review path uses the
+Frontend as a simulated measurement source, then the trusted Backend and Midnight. Autonomous field
+operation and production separation of operator, verifier, and system-operator applications are Wave
+2 outcomes.
+
 | Zone | Primary responsibility | Explicit boundary |
 | --- | --- | --- |
 | Edge Device | Sensor collection, local raw retention, private 24-hour aggregation, Device authentication, proof authorization, and transaction signing | Raw readings, hourly minimum / maximum values, proof input, and Device keys stay at the edge |
-| Frontend | Authenticated administrator view and public third-party view | Receives only authorized summaries or public evidence; no Device credentials or private proof values |
+| Frontend | User-authorized simulated measurement workflow and public third-party view | Keeps the simulated capture in browser-private state and exposes only redacted public evidence to the third-party view |
 | Backend | Authentication, API validation, D1 workflow state, bounded admission, proof generation, and fee sponsorship | Trusted for proving requests in transit; the Sponsor can add DUST but cannot alter or authorize the bound Device call |
 | Midnight | Public threshold, target Device, commitment, and confirmed result | Holds the public record a third party checks; does not store raw sensor readings |
 
@@ -107,9 +112,9 @@ The detailed trust and data-flow model is in [System Architecture](docs/architec
 
 ## Midnight integration
 
-The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the verified WITHIN or OUTSIDE result on Midnight. The Device authorizes and binds the contract call without fees; the dedicated Sponsor Wallet adds only DUST and submits it. The Sponsor cannot produce the Device Contract Authority proof or alter the bound call.
+The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the verified WITHIN or OUTSIDE result on Midnight. A user-controlled account or field transaction agent authorizes and binds the contract call without fees; the dedicated Sponsor Wallet adds only DUST and submits it. The Sponsor cannot produce the Device Contract Authority proof or alter the bound call.
 
-The browser includes the guided Lace-backed Device workflow, administrator evidence, and the third-party public view. The third-party view displays the contract-confirmed result and Midnight identifiers; it does not independently execute the Compact verifier in the browser. Independent browser verification is a Wave 2 plan.
+The browser includes a guided, user-authorized simulated measurement workflow, operator evidence, and the third-party public view. The third-party view displays the contract-confirmed result and Midnight identifiers; it does not independently execute the Compact verifier in the browser. Independent browser verification is part of the Wave 2 production hardening plan.
 
 ## Monorepo boundaries
 
@@ -174,20 +179,20 @@ The expected review result is 6 compiled operational proof circuits, 288 passing
 
 ## Current integration status
 
-- The Sponsor-funded path is verified end to end on the Midnight preproduction network: P-256 Device authentication, public threshold and Device-bound assignment, a standard 1,440-reading day reduced to one fixed 24-slot proof, Cloudflare proof generation, fee-free Device authorization, DUST added by the dedicated Sponsor Wallet, block confirmation, idempotent same-byte recovery, and the redacted third-party result. See the [Wallet-sync transaction hold](docs/implementation/fee_sponsorship.md#current-integration-boundary) and [cost evidence](docs/implementation/cost_benchmark.md#standard-1440-reading-preprod-e2e-and-cost-measurement). The 24- and 96-reading runs confirm only that the proof input shape remains fixed.
+- As supporting field-integration evidence, the Sponsor-funded path is verified end to end on the Midnight preproduction network: field API authentication, public threshold and Device-bound assignment, a standard 1,440-reading day reduced to one fixed 24-slot proof, managed proof generation, fee-free authorization, service-funded submission, block confirmation, idempotent same-byte recovery, and the redacted third-party result. See the [transaction hold during Wallet synchronization](docs/implementation/fee_sponsorship.md#current-integration-boundary) and [cost evidence](docs/implementation/cost_benchmark.md#standard-1440-reading-preprod-e2e-and-cost-measurement). The 24- and 96-reading runs confirm only that the proof input shape remains fixed.
 - Operator action remains explicit: `device:submit` requests and polls its Proof Job, but the Wallet Agent is not a continuously running submission daemon.
 - Implemented as development-only experiments: fixed 24/96/1,440-sample daily circuits, signed hourly evidence, and append-only outlier-reason hashes.
 - The third-party view presents public D1 workflow information and Midnight identifiers; it does not independently execute the zero-knowledge-proof verifier in the browser.
 
 ## Three-wave delivery path
 
-![Three-wave delivery roadmap from technical proof to construction-site adoption](docs/assets/review/three-wave-roadmap-en.png)
+The canonical [product and business roadmap](docs/architecture/three_wave_roadmap.md) progresses by outcome:
 
-- Wave 1 — verified: Device-authenticated daily proof, one day normalized into 24 hourly slots, WITHIN / OUTSIDE on the Midnight preproduction network, administrator / third-party views, and `submitDailyAttestation`.
-- Wave 2 — planned: independent browser verification, signed provenance roots, operational automation, and recovery / fleet evidence.
-- Wave 3 — planned: calibrated-device proof, calibration records and firmware hashes, secure-hardware integration, and multi-organization audits.
+- Wave 1 — Core Proof PoC: validate the privacy value with a simulated measurement source and one review-oriented interface.
+- Wave 2 — Operational Partner Pilot: connect real field measurement systems, automate the daily lifecycle, separate user roles and interfaces, and add production authorization, audit, diagnostics, monitoring, recovery, and a system-operations dashboard.
+- Wave 3 — Trust Minimization and PMF: add hardware-protected identity and provenance, operate commercially across organizations and sites, and validate recurring revenue, renewal, expansion, and sustainable unit economics.
 
-The adoption path is technical proof, then a construction-site PoC, then integration into existing sales and rental channels. Waves 2 and 3 are plans, not current capabilities.
+Wave 2 and Wave 3 are plans, not current capabilities. Product and submission documents use capability terms; specific products, infrastructure services, algorithms, and reference hardware appear only in reproducible implementation and operating guidance.
 
 ## Security boundary
 

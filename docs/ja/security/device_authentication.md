@@ -84,7 +84,7 @@ Contract Deploy／Fleet管理には別のDevelopment Wallet、Operator Authority
 ![Bearer Session、Device Contract Authority、Device Transaction Identity、Public Midnight Stateを使う場所](../assets/review/daily-attestation-key-sequence-ja.png)
 
 Bearer SessionはBackend API Callを認可します。Device Contract AuthorityはCompact Callを認可します。
-Device Transaction IdentityまたはLaceはProof済みCallをFeeなしでBindします。その後Sponsor WalletがDUST
+現場Transaction IdentityまたはBrowser WalletはProof済みCallをFeeなしでBindします。その後Sponsor WalletがDUST
 だけを追加し、すでにBind済みのTXを送信します。各Credentialは分離し、SponsorへDevice Identity、
 Contract Authority、Private Extrema、Nonce、Compact Private Stateを渡しません。Trusted Proof Backendは
 Transit中のPrivate Proving Bodyを扱いますが保存せず、Sponsor Endpointが受け取るのはFinalized Serialized

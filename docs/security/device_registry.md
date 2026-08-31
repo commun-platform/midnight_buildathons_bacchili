@@ -36,7 +36,7 @@ policyAssignments[assignmentKey]
 The Operator Authority secret is held on the development/operations host and as a deployment secret
 inside the private Sponsor Wallet Container. The development wallet performs controlled Edge Device
 administration; the Sponsor Wallet performs the same fixed Device-registration circuits for the
-Lace-signed browser review flow. The domain-separated Operator Authority proves authorization inside
+Wallet-authorized browser review flow. The domain-separated Operator Authority proves authorization inside
 the Compact circuit. A Device Contract Authority secret is held only by its Device. A public
 self-enrollment circuit is forbidden: every registration still executes the Operator-only circuit.
 Each public Device Authority can be registered only once. Rotation permanently reserves both the
@@ -94,25 +94,25 @@ the lease. The second activates the independent P-256 API identity.
 
 The browser review flow uses the same contract authorization but moves the former loopback bridge
 behind the Worker. Before enrollment, both browser and Worker independently derive the Device ID as
-`device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)` from the Lace public
+`device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)` from the Wallet public
 verification-key identifier. The field is read-only; arbitrary IDs and cross-Wallet browser-storage
 fallbacks are rejected.
 
-Before this enrollment flow, Lace signs a separate one-time Project-session challenge. The Worker
+Before this enrollment flow, the Browser Wallet signs a separate one-time Project-session challenge. The Worker
 returns only the Projects associated with that Wallet identifier and issues a 24-hour opaque bearer
 token. A Wallet may be associated with at most ten Projects; the API check and
 `browser_wallet_projects_limit` D1 trigger enforce the same limit. A new Project starts without a
 Policy and does not create an on-chain transaction by itself. The owner may separately create up to
-ten Project-associated Policies. Lace signs the exact Project, immutable Policy ID, mode, centi-degree
+ten Project-associated Policies. The Browser Wallet signs the exact Project, immutable Policy ID, mode, centi-degree
 bounds, nonce, and timestamp; the Worker queues Operator-only `registerThresholdPolicy`, and exposes
 the Policy only after Indexer confirmation. Explicit pre-existing Project/Policy associations remain
 readable so already registered Device assignments are not invalidated.
 
 1. the browser derives its Device ID, creates a non-exported P-256 Device Identity, and selects a registered public Policy;
 2. the Worker issues a five-minute one-time challenge;
-3. Lace signs the canonical Device ID, P-256 key ID, Device Authority, Policy, challenge, nonce, and
+3. the Browser Wallet signs the canonical Device ID, P-256 key ID, Device Authority, Policy, challenge, nonce, and
    timestamp with `signData`;
-4. the Worker verifies the Lace signature, recomputes the Device ID, and enforces one review Device per Lace verification key and Project;
+4. the Worker verifies the Wallet signature, recomputes the Device ID, and enforces one review Device per Wallet verification key and Project;
 5. the private Sponsor Wallet Container executes only `registerDevice` and
    `registerPolicyAssignment` with the configured Operator Authority;
 6. the Indexer must show the exact Device, Authority, Policy, Assignment, and versions; and
@@ -121,8 +121,8 @@ readable so already registered Device assignments are not invalidated.
 Migration `0019_worker_browser_provisioning.sql` stores one-time enrollment challenge hashes.
 Migration `0021_wallet_projects.sql` adds hashed Project Sessions, the ten-Project limit, explicit
 Project/Policy associations, and the Wallet/Project/Device binding. Migration
-`0022_project_policies.sql` adds Lace-authorized Policy operations, the ten-Policy-per-Project limit,
-actual proof-generation timestamps, and initial current state for registered Devices. Neither Lace
+`0022_project_policies.sql` adds Wallet-authorized Policy operations, the ten-Policy-per-Project limit,
+actual proof-generation timestamps, and initial current state for registered Devices. Neither Wallet
 signing data nor these endpoints can select another contract, rotate/disable a Device, transfer
 tokens, or retrieve an Operator/Sponsor secret. Concurrent registration is leased in D1 and
 duplicate calls fail closed.
@@ -162,7 +162,7 @@ Leases. Migration `0012_device_operation_configuration.sql` adds the monotonical
 configuration revision and the dedicated `configuration:read` scope. Migration
 `0013_daily_threshold_result.sql` binds the claimed public WITHIN/OUTSIDE result to each idempotent
 daily Proof Job. Migration `0019_worker_browser_provisioning.sql` adds hashed one-time browser
-challenges and hashed Lace verification-key bindings. Secrets are never stored in D1.
+challenges and hashed Wallet verification-key bindings. Secrets are never stored in D1.
 
 The Worker requires all of these before issuing a Session or accepting operational input:
 
@@ -215,7 +215,7 @@ operational sponsorship-boundary evidence.
 
 The current Sponsor-funded release gate replaces step 6 with:
 
-1. the Device or Lace binds the proved transaction with no fee;
+1. the field transaction agent or Browser Wallet binds the proved transaction with no fee;
 2. the authenticated Sponsor endpoint accepts it once for the matching Proof Job;
 3. the dedicated Sponsor Wallet adds only DUST and submits it;
 4. duplicate, mismatched, oversized, wrong-state, or altered requests are rejected or return the

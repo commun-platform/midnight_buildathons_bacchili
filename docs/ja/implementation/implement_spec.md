@@ -58,7 +58,7 @@
 | D1 Schema | Migration `0010`～`0022`がPolicy／Job、Fail-closed Fleet Registry Mirror、Device運用設定Revision、ClaimしたThreshold Result、非同期Sponsored Submission State、安定Measurement Group冪等性、冪等なJST日次Sponsor予約、Contract履歴、Wallet所有Project、Project単位Policy Operation、Browser Enrollment State、実際のZKP生成日時、永続Provisioning Progressを追加します。 |
 | Proof Admission | `POST /api/v1/proof-jobs`がAuthenticated Device、登録済みAssignment Metadata、ClaimしたBoolean Resultを検証しますが、Threshold Boundは受け取りません。Cronは02:00～06:00 JSTにAdmissionします。 |
 | Proof生成 | Wallet AgentがPrivate Proving Requestを認証済みWorker RouteからContainerへStreamし、Bodyは永続化しません。 |
-| Device TX Bind | Edge Device Transaction Identity、または`payFees: false`のLaceが、NIGHT／DUSTなしでProof済み`submitDailyAttestation` CallをBindします。 |
+| Device TX Bind | 現場Transaction Identity、または`payFees: false`の対応Browser Walletが、NIGHT／DUSTなしでProof済み`submitDailyAttestation` CallをBindします。 |
 | 送信手数料の負担 | `POST /api/v1/proof-jobs/:proofJobId/sponsor`は利用回数を原子的に予約し、1つのトランザクションハッシュへ固定し、非公開バイト列をR2へ保存します。`awaiting_sponsor`を記録し、Queueへ処理IDだけを入れて`202`を返します。同じ内容の再送は、追加の上限予約、R2保存、Queue投入、Wallet処理より前に止めて既存状態を返し、異なる内容は`409`で拒否します。ウォレット同期後、Queue処理が保存データを再検査し、DUSTだけを追加して送信します。デバイスは状態を確認し、保留した同じバイト列から再開できます。 |
 | 管理者GUI | Device Session保護DashboardがそのDeviceの1時間AggregateをJST日付別に表示し、Threshold外れ値、明示的な現在の正常／異常状態、該当日の日次Proof操作とProof／TX状態を表示します。 |
 | 第三者GUI | Public Endpoint／Viewが日次Proof Jobを新しい順にRedacted List表示し、日付から直接開けます。Extremaを隠したまま証明済みWITHIN／OUTSIDE／STOPPED Result、Bound、正確なClaim、Commitment、Assignment、実際のZKP生成日時、Network、Contract、Attestation TXを表示します。 |
@@ -86,10 +86,10 @@ GET  /api/v1/projects                             Wallet所有Project List
 POST /api/v1/projects                             Project作成。Walletごとに最大10件
 POST /api/v1/policies/challenge                   One-time Project Policy Challenge
 GET  /api/v1/policies                             Project単位の登録済み／処理中Policy
-POST /api/v1/policies                             Lace署名付きImmutable Policy登録
+POST /api/v1/policies                             Wallet署名付きImmutable Policy登録
 GET  /api/v1/policy-operations/:operationId       非同期Policy進捗
 POST /api/v1/provisioning/challenge               5分のOne-time Challenge
-POST /api/v1/provisioning/devices                 Lace署名付きWorker Enrollment
+POST /api/v1/provisioning/devices                 Wallet署名付きWorker Enrollment
 GET  /api/v1/provisioning/operations/:operationId Token保護された非同期進捗
 GET  /api/v1/device/configuration                 認証済みDeviceのみ
 GET  /api/v1/device/dashboard                     認証済みDevice自身のみ

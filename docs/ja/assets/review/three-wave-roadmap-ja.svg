@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1672" height="941" viewBox="0 0 1672 941">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#12304a" stroke-width="1" opacity="0.55"/>
+    </pattern>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000814" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="1672" height="941" fill="#061526"/>
+  <rect width="1672" height="941" fill="url(#grid)"/>
+
+  <g font-family="Noto Sans CJK JP, sans-serif">
+    <text x="56" y="78" fill="#ffffff" font-size="48" font-weight="700">3 Wave 製品・事業ロードマップ</text>
+    <text x="58" y="116" fill="#a8bed0" font-size="20">製品名ではなく、検証する問いと到達成果で進める</text>
+
+    <rect x="55" y="145" width="1562" height="58" rx="15" fill="#0c253b" stroke="#23668d" stroke-width="2"/>
+    <text x="836" y="181" text-anchor="middle" fill="#d7e8f2" font-size="20" font-weight="600">中核：Midnightとゼロ知識証明 ／ 詳細な製品・クラウド・暗号・参照機器は技術仕様へ分離</text>
+
+    <!-- Wave 1 -->
+    <g filter="url(#shadow)">
+      <rect x="55" y="231" width="496" height="570" rx="22" fill="#0a2130" stroke="#6ee75b" stroke-width="3"/>
+    </g>
+    <rect x="55" y="231" width="496" height="80" rx="22" fill="#113a2d"/>
+    <text x="83" y="268" fill="#91f27e" font-size="27" font-weight="700">Wave 1</text>
+    <text x="83" y="297" fill="#ffffff" font-size="23" font-weight="700">Core Proof PoC</text>
+    <rect x="394" y="252" width="128" height="36" rx="18" fill="#6ee75b"/>
+    <text x="458" y="277" text-anchor="middle" fill="#082016" font-size="18" font-weight="700">現在のPoC</text>
+    <text x="83" y="350" fill="#91f27e" font-size="17" font-weight="700">検証する問い</text>
+    <text x="83" y="384" fill="#ffffff" font-size="21" font-weight="700">非公開しきい値証明の</text>
+    <text x="83" y="414" fill="#ffffff" font-size="21" font-weight="700">中核価値が成立するか</text>
+    <line x1="83" y1="438" x2="522" y2="438" stroke="#315064"/>
+    <text x="83" y="476" fill="#bcd0dd" font-size="17">• ユーザー認可ブラウザで審査</text>
+    <text x="83" y="510" fill="#bcd0dd" font-size="17">• 疑似の日次計測データ</text>
+    <text x="83" y="544" fill="#bcd0dd" font-size="17">• 固定形状の非公開日次入力</text>
+    <text x="83" y="578" fill="#bcd0dd" font-size="17">• 証明生成とサービス側手数料負担</text>
+    <text x="83" y="612" fill="#bcd0dd" font-size="17">• 公開判定と証拠IDをMidnightへ記録</text>
+    <text x="83" y="646" fill="#bcd0dd" font-size="17">• 運用者・第三者表示を1画面で審査</text>
+    <rect x="82" y="682" width="442" height="91" rx="13" fill="#112d2b" stroke="#438f48"/>
+    <text x="102" y="711" fill="#91f27e" font-size="16" font-weight="700">成功条件</text>
+    <text x="102" y="740" fill="#ffffff" font-size="16">審査員が一連のフローを再現し、</text>
+    <text x="102" y="764" fill="#ffffff" font-size="16">証明・非公開・非証明の境界を理解</text>
+
+    <!-- Wave 2 -->
+    <g filter="url(#shadow)">
+      <rect x="588" y="231" width="496" height="570" rx="22" fill="#0a2130" stroke="#23c8f4" stroke-width="3" stroke-dasharray="10 8"/>
+    </g>
+    <rect x="588" y="231" width="496" height="80" rx="22" fill="#0b3449"/>
+    <text x="616" y="268" fill="#48d7ff" font-size="27" font-weight="700">Wave 2</text>
+    <text x="616" y="297" fill="#ffffff" font-size="23" font-weight="700">Operational Partner Pilot</text>
+    <rect x="934" y="252" width="121" height="36" rx="18" fill="#153c50" stroke="#23c8f4"/>
+    <text x="994" y="277" text-anchor="middle" fill="#48d7ff" font-size="18" font-weight="700">計画</text>
+    <text x="616" y="350" fill="#48d7ff" font-size="17" font-weight="700">検証する問い</text>
+    <text x="616" y="384" fill="#ffffff" font-size="21" font-weight="700">実際の現場計測システムで</text>
+    <text x="616" y="414" fill="#ffffff" font-size="21" font-weight="700">安定運用できるか</text>
+    <line x1="616" y1="438" x2="1055" y2="438" stroke="#315064"/>
+    <text x="616" y="476" fill="#bcd0dd" font-size="17">• 現場計測と日次処理の自律運用</text>
+    <text x="616" y="510" fill="#bcd0dd" font-size="17">• 組織・プロジェクト・役割の分離</text>
+    <text x="616" y="544" fill="#bcd0dd" font-size="17">• 監査記録・監視・運用ダッシュボード</text>
+    <text x="616" y="578" fill="#bcd0dd" font-size="17">• 冪等な再試行・障害復旧・通知</text>
+    <text x="616" y="612" fill="#bcd0dd" font-size="17">• 複数計測元のLifecycle・更新管理</text>
+    <text x="616" y="646" fill="#bcd0dd" font-size="17">• 企業パートナーとの有償Pilot検証</text>
+    <rect x="615" y="682" width="442" height="91" rx="13" fill="#102b3c" stroke="#188eb1"/>
+    <text x="635" y="711" fill="#48d7ff" font-size="16" font-weight="700">成功条件</text>
+    <text x="635" y="740" fill="#ffffff" font-size="16">合意期間中に日次証明を実業務で利用し、</text>
+    <text x="635" y="764" fill="#ffffff" font-size="16">信頼性・支援工数・商用評価を測定</text>
+
+    <!-- Wave 3 -->
+    <g filter="url(#shadow)">
+      <rect x="1121" y="231" width="496" height="570" rx="22" fill="#0a2130" stroke="#f5a500" stroke-width="3" stroke-dasharray="10 8"/>
+    </g>
+    <rect x="1121" y="231" width="496" height="80" rx="22" fill="#402d12"/>
+    <text x="1149" y="268" fill="#ffb624" font-size="27" font-weight="700">Wave 3</text>
+    <text x="1149" y="297" fill="#ffffff" font-size="20" font-weight="700">Trust Minimization / Readiness</text>
+    <rect x="1467" y="252" width="121" height="36" rx="18" fill="#4b3514" stroke="#f5a500"/>
+    <text x="1527" y="277" text-anchor="middle" fill="#ffb624" font-size="18" font-weight="700">計画</text>
+    <text x="1149" y="350" fill="#ffb624" font-size="17" font-weight="700">検証する問い</text>
+    <text x="1149" y="384" fill="#ffffff" font-size="19" font-weight="700">反復可能な顧客価値と</text>
+    <text x="1149" y="414" fill="#ffffff" font-size="19" font-weight="700">商用提供条件を検証できるか</text>
+    <line x1="1149" y1="438" x2="1588" y2="438" stroke="#315064"/>
+    <text x="1149" y="476" fill="#bcd0dd" font-size="17">• ハードウェア保護Identity・署名権限</text>
+    <text x="1149" y="510" fill="#bcd0dd" font-size="17">• ソフトウェア・設定状態のEvidence</text>
+    <text x="1149" y="544" fill="#bcd0dd" font-size="17">• 校正・保守・交換・更新の来歴</text>
+    <text x="1149" y="578" fill="#bcd0dd" font-size="17">• 複数組織での商用運用・SLA・DR</text>
+    <text x="1149" y="612" fill="#bcd0dd" font-size="17">• 利用量・Plan・Billing・Support</text>
+    <text x="1149" y="646" fill="#bcd0dd" font-size="17">• 反復利用・更新/拡大・Unit Economics</text>
+    <rect x="1148" y="682" width="442" height="91" rx="13" fill="#352b1b" stroke="#9b6b12"/>
+    <text x="1168" y="711" fill="#ffb624" font-size="16" font-weight="700">成功条件</text>
+    <text x="1168" y="740" fill="#ffffff" font-size="16">有償利用・更新/拡大のEvidenceを揃え、</text>
+    <text x="1168" y="764" fill="#ffffff" font-size="16">PMF検証へ進める準備状態を作る</text>
+
+    <!-- outcome progression -->
+    <rect x="55" y="829" width="1562" height="75" rx="18" fill="#092239" stroke="#147daf" stroke-width="2"/>
+    <text x="302" y="876" text-anchor="middle" fill="#91f27e" font-size="22" font-weight="700">Core Proof PoC</text>
+    <text x="555" y="876" text-anchor="middle" fill="#ffffff" font-size="34">→</text>
+    <text x="836" y="876" text-anchor="middle" fill="#48d7ff" font-size="22" font-weight="700">企業との運用Pilot</text>
+    <text x="1117" y="876" text-anchor="middle" fill="#ffffff" font-size="34">→</text>
+    <text x="1370" y="876" text-anchor="middle" fill="#ffb624" font-size="21" font-weight="700">PMF検証への商用準備</text>
+  </g>
+</svg>

@@ -10,7 +10,7 @@
 - [Judge Q&A](submission/judge_qa.md): concise answers for privacy, trust, scale, product, and business questions.
 - [One-page brief](submission/one_page_brief.md): compact live-pitch handout.
 - [Final GUI demo script](submission/demo_script.md): exact action sequence, narration, redaction, shots, and fallback policy.
-- [English judging deck](submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf): ten core slides plus two technical appendices; the editable PPTX is in the same directory.
+- [English judging deck](submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf): final nine-slide pitch synchronized with the 2:18 English video; the editable PPTX is in the same directory.
 
 [日本語版](ja/README.md)
 
@@ -19,6 +19,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 ## Architecture
 
 - [Wave 1 specification](architecture/wave1_spec.md): normative product scope, claim, boundaries, and acceptance criteria.
+- [Three-wave product and business roadmap](architecture/three_wave_roadmap.md): Core Proof PoC, operational partner pilot, and PMF outcomes.
 - [System architecture](architecture/system_architecture.md): Edge Device, Frontend, Backend, and Midnight responsibilities.
 - [Hourly extrema attestation](architecture/hourly_extrema_attestation_proposal.md): fixed 24-slot circuit and daily proof flow.
 

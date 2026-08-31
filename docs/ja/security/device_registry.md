@@ -34,7 +34,7 @@ policyAssignments[assignmentKey]
 ```
 
 Operator Authority秘密値は開発／運用ホストと、PrivateなSponsor Wallet ContainerのDeploy Secretとして
-保持します。Development Walletは管理対象Edge Deviceを操作し、Sponsor WalletはLace署名済みBrowser Review
+保持します。Development Walletは管理対象Edge Deviceを操作し、Sponsor WalletはWallet認可済みBrowser Review
 Flowに限り、同じ固定Device登録Circuitを実行します。Domain分離したOperator AuthorityがCompact回路内の
 認可を証明します。Device Contract Authority秘密値は該当Deviceだけに置きます。Publicな
 Self-enrollment Circuitは設けず、すべてOperator-only Circuitを実行します。
@@ -89,30 +89,30 @@ Deployment Record更新、D1 Mirror同期、Lease失効まで行います。2つ
 有効化します。
 
 Browser Review Flowは同じContract認可を使い、従来のLoopback Bridge機能をWorker内へ移します。Enrollment前に
-BrowserとWorkerはLace公開検証鍵の識別子から
+BrowserとWorkerはWallet公開検証鍵の識別子から
 `device-SHA256("VSP-BROWSER-DEVICE-ID-V1" || projectId || walletKeySha256)`を独立に計算します。
 Device IDは読取専用で、任意ID指定や別WalletのBrowser StorageへのFallbackは拒否します。
 
-このEnrollment Flowの前に、Laceは別のOne-time Project Session Challengeへ署名します。Workerはその
+このEnrollment Flowの前に、Browser Walletは別のOne-time Project Session Challengeへ署名します。Workerはその
 Wallet識別子に関連付けられたProjectだけを返し、24時間のOpaque Bearer Tokenを発行します。Wallet 1つに
 関連付けられるProjectは最大10件で、API CheckとD1の`browser_wallet_projects_limit` Triggerが同じ上限を
 強制します。新規ProjectはPolicy 0件から開始し、Project作成だけではOn-chain TXを作りません。Ownerは別操作で
-Projectに関連付くPolicyを最大10件作れます。LaceがProject、Immutable Policy ID、Mode、Centi-degree Bound、
+Projectに関連付くPolicyを最大10件作れます。Browser WalletがProject、Immutable Policy ID、Mode、Centi-degree Bound、
 Nonce、Timestampへ署名し、WorkerがOperator限定`registerThresholdPolicy`をQueueへ投入し、Indexer確定後だけ
 Policyを公開します。登録済みDevice Assignmentを無効にしないよう、既存の明示的Project／Policy関連は保持します。
 
 1. BrowserがDevice IDを導出し、Non-exportable P-256 Device Identityを作り、登録済みPublic Policyを選択
 2. Workerが5分間有効なOne-time Challengeを発行
-3. LaceがDevice ID、P-256 Key ID、Device Authority、Policy、Challenge、Nonce、TimestampのCanonical
+3. Browser WalletがDevice ID、P-256 Key ID、Device Authority、Policy、Challenge、Nonce、TimestampのCanonical
    Messageを`signData`で署名
-4. WorkerがLace署名を検証してDevice IDを再計算し、Lace Verification Key／ProjectごとにReview Device 1台を強制
+4. WorkerがWallet署名を検証してDevice IDを再計算し、Wallet Verification Key／ProjectごとにReview Device 1台を強制
 5. Private Sponsor Wallet Containerが`registerDevice`と`registerPolicyAssignment`だけを実行
 6. IndexerでDevice、Authority、Policy、Assignment、Versionの完全一致を確認
 7. 確認後に限り、D1のP-256 KeyとPublic Mirrorを1 Batchで有効化
 
 Migration `0019_worker_browser_provisioning.sql`はOne-time Enrollment Challenge Hashを保存します。
 Migration `0021_wallet_projects.sql`はHash化Project Session、10 Project上限、明示的Project／Policy関連、
-Wallet／Project／Device Bindingを追加します。Migration `0022_project_policies.sql`はLace認可Policy Operation、
+Wallet／Project／Device Bindingを追加します。Migration `0022_project_policies.sql`はWallet認可Policy Operation、
 Projectごとの10 Policy上限、実際のProof生成日時、登録済みDeviceの初期現在状態を追加します。これらのEndpoint
 では別Contract選択、Device Rotation／Disable、Token Transfer、Operator／Sponsor Secret取得はできません。
 Concurrent登録はD1 Leaseで直列化し、DuplicateはFail Closeします。
@@ -145,7 +145,7 @@ MirrorしていないDeviceはCloudflare Sessionを取得できません。こ�
 Migration `0011_multi_device_registry.sql`は`devices`へPublic Mirror Fieldと管理Transaction Evidence、
 `policy_assignments`へ`device_commitment`、Operator Leaseへ`contract_admin` Purposeを追加します。
 Migration `0012_device_operation_configuration.sql`は単調増加するPublic Configuration Revisionと
-専用`configuration:read` Scopeを追加します。Migration `0013_daily_threshold_result.sql`は日次の冪等Proof JobへClaimしたPublic WITHIN／OUTSIDE ResultをBindingします。Migration `0019_worker_browser_provisioning.sql`はHash化したBrowser ChallengeとLace Verification Key Bindingを追加します。SecretはD1へ保存しません。
+専用`configuration:read` Scopeを追加します。Migration `0013_daily_threshold_result.sql`は日次の冪等Proof JobへClaimしたPublic WITHIN／OUTSIDE ResultをBindingします。Migration `0019_worker_browser_provisioning.sql`はHash化したBrowser ChallengeとWallet Verification Key Bindingを追加します。SecretはD1へ保存しません。
 
 WorkerはSession発行／運用Input受理前に次を必須とします。
 
@@ -189,7 +189,7 @@ WITHIN Attestationは2026-08-30 JSTに別途確定し、現在のSponsorship境�
 
 現行Sponsor負担Release GateではStep 6を次へ置き換えます。
 
-1. DeviceまたはLaceがProof済みTransactionをFeeなしでBind
+1. 現場Transaction AgentまたはBrowser WalletがProof済みTransactionをFeeなしでBind
 2. 認証済みSponsor Endpointが対応Proof Jobにつき1回だけ受理
 3. 専用Sponsor WalletがDUSTだけを追加して送信
 4. 重複、不一致、Size超過、不正State、改変Requestを拒否するか同じ冪等Resultを返す

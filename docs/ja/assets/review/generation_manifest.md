@@ -84,12 +84,16 @@ Prompt Set:
 
 ## three-wave-roadmap-ja.png
 
-Prompt Set:
+生成方法: `three-wave-roadmap-ja.svg`を正本として、1672×941 PNGへ変換。画像生成モデルは不使用。
 
-- Wave 1は検証済み、Wave 2・3は計画として3列で分離。
-- 24個の時間枠の最小値・最大値、Midnight事前公開ネットワークでの範囲内・範囲外確認を日本語で表示。
-- 今後の項目もブラウザ独立検証、署名付き来歴証明、校正記録、セキュアハードウェアなど日本語化。
-- 最下部は「技術実証 → 建設現場での実証実験 → 販売・レンタル導入」。
+- `docs/ja/architecture/three_wave_roadmap.md`の2026-08-31版を要約。
+- 製品名ではなく「検証する問い」「主要到達内容」「成功条件」を3列で表示。
+- Wave 1は「現在のPoC」、Wave 2・3は「計画」と明示。
+- Wave 1を長期自律運用済みとせず、ユーザー認可ブラウザ、疑似データ、審査用統合画面という境界を表示。
+- Wave 2は現場計測への接続、自律運用、役割分離、監視・復旧、企業Pilotを表示。
+- Wave 3は信頼最小化、商用運用、Billing/Support、反復利用・更新/拡大・Unit EconomicsのEvidenceを表示。
+- Wave 3の到達点はPMF達成ではなく、PMF検証へ進める商用準備状態と明示。
+- 最下部は「Core Proof PoC → 企業との運用Pilot → PMF検証への商用準備」。
 
 ## device-session-sequence-ja.png
 

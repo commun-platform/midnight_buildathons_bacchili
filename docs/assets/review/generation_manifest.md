@@ -53,9 +53,14 @@ Common constraints: hard enterprise-engineering style; no board-specific hardwar
 
 ## three-wave-roadmap-en.png
 
-- Wave 1 is `CURRENT` and `VERIFIED`; Waves 2 and 3 are `PLANNED`.
-- Wave 1 includes Device-authenticated daily proof, 24 hourly slots, `WITHIN / OUTSIDE` on the Midnight preproduction network, administrator / third-party views, and daily threshold-proof submission.
-- Adoption path: `TECHNICAL VALIDATION → CONSTRUCTION-SITE PILOT → SALES + RENTAL ADOPTION`.
+- Summarize the 2026-08-31 version of `docs/architecture/three_wave_roadmap.md`.
+- Use three columns organized by question, primary outcome, and success condition rather than product names.
+- Mark Wave 1 as the current PoC and Waves 2 and 3 as planned.
+- Bound Wave 1 to a user-authorized browser client, simulated measurement source, and combined review interface; do not imply completed autonomous field operation.
+- Show Wave 2 as field-system integration, autonomous daily operation, role separation, operational controls, and a partner pilot.
+- Show Wave 3 as trust minimization, commercial operation, billing/support, repeated-use and renewal/expansion evidence, and viable unit economics.
+- State explicitly that Wave 3 prepares a repeatable PMF validation process; it does not claim PMF achievement.
+- Adoption path: `CORE PROOF POC → OPERATIONAL PARTNER PILOT → COMMERCIAL READINESS FOR PMF VALIDATION`.
 
 ## device-session-sequence-en.png
 

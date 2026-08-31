@@ -2,7 +2,9 @@
 
 [English](../../architecture/system_architecture.md)
 
-正本は[`wave1_spec.md`](wave1_spec.md)です。実装済みRuntimeは次の構成です。
+正本は[`wave1_spec.md`](wave1_spec.md)です。Wave 1の主要審査経路は、疑似計測元として動く
+ユーザー認可済みBrowser Client、Trustedな管理Backend、Midnightで構成します。リポジトリにはWave 2の
+Integration Evidenceとして、次の現場Runtime境界も実装しています。
 
 ![エッジデバイス、画面、バックエンド、Midnightの責任分担](../assets/review/wave1-system-overview-ja.png)
 
@@ -40,7 +42,10 @@ D1はその運用Mirrorです。
 
 ![認証必須の管理者画面とPublicな第三者検証画面の責任分離](../assets/review/frontend-responsibility-ja.png)
 
-2つのFrontend Viewは意図的に異なるEvidenceを表示します。管理者画面は認可済み運用Summary、第三者検証画面はRedactedされた確定Evidenceを扱います。どちらにも秘密鍵、Witness、Private State、Raw Sampleを渡しません。
+Wave 1の統合審査Applicationには、意図的に異なるEvidenceを扱う2つの論理Viewがあります。運用Workflowは
+Browser Privateな疑似Captureと認可済みWorkflow Stateを扱い、第三者ViewはRedactedされた確定Evidenceだけを
+受け取ります。本番ではWave 2でRoleとApplicationを分離します。Public Viewには秘密鍵、Witness、Private State、
+Raw Sampleを渡しません。
 
 ```text
 Edge Device
@@ -74,7 +79,7 @@ Proof Server営業時間は02:00–06:00 JSTです。D1がDurable Backlog、Queu
 
 Development Deployには`contract_deploy`、Deploy後のDevice管理には`contract_admin` Purposeの30分Operator Proof Leaseを使い、Device Keyは使いません。認証済みWrangler操作で発行し、平文LeaseはProcess内だけに置いて終了時にRevokeします。D1 HashはProof ServerのCapacity上限を共有します。Lifecycle正本は[`device_registry.md`](../security/device_registry.md)です。
 
-Proof生成後、DeviceまたはLaceは値移動を含まないTransactionをFeeなしでBindします。認証済み
+Proof生成後、現場Transaction AgentまたはUser管理のBrowser Accountが、値移動を含まないTransactionをFeeなしでBindします。認証済み
 Sponsorship Endpointは、そのFinalized Serialized TransactionをProof Jobごとに1回だけ受理し、Integrity
 Addressedな非公開BytesをR2へ保存してJob IDをQueueへ投入します。同一再送は追加Queue投入なしで既存状態を
 返し、異なるBytesは拒否します。専用Sponsor Walletが後からJobとBind済みCallを検証し、DUSTだけを追加して

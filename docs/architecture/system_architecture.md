@@ -2,7 +2,10 @@
 
 [日本語版](../ja/architecture/system_architecture.md)
 
-The normative architecture is [`wave1_spec.md`](wave1_spec.md). The implemented runtime is:
+The normative architecture is [`wave1_spec.md`](wave1_spec.md). The primary Wave 1 review path is a
+user-authorized browser client acting as a simulated measurement source, followed by the trusted
+managed backend and Midnight. The repository also implements the following field-runtime boundary as
+supporting integration evidence for Wave 2:
 
 ![Responsibility zones and data flow across Edge Device, Frontend, Backend, and Midnight](../assets/review/wave1-system-overview-en.png)
 
@@ -14,7 +17,11 @@ an operational mirror.
 
 ![Separation between the authenticated administrator view and the public verifier view](../assets/review/frontend-responsibility-en.png)
 
-The two Frontend views intentionally expose different evidence. The administrator view receives authorized operational summaries, while the public verifier receives redacted confirmed evidence. Neither view receives private keys, witnesses, private state, or raw samples.
+The combined Wave 1 review application contains two logical views that intentionally expose different
+evidence. The operator workflow can access its browser-private simulated capture and authorized
+workflow state, while the third-party view receives only redacted confirmed evidence. Production
+deployment separates these roles and applications in Wave 2. Neither public view receives private
+keys, witnesses, private state, or raw samples.
 
 ```text
 Edge Device
@@ -53,7 +60,8 @@ The Proof Server operating window is 02:00–06:00 JST. D1 remains the durable b
 
 Development deployment uses a 30-minute `contract_deploy` Operator Proof Lease; post-deployment Device administration uses a separate `contract_admin` purpose. Both are minted by authenticated Wrangler access, never a Device key. Plaintext leases are process-only and revoked on completion; their D1 hashes share the same Proof Server capacity ceiling. The full lifecycle is in [`device_registry.md`](../security/device_registry.md).
 
-After proof generation, the Device or Lace binds the value-neutral transaction without fees. The
+After proof generation, the field transaction agent or user-controlled browser account binds the
+value-neutral transaction without fees. The
 authenticated sponsorship endpoint accepts that finalized serialized transaction once for its Proof
 Job, stores its integrity-addressed private bytes in R2, and queues the Job ID. Exact retries return
 the existing state without another Queue message; conflicting bytes are rejected. A dedicated
