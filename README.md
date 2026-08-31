@@ -188,6 +188,8 @@ The expected review result is 6 compiled operational proof circuits, 288 passing
 
 The canonical [product and business roadmap](docs/architecture/three_wave_roadmap.md) progresses by outcome:
 
+![Three-wave product and business roadmap](docs/assets/review/three-wave-roadmap-en.png)
+
 - Wave 1 — Core Proof PoC: validate the privacy value with a simulated measurement source and one review-oriented interface.
 - Wave 2 — Operational Partner Pilot: connect real field measurement systems, automate the daily lifecycle, separate user roles and interfaces, and add production authorization, audit, diagnostics, monitoring, recovery, and a system-operations dashboard.
 - Wave 3 — Trust Minimization and PMF: add hardware-protected identity and provenance, operate commercially across organizations and sites, and validate recurring revenue, renewal, expansion, and sustainable unit economics.

@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1672" height="941" viewBox="0 0 1672 941">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#12304a" stroke-width="1" opacity="0.55"/>
+    </pattern>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000814" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="1672" height="941" fill="#061526"/>
+  <rect width="1672" height="941" fill="url(#grid)"/>
+
+  <g font-family="DejaVu Sans, Arial, sans-serif">
+    <text x="56" y="78" fill="#ffffff" font-size="43" font-weight="700">Three-Wave Product &amp; Business Roadmap</text>
+    <text x="58" y="116" fill="#a8bed0" font-size="18">Progress by validated questions and outcomes — not by product names</text>
+
+    <rect x="55" y="145" width="1562" height="58" rx="15" fill="#0c253b" stroke="#23668d" stroke-width="2"/>
+    <text x="836" y="181" text-anchor="middle" fill="#d7e8f2" font-size="17" font-weight="600">CORE: MIDNIGHT + ZERO-KNOWLEDGE PROOFS / IMPLEMENTATION PRODUCTS REMAIN IN TECHNICAL SPECS</text>
+
+    <!-- Wave 1 -->
+    <g filter="url(#shadow)">
+      <rect x="55" y="231" width="496" height="570" rx="22" fill="#0a2130" stroke="#6ee75b" stroke-width="3"/>
+    </g>
+    <rect x="55" y="231" width="496" height="80" rx="22" fill="#113a2d"/>
+    <text x="83" y="268" fill="#91f27e" font-size="27" font-weight="700">Wave 1</text>
+    <text x="83" y="297" fill="#ffffff" font-size="23" font-weight="700">Core Proof PoC</text>
+    <rect x="394" y="252" width="128" height="36" rx="18" fill="#6ee75b"/>
+    <text x="458" y="277" text-anchor="middle" fill="#082016" font-size="18" font-weight="700">CURRENT POC</text>
+    <text x="83" y="350" fill="#91f27e" font-size="17" font-weight="700">QUESTION</text>
+    <text x="83" y="384" fill="#ffffff" font-size="21" font-weight="700">Does the private threshold-proof</text>
+    <text x="83" y="414" fill="#ffffff" font-size="21" font-weight="700">value proposition work?</text>
+    <line x1="83" y1="438" x2="522" y2="438" stroke="#315064"/>
+    <text x="83" y="476" fill="#bcd0dd" font-size="17">• User-authorized browser review</text>
+    <text x="83" y="510" fill="#bcd0dd" font-size="17">• Synthetic day + authorized summaries</text>
+    <text x="83" y="544" fill="#bcd0dd" font-size="17">• Fixed-shape private daily input</text>
+    <text x="83" y="578" fill="#bcd0dd" font-size="17">• Proof generation + sponsored fees</text>
+    <text x="83" y="612" fill="#bcd0dd" font-size="17">• Public result + evidence ID on Midnight</text>
+    <text x="83" y="646" fill="#bcd0dd" font-size="17">• Combined operator / verifier review UI</text>
+    <rect x="82" y="682" width="442" height="91" rx="13" fill="#112d2b" stroke="#438f48"/>
+    <text x="102" y="711" fill="#91f27e" font-size="16" font-weight="700">SUCCESS CONDITION</text>
+    <text x="102" y="740" fill="#ffffff" font-size="16">A reviewer reproduces the complete flow</text>
+    <text x="102" y="764" fill="#ffffff" font-size="16">and understands proof and trust boundaries</text>
+
+    <!-- Wave 2 -->
+    <g filter="url(#shadow)">
+      <rect x="588" y="231" width="496" height="570" rx="22" fill="#0a2130" stroke="#23c8f4" stroke-width="3" stroke-dasharray="10 8"/>
+    </g>
+    <rect x="588" y="231" width="496" height="80" rx="22" fill="#0b3449"/>
+    <text x="616" y="268" fill="#48d7ff" font-size="27" font-weight="700">Wave 2</text>
+    <text x="616" y="297" fill="#ffffff" font-size="23" font-weight="700">Operational Partner Pilot</text>
+    <rect x="934" y="252" width="121" height="36" rx="18" fill="#153c50" stroke="#23c8f4"/>
+    <text x="994" y="277" text-anchor="middle" fill="#48d7ff" font-size="18" font-weight="700">PLANNED</text>
+    <text x="616" y="350" fill="#48d7ff" font-size="17" font-weight="700">QUESTION</text>
+    <text x="616" y="384" fill="#ffffff" font-size="21" font-weight="700">Can it operate reliably with real</text>
+    <text x="616" y="414" fill="#ffffff" font-size="21" font-weight="700">field measurement systems?</text>
+    <line x1="616" y1="438" x2="1055" y2="438" stroke="#315064"/>
+    <text x="616" y="476" fill="#bcd0dd" font-size="17">• Autonomous field + daily operation</text>
+    <text x="616" y="510" fill="#bcd0dd" font-size="17">• Organization / project / role separation</text>
+    <text x="616" y="544" fill="#bcd0dd" font-size="17">• Audit trails, monitoring, operations UI</text>
+    <text x="616" y="578" fill="#bcd0dd" font-size="17">• Idempotent retry, recovery, alerting</text>
+    <text x="616" y="612" fill="#bcd0dd" font-size="17">• Multi-source lifecycle + update control</text>
+    <text x="616" y="646" fill="#bcd0dd" font-size="17">• Paid operational partner pilot</text>
+    <rect x="615" y="682" width="442" height="91" rx="13" fill="#102b3c" stroke="#188eb1"/>
+    <text x="635" y="711" fill="#48d7ff" font-size="16" font-weight="700">SUCCESS CONDITION</text>
+    <text x="635" y="740" fill="#ffffff" font-size="16">A partner uses daily proofs in a real workflow</text>
+    <text x="635" y="764" fill="#ffffff" font-size="16">and measures reliability, support, and value</text>
+
+    <!-- Wave 3 -->
+    <g filter="url(#shadow)">
+      <rect x="1121" y="231" width="496" height="570" rx="22" fill="#0a2130" stroke="#f5a500" stroke-width="3" stroke-dasharray="10 8"/>
+    </g>
+    <rect x="1121" y="231" width="496" height="80" rx="22" fill="#402d12"/>
+    <text x="1149" y="268" fill="#ffb624" font-size="27" font-weight="700">Wave 3</text>
+    <text x="1149" y="297" fill="#ffffff" font-size="19" font-weight="700">Trust Minimization &amp; PMF</text>
+    <rect x="1467" y="252" width="121" height="36" rx="18" fill="#4b3514" stroke="#f5a500"/>
+    <text x="1527" y="277" text-anchor="middle" fill="#ffb624" font-size="18" font-weight="700">PLANNED</text>
+    <text x="1149" y="350" fill="#ffb624" font-size="17" font-weight="700">QUESTION</text>
+    <text x="1149" y="384" fill="#ffffff" font-size="19" font-weight="700">Will customers repeatedly use</text>
+    <text x="1149" y="414" fill="#ffffff" font-size="19" font-weight="700">and pay for the service?</text>
+    <line x1="1149" y1="438" x2="1588" y2="438" stroke="#315064"/>
+    <text x="1149" y="476" fill="#bcd0dd" font-size="17">• Hardware-protected identity + authority</text>
+    <text x="1149" y="510" fill="#bcd0dd" font-size="17">• Software / configuration evidence</text>
+    <text x="1149" y="544" fill="#bcd0dd" font-size="17">• Calibration and lifecycle provenance</text>
+    <text x="1149" y="578" fill="#bcd0dd" font-size="17">• Multi-org operations, SLA, backup, DR</text>
+    <text x="1149" y="612" fill="#bcd0dd" font-size="17">• Metering, plans, billing, and support</text>
+    <text x="1149" y="646" fill="#bcd0dd" font-size="17">• Repeat use, renewal / expansion, economics</text>
+    <rect x="1148" y="682" width="442" height="91" rx="13" fill="#352b1b" stroke="#9b6b12"/>
+    <text x="1168" y="711" fill="#ffb624" font-size="16" font-weight="700">SUCCESS CONDITION</text>
+    <text x="1168" y="740" fill="#ffffff" font-size="16">Multiple paying customers obtain repeatable value</text>
+    <text x="1168" y="764" fill="#ffffff" font-size="16">and at least one customer renews or expands</text>
+
+    <!-- outcome progression -->
+    <rect x="55" y="829" width="1562" height="75" rx="18" fill="#092239" stroke="#147daf" stroke-width="2"/>
+    <text x="302" y="876" text-anchor="middle" fill="#91f27e" font-size="22" font-weight="700">Core Proof PoC</text>
+    <text x="555" y="876" text-anchor="middle" fill="#ffffff" font-size="34">→</text>
+    <text x="836" y="876" text-anchor="middle" fill="#48d7ff" font-size="22" font-weight="700">Operational Partner Pilot</text>
+    <text x="1117" y="876" text-anchor="middle" fill="#ffffff" font-size="34">→</text>
+    <text x="1370" y="876" text-anchor="middle" fill="#ffb624" font-size="19" font-weight="700">PMF + Recurring Revenue</text>
+  </g>
+</svg>

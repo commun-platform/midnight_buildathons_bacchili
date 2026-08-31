@@ -31,7 +31,7 @@
     <text x="83" y="414" fill="#ffffff" font-size="21" font-weight="700">中核価値が成立するか</text>
     <line x1="83" y1="438" x2="522" y2="438" stroke="#315064"/>
     <text x="83" y="476" fill="#bcd0dd" font-size="17">• ユーザー認可ブラウザで審査</text>
-    <text x="83" y="510" fill="#bcd0dd" font-size="17">• 疑似の日次計測データ</text>
+    <text x="83" y="510" fill="#bcd0dd" font-size="17">• 疑似日次Data・認可済みSummary</text>
     <text x="83" y="544" fill="#bcd0dd" font-size="17">• 固定形状の非公開日次入力</text>
     <text x="83" y="578" fill="#bcd0dd" font-size="17">• 証明生成とサービス側手数料負担</text>
     <text x="83" y="612" fill="#bcd0dd" font-size="17">• 公開判定と証拠IDをMidnightへ記録</text>
@@ -71,12 +71,12 @@
     </g>
     <rect x="1121" y="231" width="496" height="80" rx="22" fill="#402d12"/>
     <text x="1149" y="268" fill="#ffb624" font-size="27" font-weight="700">Wave 3</text>
-    <text x="1149" y="297" fill="#ffffff" font-size="20" font-weight="700">Trust Minimization / Readiness</text>
+    <text x="1149" y="297" fill="#ffffff" font-size="20" font-weight="700">Trust Minimization &amp; PMF</text>
     <rect x="1467" y="252" width="121" height="36" rx="18" fill="#4b3514" stroke="#f5a500"/>
     <text x="1527" y="277" text-anchor="middle" fill="#ffb624" font-size="18" font-weight="700">計画</text>
     <text x="1149" y="350" fill="#ffb624" font-size="17" font-weight="700">検証する問い</text>
-    <text x="1149" y="384" fill="#ffffff" font-size="19" font-weight="700">反復可能な顧客価値と</text>
-    <text x="1149" y="414" fill="#ffffff" font-size="19" font-weight="700">商用提供条件を検証できるか</text>
+    <text x="1149" y="384" fill="#ffffff" font-size="19" font-weight="700">顧客が継続利用し、</text>
+    <text x="1149" y="414" fill="#ffffff" font-size="19" font-weight="700">対価を支払うか</text>
     <line x1="1149" y1="438" x2="1588" y2="438" stroke="#315064"/>
     <text x="1149" y="476" fill="#bcd0dd" font-size="17">• ハードウェア保護Identity・署名権限</text>
     <text x="1149" y="510" fill="#bcd0dd" font-size="17">• ソフトウェア・設定状態のEvidence</text>
@@ -86,8 +86,8 @@
     <text x="1149" y="646" fill="#bcd0dd" font-size="17">• 反復利用・更新/拡大・Unit Economics</text>
     <rect x="1148" y="682" width="442" height="91" rx="13" fill="#352b1b" stroke="#9b6b12"/>
     <text x="1168" y="711" fill="#ffb624" font-size="16" font-weight="700">成功条件</text>
-    <text x="1168" y="740" fill="#ffffff" font-size="16">有償利用・更新/拡大のEvidenceを揃え、</text>
-    <text x="1168" y="764" fill="#ffffff" font-size="16">PMF検証へ進める準備状態を作る</text>
+    <text x="1168" y="740" fill="#ffffff" font-size="16">複数の有償顧客が反復価値を得て、</text>
+    <text x="1168" y="764" fill="#ffffff" font-size="16">少なくとも1社が契約更新または利用拡大</text>
 
     <!-- outcome progression -->
     <rect x="55" y="829" width="1562" height="75" rx="18" fill="#092239" stroke="#147daf" stroke-width="2"/>
@@ -95,6 +95,6 @@
     <text x="555" y="876" text-anchor="middle" fill="#ffffff" font-size="34">→</text>
     <text x="836" y="876" text-anchor="middle" fill="#48d7ff" font-size="22" font-weight="700">企業との運用Pilot</text>
     <text x="1117" y="876" text-anchor="middle" fill="#ffffff" font-size="34">→</text>
-    <text x="1370" y="876" text-anchor="middle" fill="#ffb624" font-size="21" font-weight="700">PMF検証への商用準備</text>
+    <text x="1370" y="876" text-anchor="middle" fill="#ffb624" font-size="21" font-weight="700">PMF・継続売上</text>
   </g>
 </svg>

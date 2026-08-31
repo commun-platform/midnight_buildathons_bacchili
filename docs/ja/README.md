@@ -188,6 +188,8 @@ TMPDIR=/tmp npm run verify
 
 [製品・事業ロードマップ](architecture/three_wave_roadmap.md)は、次の成果順に進めます。
 
+![3 Wave製品・事業ロードマップ](assets/review/three-wave-roadmap-ja.png)
+
 - Wave 1 — Core Proof PoC：疑似計測元と審査用統合画面で、非公開証明の中核価値を検証します。
 - Wave 2 — Operational Partner Pilot：実際の現場計測システムを接続して日次処理を自律化し、画面と役割の分離、本番認証・認可、監査、解析、監視、復旧、運用ダッシュボードを実装します。
 - Wave 3 — Trust Minimization and PMF：ハードウェア保護Identityと来歴を導入し、複数組織・複数現場で商用運用して、継続売上、契約更新、利用拡大、持続可能なUnit Economicsを検証します。
