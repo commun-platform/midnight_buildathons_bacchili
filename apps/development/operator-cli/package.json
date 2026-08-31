@@ -13,7 +13,6 @@
     "rotate-device": "node ../../../scripts/require-development-host.mjs && tsx src/cli.ts rotate-device",
     "disable-device": "node ../../../scripts/require-development-host.mjs && tsx src/cli.ts disable-device",
     "status": "node ../../../scripts/require-development-host.mjs && tsx src/cli.ts status",
-    "gui:provisioning": "node ../../../scripts/require-development-host.mjs && tsx src/gui-provisioning-server.ts",
     "benchmark:daily-proof": "node ../../../scripts/require-development-host.mjs && tsx src/daily-attestation-benchmark.ts",
     "test": "node ../../../scripts/require-development-host.mjs && tsx --test src/*.test.ts"
   },

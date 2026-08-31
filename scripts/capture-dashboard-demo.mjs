@@ -95,13 +95,16 @@ if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(proofJobId)) {
   throw new Error('--proof-job-id must be a valid Proof Job ID');
 }
 
-const baseUrl = new URL(flag('base-url')?.trim() || 'http://127.0.0.1:8790');
-if (!['127.0.0.1', 'localhost', '::1'].includes(baseUrl.hostname)) {
-  throw new Error('--base-url must use a loopback host');
-}
+const baseUrl = new URL(
+  flag('base-url')?.trim() || 'http://127.0.0.1:8787',
+);
 if (!['http:', 'https:'].includes(baseUrl.protocol)) {
   throw new Error('--base-url must use HTTP or HTTPS');
 }
+if (
+  baseUrl.protocol !== 'https:'
+  && !['127.0.0.1', 'localhost', '::1'].includes(baseUrl.hostname)
+) throw new Error('--base-url requires HTTPS unless it uses a loopback host');
 
 const outputDirectory = path.resolve(
   repoRoot,
@@ -123,7 +126,7 @@ const healthResponse = await fetch(new URL('/health', baseUrl), {
   headers: { Accept: 'application/json' },
   signal: AbortSignal.timeout(10_000),
 });
-if (!healthResponse.ok) throw new Error(`Local dashboard health returned HTTP ${healthResponse.status}`);
+if (!healthResponse.ok) throw new Error(`Dashboard health returned HTTP ${healthResponse.status}`);
 
 const userDataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vsp-dashboard-chrome-'));
 const chromeProcess = spawn(chrome, [
@@ -161,7 +164,7 @@ try {
     mobile: false,
   });
   await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: "localStorage.setItem('vsp-language', 'ja');",
+    source: "localStorage.setItem('vsp-language', 'en');",
   });
 
   const evaluate = async (expression) => {
@@ -235,21 +238,8 @@ try {
     }
   };
 
-  const adminUrl = new URL('/#/admin', baseUrl).toString();
-  await navigate(adminUrl);
-  await waitFor(`document.documentElement.lang === 'ja' && document.querySelector('.proof-stepper') && document.querySelectorAll('.proof-stepper li').length === 6`, 90_000);
-  await evaluate('window.scrollTo(0, 0)');
-  await capture(path.join(outputDirectory, 'administrator.png'));
-  await caption('1. デバイス認証・1時間集計・異常状態を管理画面で確認');
-  await hold(4);
-
-  await caption('2. 証明処理とMidnightへの記録状態を確認');
-  await smoothScroll(`Math.max(0, document.querySelector('.button-link').getBoundingClientRect().top + window.scrollY - 520)`);
-  await hold(3);
-
-  await caption('3. 「第三者表示」から公開検証画面へ移動');
-  await hold(2);
-  await evaluate(`location.hash = '#/verify/${encodeURIComponent(proofJobId)}'`);
+  const verificationUrl = new URL(`/#/verify/${encodeURIComponent(proofJobId)}`, baseUrl).toString();
+  await navigate(verificationUrl);
   await waitFor(`location.hash.includes(${JSON.stringify(encodeURIComponent(proofJobId))}) && document.querySelector('.check-list') && document.querySelector('.public-proof-pipeline') && document.querySelector('.raw-values-redacted')`, 90_000);
   await waitFor(`(document.querySelectorAll('.check-list .check-code:not(.waiting)').length === 4 && document.querySelectorAll('.public-proof-pipeline li.complete').length === 5) || document.querySelector('.dashboard-sync-state.failed')`, 90_000);
   await evaluate('window.scrollTo(0, 0)');
@@ -257,14 +247,14 @@ try {
   await capture(path.join(outputDirectory, 'third-party-verification.png'));
   const verificationFailure = await evaluate(`document.querySelector('.dashboard-sync-state.failed')?.innerText || ''`);
   if (verificationFailure) throw new Error(`Third-party verification failed: ${verificationFailure}`);
-  await caption('4. センサー値を開示せず、しきい値判定とMidnightへの記録を確認');
+  await caption('1. Verify the threshold result and Midnight record without revealing sensor values');
   await hold(5);
 
-  await caption('5. 公開情報と「第三者には非公開」の元のセンサー値を確認');
+  await caption('2. Review public evidence and the sensor values hidden from third parties');
   await smoothScroll(`Math.max(0, document.documentElement.scrollHeight - window.innerHeight)`);
   await hold(5);
 
-  const video = path.join(outputDirectory, 'vsp-midnight-proof-demo-ja.mp4');
+  const video = path.join(outputDirectory, 'vsp-midnight-proof-verification-en.mp4');
   const ffmpegResult = spawnSync(ffmpeg, [
     '-y',
     '-framerate', '5',
@@ -285,7 +275,7 @@ try {
     createdAt: new Date().toISOString(),
     proofJobId,
     baseUrl: baseUrl.toString(),
-    language: 'ja',
+    language: 'en',
     chromeVersion,
     ffmpegVersion,
     frameRate: 5,

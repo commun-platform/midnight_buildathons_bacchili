@@ -1,4 +1,10 @@
 import {
+  browserPolicyCanonicalMessage,
+  browserProjectCanonicalMessage,
+  deriveBrowserWalletDeviceId,
+  type BrowserPolicyMode,
+} from '@midnight-demo/shared/browser-provisioning';
+import {
   type ThresholdPolicyDescriptor,
 } from '@midnight-demo/shared';
 import { deriveDeviceAuthorityHex } from '@midnight-demo/sensor-registry-contract/witnesses';
@@ -31,6 +37,7 @@ import {
 } from './daily-captures.js';
 
 export interface DevicePolicy extends ThresholdPolicyDescriptor {
+  name: string;
   policyKey: string;
   registeredTxId: string;
 }
@@ -41,6 +48,46 @@ export interface ProvisioningConfiguration {
   contractAddress: string;
   serviceUrl: string;
   policies: DevicePolicy[];
+  maximumPolicies: number;
+}
+
+export interface BrowserPolicyOperation {
+  operationId: string;
+  projectId: string;
+  policyId: string;
+  name: string;
+  mode: BrowserPolicyMode;
+  minimum: number | null;
+  maximum: number | null;
+  status: 'queued' | 'running' | 'retrying' | 'registered' | 'failed';
+  stage: string;
+  policyKey: string | null;
+  policyTxId: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrowserProjectPolicies {
+  policies: Array<Pick<DevicePolicy,
+    'policyId' | 'name' | 'policyKey' | 'mode' | 'minimum' | 'maximum' | 'version' | 'registeredTxId'
+  > & { status: 'registered' }>;
+  operations: BrowserPolicyOperation[];
+  maximumPolicies: number;
+}
+
+export interface BrowserProject {
+  projectId: string;
+  name: string;
+  nameJa: string | null;
+  createdAt: string;
+}
+
+interface BrowserProjectSession {
+  accessToken: string;
+  expiresAt: string;
+  projects: BrowserProject[];
+  maximumProjects: number;
 }
 
 export interface BrowserDevice {
@@ -80,6 +127,55 @@ export interface DeviceHistory {
   localCaptures: BrowserDailyCapture[];
 }
 
+export interface DeviceAdministratorDashboard {
+  source: string;
+  project: {
+    id: string;
+    name: string;
+    nameJa: string | null;
+    organization: string;
+    organizationJa: string | null;
+    timezone: string;
+  };
+  devices: Array<{
+    id: string;
+    name: string;
+    nameJa: string | null;
+    sensorType: string;
+    unit: string;
+    thresholdPolicyVersion: string;
+    midnightDeviceCommitment: string | null;
+    midnightRegistryStatus: string;
+    midnightRegistrationVersion: number | null;
+    midnightContractAddress: string | null;
+    lastSeenAt: string | null;
+  }>;
+  windows: DeviceHistory['windows'];
+  anomalies: Array<{
+    eventId: string;
+    transition: string;
+    occurredAt: string;
+    thresholdPolicyVersion: string;
+  }>;
+  anomalyState: {
+    state: 'normal' | 'anomaly_open';
+    changedAt: string;
+  } | null;
+  proofJobs: ProofJob[];
+  policies: Array<ThresholdPolicyDescriptor & {
+    policyId: string;
+    status: string;
+  }>;
+  stepper: {
+    deviceRegistered: boolean;
+    hourlyDataReceived: boolean;
+    anomalyStateAvailable: boolean;
+    proofRequested: boolean;
+    proofGenerated: boolean;
+    midnightConfirmed: boolean;
+  };
+}
+
 export interface SponsorQuota {
   quotaDate: string;
   dailyLimit: number;
@@ -101,6 +197,7 @@ interface DeviceOperationConfiguration {
     deviceId: string;
     projectId: string;
     commitment: string;
+    provisioningWalletKeySha256: string;
   };
   midnight: {
     network: 'preprod';
@@ -133,6 +230,7 @@ export interface ProofJob {
   thresholdSatisfied: boolean;
   availableAfter: string;
   attestTxId: string | null;
+  errorCode: string | null;
 }
 
 interface ProvisioningResponse {
@@ -148,12 +246,115 @@ interface ProvisioningResponse {
   assignmentTxId: string;
 }
 
-const defaultBridgeUrl = 'http://127.0.0.1:8790';
+export type ProvisioningProgressStage =
+  | 'challenge_requesting'
+  | 'wallet_signature_requested'
+  | 'wallet_authorization_verifying'
+  | 'queued'
+  | 'sponsor_wallet_syncing'
+  | 'sponsor_wallet_ready'
+  | 'device_zkp_generating'
+  | 'device_tx_submitting'
+  | 'device_tx_submitted'
+  | 'device_confirmation_waiting'
+  | 'device_confirmed'
+  | 'assignment_zkp_generating'
+  | 'assignment_tx_submitting'
+  | 'assignment_tx_submitted'
+  | 'assignment_confirmation_waiting'
+  | 'assignment_confirmed'
+  | 'retry_waiting'
+  | 'completed'
+  | 'failed';
+
+export interface ProvisioningProgress {
+  operationId?: string;
+  stage: ProvisioningProgressStage;
+  status: string;
+  deviceTxId?: string | null;
+  assignmentTxId?: string | null;
+  error?: string | null;
+}
+
+interface ProvisioningOperationStarted {
+  operationId: string;
+  progressToken: string;
+  statusUrl: string;
+  status: 'queued';
+  stage: 'queued';
+}
+
+interface StoredProvisioningOperation extends ProvisioningOperationStarted {
+  deviceId: string;
+  policyId: string;
+}
+
+interface ProvisioningOperationStatus {
+  operationId: string;
+  status: 'queued' | 'running' | 'retrying' | 'registered' | 'failed';
+  stage: ProvisioningProgressStage;
+  deviceId: string;
+  policyId: string;
+  deviceTxId: string | null;
+  assignmentTxId: string | null;
+  error: string | null;
+  updatedAt: string;
+  result: ProvisioningResponse | null;
+}
+
 let identity: BrowserDeviceIdentity | null = null;
 let wallet: BrowserWalletConnection | null = null;
 let configuration: ProvisioningConfiguration | null = null;
+let projectSessionToken = '';
+let projects: BrowserProject[] = [];
+let maximumProjects = 10;
 let provisioned: ProvisionedDevice | null = null;
 let captured: BrowserDailyCapture | null = null;
+
+function pendingProvisioningKey(deviceId: string): string {
+  return `vsp-provisioning-operation:${deviceId}`;
+}
+
+function storePendingProvisioning(
+  started: ProvisioningOperationStarted,
+  expectedDeviceId: string,
+  expectedPolicyId: string,
+): void {
+  localStorage.setItem(pendingProvisioningKey(expectedDeviceId), JSON.stringify({
+    ...started,
+    deviceId: expectedDeviceId,
+    policyId: expectedPolicyId,
+  } satisfies StoredProvisioningOperation));
+}
+
+async function readProvisioningStatus(
+  pending: StoredProvisioningOperation,
+  expectedDeviceId: string,
+  expectedPolicyId: string,
+  onProgress?: (progress: ProvisioningProgress) => void,
+): Promise<ProvisioningOperationStatus> {
+  const status = await jsonResponse<ProvisioningOperationStatus>(await fetch(
+    new URL(pending.statusUrl, requireConfiguration().serviceUrl),
+    {
+      headers: { 'X-Provisioning-Token': pending.progressToken },
+      signal: AbortSignal.timeout(15_000),
+    },
+  ), 'Device registration progress');
+  if (
+    status.operationId !== pending.operationId
+    || status.deviceId !== expectedDeviceId
+    || status.policyId !== expectedPolicyId
+  ) throw new Error('Device registration progress does not match the request');
+  onProgress?.({
+    operationId: status.operationId,
+    stage: status.stage,
+    status: status.status,
+    deviceTxId: status.deviceTxId,
+    assignmentTxId: status.assignmentTxId,
+    error: status.error,
+  });
+  return status;
+}
 
 function endpoint(base: string, pathname: string): URL {
   const url = new URL(base);
@@ -202,27 +403,233 @@ function requireCaptured(): BrowserDailyCapture {
 }
 
 export async function loadConfiguration(
-  bridgeUrl = defaultBridgeUrl,
+  projectId?: string,
+  accessToken?: string,
 ): Promise<ProvisioningConfiguration> {
+  const url = endpoint(window.location.origin, '/api/v1/provisioning/configuration');
+  if (projectId) url.searchParams.set('projectId', projectId);
   configuration = await jsonResponse<ProvisioningConfiguration>(await fetch(
-    endpoint(bridgeUrl, '/api/configuration'),
-    { signal: AbortSignal.timeout(15_000) },
+    url,
+    {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      signal: AbortSignal.timeout(15_000),
+    },
   ), 'Provisioning configuration');
   if (
     configuration.network !== 'preprod'
     || !configuration.contractAddress
     || !configuration.projectId
     || !configuration.serviceUrl
-    || configuration.policies.length === 0
+    || !Array.isArray(configuration.policies)
+    || configuration.maximumPolicies !== 10
   ) throw new Error('Provisioning configuration is incomplete');
   return configuration;
 }
 
-export async function connectWallet(walletId?: string): Promise<Omit<BrowserWalletConnection, 'api'>> {
+export async function connectWallet(walletId?: string): Promise<Omit<
+  BrowserWalletConnection,
+  'api' | 'walletIdentitySignature'
+> & {
+  deviceId: string;
+  projects: BrowserProject[];
+  maximumProjects: number;
+  selectedProjectId: string;
+  configuration: ProvisioningConfiguration;
+}> {
+  const bootstrap = requireConfiguration();
+  const challenge = await jsonResponse<{
+    network: 'preprod';
+    challengeId: string;
+    nonce: string;
+    expiresAt: string;
+  }>(await fetch(endpoint(bootstrap.serviceUrl, '/api/v1/projects/challenge'), {
+    method: 'POST',
+    signal: AbortSignal.timeout(15_000),
+  }), 'Wallet Project challenge');
+  const timestamp = new Date().toISOString();
+  const canonical = browserProjectCanonicalMessage({
+    challengeId: challenge.challengeId,
+    nonce: challenge.nonce,
+    timestamp,
+  });
+  wallet = await connectBrowserWallet(challenge.network, walletId, canonical);
+  const session = await jsonResponse<BrowserProjectSession>(await fetch(
+    endpoint(bootstrap.serviceUrl, '/api/v1/projects/session'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        challengeId: challenge.challengeId,
+        nonce: challenge.nonce,
+        timestamp,
+        walletSignature: wallet.walletIdentitySignature,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  ), 'Wallet Project session');
+  if (
+    !session.accessToken
+    || !Number.isFinite(Date.parse(session.expiresAt))
+    || !Array.isArray(session.projects)
+    || session.projects.length === 0
+    || session.maximumProjects !== 10
+  ) throw new Error('Wallet Project session response is incomplete');
+  projectSessionToken = session.accessToken;
+  projects = session.projects;
+  maximumProjects = session.maximumProjects;
+  const preferred = localStorage.getItem(`vsp-selected-project:${wallet.walletKeySha256}`);
+  const selectedProjectId = projects.some((project) => project.projectId === preferred)
+    ? preferred as string
+    : projects[0]!.projectId;
+  const selected = await selectProject(selectedProjectId);
+  const { api: _, walletIdentitySignature: __, ...publicWallet } = wallet;
+  return {
+    ...publicWallet,
+    deviceId: selected.deviceId,
+    configuration: selected.configuration,
+    projects: [...projects],
+    maximumProjects,
+    selectedProjectId,
+  };
+}
+
+export async function selectProject(projectId: string): Promise<{
+  deviceId: string;
+  configuration: ProvisioningConfiguration;
+}> {
+  const currentWallet = requireWallet();
+  if (!projectSessionToken) throw new Error('Connect a Midnight Wallet first');
+  if (!projects.some((project) => project.projectId === projectId)) {
+    throw new Error('Project does not belong to the connected Midnight Wallet');
+  }
+  const selectedConfiguration = await loadConfiguration(projectId, projectSessionToken);
+  identity = null;
+  provisioned = null;
+  captured = null;
+  localStorage.setItem(`vsp-selected-project:${currentWallet.walletKeySha256}`, projectId);
+  return {
+    deviceId: await deriveBrowserWalletDeviceId(currentWallet.walletKeySha256, projectId),
+    configuration: selectedConfiguration,
+  };
+}
+
+export async function createProject(name: string): Promise<{
+  project: BrowserProject;
+  deviceId: string;
+  projectCount: number;
+  maximumProjects: number;
+  configuration: ProvisioningConfiguration;
+}> {
   const config = requireConfiguration();
-  wallet = await connectBrowserWallet(config.network, walletId);
-  const { api: _, ...publicWallet } = wallet;
-  return publicWallet;
+  if (!projectSessionToken) throw new Error('Connect a Midnight Wallet first');
+  const created = await jsonResponse<{
+    project: BrowserProject;
+    projectCount: number;
+    maximumProjects: number;
+  }>(await fetch(endpoint(config.serviceUrl, '/api/v1/projects'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${projectSessionToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+    signal: AbortSignal.timeout(15_000),
+  }), 'Create Project');
+  projects = [...projects, created.project];
+  maximumProjects = created.maximumProjects;
+  return {
+    ...created,
+    ...await selectProject(created.project.projectId),
+  };
+}
+
+export async function loadProjectPolicies(): Promise<BrowserProjectPolicies> {
+  const config = requireConfiguration();
+  if (!projectSessionToken) throw new Error('Connect a Midnight Wallet first');
+  const url = endpoint(config.serviceUrl, '/api/v1/policies');
+  url.searchParams.set('projectId', config.projectId);
+  return jsonResponse<BrowserProjectPolicies>(await fetch(url, {
+    headers: { Authorization: `Bearer ${projectSessionToken}` },
+    signal: AbortSignal.timeout(15_000),
+  }), 'Project Policies');
+}
+
+export async function refreshProjectConfiguration(): Promise<ProvisioningConfiguration> {
+  const config = requireConfiguration();
+  if (!projectSessionToken) throw new Error('Connect a Midnight Wallet first');
+  return loadConfiguration(config.projectId, projectSessionToken);
+}
+
+function centiCelsius(value: number | null, label: string): number | null {
+  if (value === null) return null;
+  if (!Number.isFinite(value)) throw new Error(`${label} must be a finite number`);
+  const centi = Math.round(value * 100);
+  if (centi < -10_000 || centi > 0xffff_ffff - 10_000) {
+    throw new Error(`${label} is outside the supported temperature range`);
+  }
+  return centi;
+}
+
+export async function createPolicy(input: {
+  name: string;
+  mode: BrowserPolicyMode;
+  minimum: number | null;
+  maximum: number | null;
+}): Promise<BrowserPolicyOperation> {
+  const config = requireConfiguration();
+  const currentWallet = requireWallet();
+  if (!projectSessionToken) throw new Error('Connect a Midnight Wallet first');
+  const challenge = await jsonResponse<{
+    projectId: string;
+    policyId: string;
+    challengeId: string;
+    nonce: string;
+    expiresAt: string;
+  }>(await fetch(endpoint(config.serviceUrl, '/api/v1/policies/challenge'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${projectSessionToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ projectId: config.projectId }),
+    signal: AbortSignal.timeout(15_000),
+  }), 'Policy challenge');
+  const authorization = {
+    projectId: config.projectId,
+    policyId: challenge.policyId,
+    name: input.name.trim(),
+    mode: input.mode,
+    minimumCentiCelsius: centiCelsius(input.minimum, 'Policy minimum'),
+    maximumCentiCelsius: centiCelsius(input.maximum, 'Policy maximum'),
+    challengeId: challenge.challengeId,
+    nonce: challenge.nonce,
+    timestamp: new Date().toISOString(),
+  };
+  const canonical = browserPolicyCanonicalMessage(authorization);
+  if (typeof currentWallet.api.signData !== 'function') {
+    throw new Error(
+      `Connected Wallet ${currentWallet.walletName} API ${currentWallet.walletApiVersion} does not support signData`,
+    );
+  }
+  if (typeof currentWallet.api.hintUsage === 'function') {
+    await currentWallet.api.hintUsage(['signData']);
+  }
+  const walletSignature = await currentWallet.api.signData(canonical, {
+    encoding: 'text',
+    keyType: 'unshielded',
+  });
+  return jsonResponse<BrowserPolicyOperation>(await fetch(
+    endpoint(config.serviceUrl, '/api/v1/policies'),
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${projectSessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...authorization, walletSignature }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  ), 'Create Policy');
 }
 
 export async function createDevice(deviceId: string): Promise<BrowserDevice> {
@@ -265,6 +672,7 @@ function validOperationConfiguration(
     && candidate.device?.deviceId === currentIdentity.deviceId
     && candidate.device.projectId === currentIdentity.projectId
     && validHex32(candidate.device.commitment)
+    && validHex32(candidate.device.provisioningWalletKeySha256)
     && candidate.midnight?.network === config.network
     && candidate.midnight.contractAddress === config.contractAddress
     && candidate.midnight.contractSchemaVersion === 3
@@ -281,6 +689,7 @@ function validOperationConfiguration(
 
 export async function restoreDevice(deviceId: string): Promise<RestoredDeviceState | null> {
   const config = requireConfiguration();
+  const currentWallet = requireWallet();
   const existing = await loadDeviceIdentity(deviceId, config.projectId);
   if (!existing) return null;
   identity = existing;
@@ -293,6 +702,12 @@ export async function restoreDevice(deviceId: string): Promise<RestoredDeviceSta
     ), 'Device operation configuration');
     if (!validOperationConfiguration(operationConfiguration, existing, config)) {
       throw new Error('Stored Device operation configuration is invalid');
+    }
+    if (operationConfiguration.device.provisioningWalletKeySha256 !== currentWallet.walletKeySha256) {
+      identity = null;
+      provisioned = null;
+      captured = null;
+      return null;
     }
     provisioned = {
       ...device,
@@ -320,25 +735,88 @@ export async function restoreDevice(deviceId: string): Promise<RestoredDeviceSta
 
 export async function registerDevice(input: {
   policyId: string;
-  bridgeUrl?: string;
-}): Promise<ProvisionedDevice> {
+}, onProgress?: (progress: ProvisioningProgress) => void): Promise<ProvisionedDevice | null> {
   const config = requireConfiguration();
   const currentIdentity = requireIdentity();
+  const currentWallet = requireWallet();
   const policy = selectedPolicy(input.policyId);
   const deviceAuthority = deriveDeviceAuthorityHex(currentIdentity.deviceSecretHex);
-  const response = await jsonResponse<ProvisioningResponse>(await fetch(
-    endpoint(input.bridgeUrl ?? defaultBridgeUrl, '/api/devices'),
+  const enrollment = enrollmentFor(currentIdentity);
+  onProgress?.({ stage: 'challenge_requesting', status: 'running' });
+  const challenge = await jsonResponse<{
+    challengeId: string;
+    nonce: string;
+    expiresAt: string;
+  }>(await fetch(endpoint(config.serviceUrl, '/api/v1/provisioning/challenge'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${projectSessionToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      deviceId: currentIdentity.deviceId,
+      projectId: config.projectId,
+      keyId: currentIdentity.keyId,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  }), 'Device registration challenge');
+  const timestamp = new Date().toISOString();
+  const canonical = [
+    'VSP-BROWSER-PROVISIONING-V1',
+    'POST',
+    '/api/v1/provisioning/devices',
+    currentIdentity.deviceId,
+    currentIdentity.keyId,
+    deviceAuthority,
+    policy.policyId,
+    challenge.challengeId,
+    challenge.nonce,
+    timestamp,
+  ].join('\n');
+  if (typeof currentWallet.api.signData !== 'function') {
+    throw new Error(
+      `Connected Wallet ${currentWallet.walletName} API ${currentWallet.walletApiVersion} does not support signData`,
+    );
+  }
+  if (typeof currentWallet.api.hintUsage === 'function') {
+    await currentWallet.api.hintUsage(['signData']);
+  }
+  onProgress?.({ stage: 'wallet_signature_requested', status: 'running' });
+  const walletSignature = await currentWallet.api.signData(canonical, {
+    encoding: 'text',
+    keyType: 'unshielded',
+  });
+  onProgress?.({ stage: 'wallet_authorization_verifying', status: 'running' });
+  const submitted = await jsonResponse<ProvisioningResponse | ProvisioningOperationStarted>(await fetch(
+    endpoint(config.serviceUrl, '/api/v1/provisioning/devices'),
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${projectSessionToken}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        enrollment: enrollmentFor(currentIdentity),
+        enrollment,
         deviceAuthority,
         policyId: policy.policyId,
+        challengeId: challenge.challengeId,
+        nonce: challenge.nonce,
+        timestamp,
+        walletSignature,
       }),
       signal: AbortSignal.timeout(20 * 60 * 1000),
     },
   ), 'Device registration');
+  if ('operationId' in submitted) {
+    storePendingProvisioning(submitted, currentIdentity.deviceId, policy.policyId);
+    onProgress?.({
+      operationId: submitted.operationId,
+      stage: submitted.stage,
+      status: submitted.status,
+    });
+    return null;
+  }
+  const response = submitted;
   if (
     response.deviceId !== currentIdentity.deviceId
     || response.projectId !== config.projectId
@@ -353,6 +831,74 @@ export async function registerDevice(input: {
     deviceAuthority,
     enrollment: enrollmentFor(currentIdentity),
   };
+  onProgress?.({
+    stage: 'completed',
+    status: 'registered',
+    deviceTxId: response.registeredTxId,
+    assignmentTxId: response.assignmentTxId,
+  });
+  return provisioned;
+}
+
+export async function resumePendingDeviceRegistration(
+  onProgress?: (progress: ProvisioningProgress) => void,
+): Promise<ProvisionedDevice | null> {
+  const config = requireConfiguration();
+  const currentIdentity = requireIdentity();
+  requireWallet();
+  const raw = localStorage.getItem(pendingProvisioningKey(currentIdentity.deviceId));
+  if (!raw) return null;
+  let pending: StoredProvisioningOperation;
+  try {
+    pending = JSON.parse(raw) as StoredProvisioningOperation;
+  } catch {
+    localStorage.removeItem(pendingProvisioningKey(currentIdentity.deviceId));
+    return null;
+  }
+  if (
+    pending.deviceId !== currentIdentity.deviceId
+    || typeof pending.policyId !== 'string'
+    || typeof pending.operationId !== 'string'
+    || typeof pending.progressToken !== 'string'
+    || typeof pending.statusUrl !== 'string'
+  ) {
+    localStorage.removeItem(pendingProvisioningKey(currentIdentity.deviceId));
+    return null;
+  }
+  const policy = selectedPolicy(pending.policyId);
+  const status = await readProvisioningStatus(
+    pending,
+    currentIdentity.deviceId,
+    policy.policyId,
+    onProgress,
+  );
+  if (status.status === 'failed') {
+    localStorage.removeItem(pendingProvisioningKey(currentIdentity.deviceId));
+    throw new Error(status.error || 'Device registration failed');
+  }
+  if (status.status !== 'registered' || !status.result) return null;
+  localStorage.removeItem(pendingProvisioningKey(currentIdentity.deviceId));
+  const response = status.result;
+  if (
+    response.deviceId !== currentIdentity.deviceId
+    || response.projectId !== config.projectId
+    || response.contractAddress !== config.contractAddress
+    || response.policyId !== policy.policyId
+    || response.policyKey !== policy.policyKey
+  ) throw new Error('Resumed Device registration does not match the stored identity');
+  provisioned = {
+    ...response,
+    keyId: currentIdentity.keyId,
+    createdAt: currentIdentity.createdAt,
+    deviceAuthority: deriveDeviceAuthorityHex(currentIdentity.deviceSecretHex),
+    enrollment: enrollmentFor(currentIdentity),
+  };
+  onProgress?.({
+    stage: 'completed',
+    status: 'registered',
+    deviceTxId: response.registeredTxId,
+    assignmentTxId: response.assignmentTxId,
+  });
   return provisioned;
 }
 
@@ -388,6 +934,36 @@ async function uploadDailyCapture(capture: BrowserDailyCapture): Promise<void> {
       }),
       signal: AbortSignal.timeout(15_000),
     }), `Measurement upload (${window.hourIndex}:00 JST)`);
+  }
+  const anomalyHeaders = await authenticatedHeaders('anomaly:write');
+  let anomalyOpen = false;
+  for (const window of [...capture.windows].sort((left, right) => left.hourIndex - right.hourIndex)) {
+    const outside = (
+      (policy.mode !== 'upper-bound' && window.minimum < policy.minimum)
+      || (policy.mode !== 'lower-bound' && window.maximum > policy.maximum)
+    );
+    const transition = outside && !anomalyOpen
+      ? 'anomaly_open'
+      : !outside && anomalyOpen
+        ? 'recovered'
+        : null;
+    anomalyOpen = outside;
+    if (!transition) continue;
+    await jsonResponse(await fetch(endpoint(config.serviceUrl, '/api/v1/anomaly-events'), {
+      method: 'POST',
+      headers: { ...anomalyHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventId: `event-${device.deviceId}-${capture.periodDate}-${window.hourIndex}-${transition}`,
+        projectId: config.projectId,
+        deviceId: device.deviceId,
+        sensorType: 'temperature',
+        unit: '°C',
+        transition,
+        occurredAt: window.periodStart,
+        thresholdPolicyVersion: policy.policyId,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    }), `Anomaly transition (${window.hourIndex}:00 JST)`);
   }
 }
 
@@ -437,6 +1013,16 @@ export async function loadDeviceHistory(): Promise<DeviceHistory> {
   };
 }
 
+export async function loadAdministratorDashboard(): Promise<DeviceAdministratorDashboard> {
+  const config = requireConfiguration();
+  requireProvisioned();
+  const headers = await authenticatedHeaders('device:status');
+  return jsonResponse<DeviceAdministratorDashboard>(await fetch(
+    endpoint(config.serviceUrl, '/api/v1/device/dashboard'),
+    { headers, signal: AbortSignal.timeout(15_000) },
+  ), 'Device administrator dashboard');
+}
+
 export async function loadSponsorQuota(): Promise<SponsorQuota> {
   const config = requireConfiguration();
   requireProvisioned();
@@ -472,7 +1058,6 @@ async function proofJob(proofJobId: string): Promise<ProofJob> {
 }
 
 export async function requestProof(input: {
-  bridgeUrl?: string;
   admitNow?: boolean;
   periodDate?: string;
 } = {}): Promise<ProofJob> {
@@ -514,8 +1099,12 @@ export async function requestProof(input: {
 
   if (input.admitNow) {
     await jsonResponse(await fetch(
-      endpoint(input.bridgeUrl ?? defaultBridgeUrl, `/api/proof-jobs/${encodeURIComponent(job.proofJobId)}/admit`),
-      { method: 'POST', signal: AbortSignal.timeout(30_000) },
+      endpoint(config.serviceUrl, `/api/v1/proof-jobs/${encodeURIComponent(job.proofJobId)}/admit`),
+      {
+        method: 'POST',
+        headers,
+        signal: AbortSignal.timeout(30_000),
+      },
     ), 'Admit Proof Job');
   }
   const deadline = Date.now() + 2 * 60 * 1000;
@@ -541,18 +1130,46 @@ export async function proveAndSubmit(
   const proofHeaders = await authenticatedHeaders('proof:generate');
   const accessToken = proofHeaders.Authorization?.replace(/^Bearer\s+/u, '');
   if (!accessToken) throw new Error('Device proof session was not issued');
-  const result = await submitBrowserAttestation({
-    wallet: currentWallet,
-    serviceUrl: config.serviceUrl,
-    zkArtifactsUrl: window.location.origin,
-    contractAddress: config.contractAddress,
-    accessToken,
-    proofJobId: measurement.proofJobId,
-    deviceSecretHex: requireIdentity().deviceSecretHex,
-    attestation: measurement.attestation,
-    thresholdSatisfied: measurement.thresholdSatisfied,
-    onProgress,
-  });
+  let result: Awaited<ReturnType<typeof submitBrowserAttestation>> | undefined;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      result = await submitBrowserAttestation({
+        wallet: currentWallet,
+        serviceUrl: config.serviceUrl,
+        zkArtifactsUrl: window.location.origin,
+        contractAddress: config.contractAddress,
+        accessToken,
+        proofJobId: measurement.proofJobId,
+        deviceSecretHex: requireIdentity().deviceSecretHex,
+        attestation: measurement.attestation,
+        thresholdSatisfied: measurement.thresholdSatisfied,
+        onProgress,
+      });
+      break;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (detail.includes('contract_state_changed_reproof_required') && attempt === 0) {
+        onProgress?.('contract-state-changed-retrying');
+        continue;
+      }
+      if (!detail.includes('measurement group already attested')) throw error;
+      const headers = await authenticatedHeaders('transaction:submit');
+      await jsonResponse(await fetch(
+        endpoint(config.serviceUrl, `/api/v1/proof-jobs/${encodeURIComponent(measurement.proofJobId)}/result`),
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phase: 'failed',
+            errorCode: 'measurement_group_already_attested',
+          }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      ), 'Record already-attested Proof Job');
+      throw new Error('measurement group already attested; this Proof Job is closed', { cause: error });
+    }
+  }
+  if (!result) throw new Error('Device transaction retry did not return a result');
   const headers = await authenticatedHeaders('transaction:submit');
   await jsonResponse(await fetch(
     endpoint(config.serviceUrl, `/api/v1/proof-jobs/${encodeURIComponent(measurement.proofJobId)}/result`),
@@ -563,7 +1180,8 @@ export async function proveAndSubmit(
         phase: 'attest',
         txId: result.transactionId,
         txHash: result.transactionHash,
-        blockHeight: 'confirmed-by-indexer',
+        blockHeight: result.blockHeight,
+        proofGeneratedAt: result.proofCompletedAt,
       }),
       signal: AbortSignal.timeout(15_000),
     },
@@ -575,12 +1193,19 @@ export const browserDeviceFlow = {
   availableWallets,
   loadConfiguration,
   connectWallet,
+  selectProject,
+  createProject,
+  loadProjectPolicies,
+  refreshProjectConfiguration,
+  createPolicy,
   restoreDevice,
   createDevice,
   registerDevice,
+  resumePendingDeviceRegistration,
   generateDailyMeasurements,
   selectDailyCapture,
   loadDeviceHistory,
+  loadAdministratorDashboard,
   loadSponsorQuota,
   requestProof,
   proveAndSubmit,

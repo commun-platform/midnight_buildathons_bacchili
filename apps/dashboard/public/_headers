@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8790 http://localhost:8790 https://*.workers.dev https://indexer.preprod.midnight.network wss://indexer.preprod.midnight.network https://blockfrost.lw.iog.io wss://blockfrost.lw.iog.io; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev https://indexer.preprod.midnight.network wss://indexer.preprod.midnight.network https://blockfrost.lw.iog.io wss://blockfrost.lw.iog.io; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
   Cross-Origin-Resource-Policy: same-site
   Permissions-Policy: camera=(), geolocation=(), microphone=(), payment=(), usb=()
   Referrer-Policy: no-referrer

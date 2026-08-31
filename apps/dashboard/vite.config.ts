@@ -17,6 +17,9 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    // Vite 8's library minification can replace a wasm-bindgen helper with
+    // `void 0`, causing the real browser module to fail before Wallet connect.
+    minify: false,
     sourcemap: false,
     emptyOutDir: false,
     outDir: path.join(directory, 'public'),

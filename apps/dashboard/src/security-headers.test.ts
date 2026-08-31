@@ -14,8 +14,7 @@ describe('dashboard security headers', () => {
 
   it('allows only the browser Device workflow connection classes', () => {
     expect(contentSecurityPolicy).toContain(
-      "connect-src 'self' http://127.0.0.1:8790 http://localhost:8790 "
-      + 'https://*.workers.dev https://indexer.preprod.midnight.network '
+      "connect-src 'self' https://*.workers.dev https://indexer.preprod.midnight.network "
       + 'wss://indexer.preprod.midnight.network https://blockfrost.lw.iog.io '
       + 'wss://blockfrost.lw.iog.io;',
     );
@@ -26,5 +25,7 @@ describe('dashboard security headers', () => {
     expect(connectSources).not.toContain('http:');
     expect(connectSources).not.toContain('https:');
     expect(connectSources).not.toContain('*');
+    expect(contentSecurityPolicy).not.toContain('127.0.0.1:8790');
+    expect(contentSecurityPolicy).not.toContain('localhost:8790');
   });
 });

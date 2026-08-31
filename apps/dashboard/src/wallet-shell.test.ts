@@ -26,6 +26,82 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("deviceAction('wallet-connect-button'");
   });
 
+  it('restores registration only for the Wallet that originally registered the Device', () => {
+    expect(midnightDevice).toContain("'VSP-BROWSER-WALLET-IDENTITY-V1'");
+    expect(midnightDevice).toContain('walletKeySha256: await textSha256(walletIdentity.verifyingKey)');
+    expect(deviceFlow).toContain('operationConfiguration.device.provisioningWalletKeySha256 !== currentWallet.walletKeySha256');
+    expect(deviceFlow).toContain('deriveBrowserWalletDeviceId(currentWallet.walletKeySha256, projectId)');
+    expect(script).toContain('deviceState.deviceId = deviceState.wallet.deviceId;');
+    expect(script).toContain('const restored = await flow.restoreDevice(deviceState.deviceId);');
+    expect(script).not.toContain('vsp-browser-device-id');
+    expect(script).not.toContain('crypto.randomUUID()');
+    expect(script).toContain('id="device-id-input" maxlength="80"');
+    expect(script).toContain('readonly');
+    expect(script).not.toContain('if (!deviceState.device && deviceState.deviceId)');
+  });
+
+  it('selects Wallet-owned Projects and exposes a server-enforced ten Project limit', () => {
+    expect(script).toContain('id="device-project-select"');
+    expect(script).toContain('id="device-project-add"');
+    expect(script).toContain('deviceState.projects.length');
+    expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/projects')");
+    expect(deviceFlow).toContain('session.maximumProjects !== 10');
+  });
+
+  it('creates immutable Project-scoped Policies and restores their asynchronous state', () => {
+    expect(script).toContain('id="device-policy-add"');
+    expect(script).toContain('id="device-policy-create-form"');
+    expect(script).toContain('step="0.01"');
+    expect(script).toContain("localStorage.setItem(`vsp-selected-policy:${deviceState.projectId}`");
+    expect(script).toContain('refreshPendingPolicyOperations');
+    expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/policies/challenge')");
+    expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/policies')");
+    expect(deviceFlow).toContain('browserPolicyCanonicalMessage(authorization)');
+    expect(deviceFlow).toContain('maximumPolicies !== 10');
+    expect(styles).toContain('.policy-create-form');
+  });
+
+  it('distinguishes loading from an empty collection and updates only affected components during polling', () => {
+    expect(script).toContain('function dataStateView(state');
+    expect(script).toContain("loadingLabel: 'LOADING'");
+    expect(script).toContain("noDataLabel: 'NO DATA'");
+    expect(script).toContain("loadingLabel: '読込中'");
+    expect(script).toContain("noDataLabel: 'データなし'");
+    expect(script).toContain('state: deviceState.policyListState');
+    expect(script).toContain('state: deviceState.historyListState');
+    expect(script).toContain('function refreshPolicyComponents()');
+    expect(script).toContain('function patchDeviceElement(snapshot, selector)');
+    expect(script).toContain("'#device-policy-list'");
+    expect(script).not.toContain('captureDeviceDraft');
+    expect(script).not.toContain('renderDeviceScreen({ preserveDraft: true })');
+    expect(styles).toContain('.data-state-loading');
+    expect(styles).toContain('.data-state-empty');
+    expect(styles).toContain('.data-state-progress');
+  });
+
+  it('reloads authoritative and private Device state after Wallet reconnection', () => {
+    expect(script).toContain('async function restoreActiveProject(flow)');
+    expect(script).toContain('await refreshProjectPolicies(flow)');
+    expect(script).toContain('await flow.restoreDevice(deviceState.deviceId)');
+    expect(script).toContain('if (deviceState.provisioned) await refreshDeviceHistory(flow)');
+    expect(deviceFlow).toContain('loadDeviceIdentity(deviceId, config.projectId)');
+    expect(deviceFlow).toContain('listDailyCaptures(config.projectId, device.deviceId)');
+    expect(deviceFlow).toContain("localStorage.getItem(`vsp-selected-project:${wallet.walletKeySha256}`)");
+  });
+
+  it('shows current normal/anomaly state without requiring an anomaly event', () => {
+    expect(script).toContain("anomaly: '現在状態を取得（正常／異常）'");
+    expect(script).toContain("anomalyStateNormal: '正常 — 発生中の異常なし'");
+    expect(script).toContain('data.anomalyState');
+    expect(styles).toContain('.current-device-state');
+  });
+
+  it('shows the actual ZKP generation timestamp in daily Proof records', () => {
+    expect(script).toContain("proofGeneratedAt: 'ZKP generated at'");
+    expect(script).toContain('dateTime(job.proofGeneratedAt)');
+    expect(deviceFlow).toContain('proofGeneratedAt: result.proofCompletedAt');
+  });
+
   it('uses fee-free Lace approval and a dedicated Sponsor Wallet', () => {
     expect(midnightDevice).toContain('{ payFees: false }');
     expect(midnightDevice).toContain('/sponsor');
@@ -45,6 +121,9 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("sponsorQuotaTitle: 'Daily sponsored submissions (JST)'");
     expect(script).toContain("sponsorQuotaTitle: 'スポンサー送信の日次上限（JST）'");
     expect(script).toContain("t('sponsorQuotaReached')");
+    expect(script).toContain('notice sponsor-quota');
+    expect(styles).toContain('.transaction-workflow');
+    expect(styles).toContain('.sponsor-quota');
   });
 
   it('keeps the Sponsor Wallet inbound private while allowing official native WSS', () => {
@@ -65,6 +144,13 @@ describe('Midnight Wallet shell', () => {
     expect(sponsorContainer).not.toContain('await this.destroy()');
     expect(sponsorDockerfile).not.toContain('NODE_EXTRA_CA_CERTS');
     expect(sponsorDockerfile).not.toContain('SSL_CERT_FILE');
+    expect(sponsorDockerfile).toContain(
+      'ENV SPONSOR_ZK_CONFIG_PATH=/app/contracts/sensor-registry/src/managed/sensor-registry',
+    );
+    expect(sponsorDockerfile).toContain('$SPONSOR_ZK_CONFIG_PATH/keys/registerDevice.verifier');
+    expect(gatewayWorker).toContain(
+      "SPONSOR_ZK_CONFIG_PATH: '/app/contracts/sensor-registry/src/managed/sensor-registry'",
+    );
     expect(gatewayWorker).toContain("parts[4] === 'sponsor'");
     expect(gatewayWorker).not.toContain("url.pathname === '/api/v1/sponsor-wallet/health'");
     expect(gatewayWorker).not.toContain("url.pathname === '/api/v1/sponsor-wallet/restore'");
@@ -72,22 +158,31 @@ describe('Midnight Wallet shell', () => {
   });
 
   it('retains the confirmed transaction while refreshed history catches up', () => {
-    expect(script).toContain('deviceState.transaction ??= submitted');
+    expect(script).toMatch(/deviceState\.transaction = submitted;\s+await refreshDeviceHistory\(flow\);\s+deviceState\.transaction = submitted;/u);
     expect(script).toContain("${t('confirmed')}: ${submitted.transactionId}");
   });
 
-  it('renders cached public evidence before starting one background synchronization', () => {
-    expect(script).not.toContain('await synchronizeLocalDashboard();\n      const list');
-    expect(script).toContain('void startLocalDashboardSync();');
-    expect(script).toContain("render({ showLoading: false, startInitialSync: false })");
-    expect(script).toContain('dashboard-sync-indicator');
-    expect(styles).toContain('.dashboard-sync-progress .progress-bar');
+  it('rebuilds a stale transaction with the same Proof Job ID and explains each stage', () => {
+    expect(midnightDevice).toContain('contract_state_changed_reproof_required');
+    expect(deviceFlow).toContain("onProgress?.('contract-state-changed-retrying')");
+    expect(deviceFlow).toContain('proofJobId: measurement.proofJobId');
+    expect(script).toContain("'contract-state-changed-retrying': 'proofProgressRetrying'");
+    expect(script).toContain("proofProgressGenerating: '日次Attestation用のZKPを生成中'");
+    expect(script).toContain("proofProgressSponsoring: 'Sponsor WalletがDUST手数料を付与中'");
+    expect(script).toContain('submissionProgressText(progress)');
+    expect(script).toContain("'reproof_required'");
   });
 
-  it('uses Refresh for an explicit local synchronization without clearing the current view', () => {
-    expect(script).toContain('void startLocalDashboardSync(true);');
-    expect(script).toContain("syncInProgressDetail: 'The current results stay visible");
-    expect(script).toContain('reloadButton.disabled = synchronizing');
+  it('uses same-origin Worker APIs without a localhost provisioning bridge', () => {
+    expect(deviceFlow).toContain("endpoint(window.location.origin, '/api/v1/provisioning/configuration')");
+    expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/provisioning/challenge')");
+    expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/provisioning/devices')");
+    expect(deviceFlow).toContain("typeof currentWallet.api.signData !== 'function'");
+    expect(deviceFlow).toContain("typeof currentWallet.api.hintUsage === 'function'");
+    expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/device/dashboard')");
+    expect(deviceFlow).toContain("/api/v1/proof-jobs/${encodeURIComponent(job.proofJobId)}/admit");
+    expect(script).not.toContain('127.0.0.1:8790');
+    expect(script).not.toContain('X-VSP-Local-Admin');
   });
 
   it('shows intentionally redacted Raw Sensor Values in the public verifier', () => {
@@ -118,6 +213,8 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("{ state: 'checking', error: '' }");
     expect(script).toContain("chainCheckInProgress: 'Midnightを直接確認中'");
     expect(script).toContain('progress-shell dashboard-sync-progress');
+    expect(styles).toContain('.dashboard-sync-state > div');
+    expect(styles).toContain('.dashboard-sync-state.complete');
     expect(publicVerifier).toContain('provider.watchForTxData(input.transactions.attest.txId)');
     expect(publicVerifier).toContain("type: 'blockHeight'");
     expect(publicVerifier).toContain('decodeLedger(contractState.data)');
@@ -143,6 +240,79 @@ describe('Midnight Wallet shell', () => {
     expect(styles).toContain('.device-date-controls');
   });
 
+  it('makes long-running Device actions visibly active', () => {
+    expect(script).toContain('aria-busy="true"');
+    expect(script).toContain('class="action-spinner"');
+    expect(script).toContain('class="activity-dot"');
+    expect(script).toContain('role="status" aria-live="polite"');
+    expect(styles).toContain('@keyframes workflow-spinner');
+    expect(styles).toContain('from { transform: translateZ(0) rotate(0deg); }');
+    expect(styles).toContain('to { transform: translateZ(0) rotate(360deg); }');
+    expect(styles).toContain('@keyframes workflow-progress-travel');
+    expect(styles).toContain('@keyframes workflow-activity-pulse');
+    expect(styles).toContain('will-change: transform');
+    expect(styles).toContain('.workflow-action.active-action::after');
+    expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('shows the actual Device and Threshold transaction stages', () => {
+    expect(script).toContain("progressDeviceProof: 'デバイス登録TX用のZKPを生成中'");
+    expect(script).toContain("progressDeviceSending: 'デバイス登録TXを送信中'");
+    expect(script).toContain("progressDeviceConfirming: 'デバイス登録TXの確定待ち'");
+    expect(script).toContain("progressAssignmentProof: 'しきい値割当TX用のZKPを生成中'");
+    expect(script).toContain("progressAssignmentSending: 'しきい値割当TXを送信中'");
+    expect(script).toContain("progressAssignmentConfirming: 'しきい値割当TXの確定待ち'");
+    expect(script).toContain('id="registration-device-tx"');
+    expect(script).toContain('id="registration-assignment-tx"');
+    expect(script).toContain("['device_confirmed', 'assignment_zkp_generating'");
+    expect(styles).toContain('.registration-progress');
+    expect(script).toContain("progress?.status === 'failed'");
+    expect(script).toContain('class="action-error"');
+    expect(styles).toContain('.registration-progress-failed');
+  });
+
+  it('releases the browser after registration Job acceptance and only polls Job state', () => {
+    expect(deviceFlow).toContain("if ('operationId' in submitted)");
+    expect(deviceFlow).toContain('storePendingProvisioning(submitted');
+    expect(deviceFlow).toContain('return null;');
+    expect(deviceFlow).toContain('async function readProvisioningStatus(');
+    expect(deviceFlow).not.toContain('provisioningTimeoutMs');
+    expect(deviceFlow).not.toContain('while (Date.now() < deadline)');
+    expect(script).toContain('async function refreshPendingDeviceRegistration()');
+    expect(script).toContain('setInterval(() => void refreshPendingDeviceRegistration(), 5_000)');
+    expect(script).toContain("['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status)");
+    expect(script).toContain('id="registration-job-id"');
+  });
+
+  it('restores an already submitted attestation instead of retrying its Contract call', () => {
+    expect(script).toContain("detail.includes('measurement group already attested')");
+    expect(script).toContain("recovered?.status === 'dead_lettered'");
+    expect(script).toContain("recovered.errorCode === 'measurement_group_already_attested'");
+    expect(script).toContain("['sponsored', 'submitted', 'confirmed'].includes(recovered.status)");
+    expect(script).toContain('deviceState.transaction ??= { transactionId: recovered.attestTxId }');
+    expect(script).toContain('await submitDeviceDay(flow, periodDate)');
+    expect(script).toContain("if (!day.proofJob) {");
+    expect(deviceFlow).toContain("phase: 'failed'");
+    expect(deviceFlow).toContain("errorCode: 'measurement_group_already_attested'");
+    expect(midnightDevice).toContain('contractState.attestations.member(attestationId)');
+  });
+
+  it('re-localizes persisted Device status when the language changes', () => {
+    expect(script).toContain('function refreshDeviceMessageForLocale()');
+    expect(script).toContain('refreshDeviceMessageForLocale();');
+    expect(script).toContain("deviceState.message = t('registrationRestored')");
+    expect(script).toContain('statusText(deviceState.proofJob.status)');
+  });
+
+  it('shows the full hosted Device, authenticated administrator, and verifier workflow', () => {
+    expect(script).toContain("const target = !location.hash ? '#/device' : ''");
+    expect(script).toContain("document.querySelector('#nav-device').hidden = false");
+    expect(script).toContain("document.querySelector('#nav-admin').hidden = false");
+    expect(script).toContain('const data = await flow.loadAdministratorDashboard()');
+    expect(script).toContain("adminBadge: 'DEVICE ADMIN'");
+    expect(styles).toContain('[hidden] { display: none !important; }');
+  });
+
   it('links public chain evidence to the network-specific Midnight Explorer', () => {
     expect(script).toContain("return 'https://preprod.midnightexplorer.com'");
     expect(script).toContain("if (kind === 'transaction') return `${base}/transactions/${encoded}`");
@@ -150,7 +320,19 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("if (kind === 'block' && /^\\d+$/u.test(String(value))) return `${base}/blocks/${encoded}`");
     expect(script).toContain('target="_blank" rel="noopener noreferrer"');
     expect(script).toContain("explorerLink('transaction', data.transactions.attest?.txHash, data.network)");
-    expect(midnightDevice).toContain('submittedTransactionHash = sponsored.transactionHash');
+    expect(midnightDevice).toContain('publicDataProvider.watchForTxData(sponsorship.transactionId)');
+    expect(midnightDevice).toContain('blockHeight: confirmation.blockHeight');
     expect(deviceFlow).toContain('txHash: result.transactionHash');
+    expect(deviceFlow).toContain('blockHeight: result.blockHeight');
+    expect(deviceFlow).not.toContain("blockHeight: 'confirmed-by-indexer'");
+  });
+
+  it('does not let stale in-memory proof state replace refreshed server history', () => {
+    expect(script).toContain(
+      'ensure(deviceState.proofJob.periodDate).proofJob ||= deviceState.proofJob',
+    );
+    expect(script).not.toContain(
+      'ensure(deviceState.proofJob.periodDate).proofJob = deviceState.proofJob',
+    );
   });
 });

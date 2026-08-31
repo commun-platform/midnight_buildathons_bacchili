@@ -4,9 +4,14 @@ import {
   witnesses,
   type SensorPrivateState,
 } from '@midnight-demo/sensor-registry-contract/witnesses';
-import { Contract } from '@midnight-demo/sensor-registry-contract/contract';
+import {
+  Contract,
+  ledger as decodeLedger,
+  pureCircuits,
+} from '@midnight-demo/sensor-registry-contract/contract';
 import {
   hexToBytes,
+  type BrowserWalletSignature,
   type PreparedDailyExtremaAttestation,
 } from '@midnight-demo/shared';
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
@@ -30,6 +35,8 @@ import type { UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
 import WebSocketImplementation from 'isomorphic-ws';
 
 import { inMemoryPrivateStateProvider } from './in-memory-private-state-provider.js';
+import { summarizeBrowserSponsoredTransactionConfirmation } from './sponsored-confirmation.js';
+import { requireWalletShieldedAddresses } from './wallet-compatibility.js';
 
 type SensorRegistryCircuit =
   | 'registerDevice'
@@ -43,6 +50,7 @@ const PREPROD_INDEXER_URI = 'https://indexer.preprod.midnight.network/api/v4/gra
 const PREPROD_INDEXER_WS_URI = 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws';
 const INDEXER_LOOKUP_TIMEOUT_MS = 15_000;
 const CONTRACT_CONNECTION_TIMEOUT_MS = 30_000;
+const TRANSACTION_CONFIRMATION_TIMEOUT_MS = 5 * 60_000;
 
 export type SubmissionProgress =
   | 'connecting-contract'
@@ -61,11 +69,13 @@ export type SubmissionProgress =
   | 'transaction-sponsored'
   | 'submitting-transaction'
   | 'transaction-submitted'
+  | 'contract-state-changed-retrying'
   | 'confirmed';
 
 export interface BrowserSubmissionResult {
   transactionId: string;
   transactionHash: string;
+  blockHeight: string;
   sponsorTransactionId: string;
   feeSpecks: string;
   feeDust: string;
@@ -81,8 +91,12 @@ export interface BrowserWalletConnection {
   api: ConnectedAPI;
   walletName: string;
   walletApiVersion: string;
+  walletKeySha256: string;
+  walletIdentitySignature: BrowserWalletSignature;
   networkId: string;
   shieldedAddress: string;
+  shieldedCoinPublicKey: string;
+  shieldedEncryptionPublicKey: string;
   indexerUri: string;
   indexerWsUri: string;
 }
@@ -120,6 +134,7 @@ export function availableWallets(): Array<{ id: string; name: string; apiVersion
 export async function connectBrowserWallet(
   networkId = 'preprod',
   walletId?: string,
+  identityMessage?: string,
 ): Promise<BrowserWalletConnection> {
   const discovered = browserWallets();
   const selected = walletId
@@ -129,23 +144,53 @@ export async function connectBrowserWallet(
   const api = await selected.wallet.connect(networkId);
   const status = await api.getConnectionStatus();
   if (status.status !== 'connected') throw new Error('Midnight Wallet connection was not authorized');
-  const [configuration, shielded] = await Promise.all([
+  const [configuration, shieldedResponse] = await Promise.all([
     api.getConfiguration(),
     api.getShieldedAddresses(),
   ]);
+  const shielded = requireWalletShieldedAddresses(shieldedResponse);
   if (configuration.networkId.toLowerCase() !== networkId.toLowerCase()) {
     throw new Error(`Wallet is connected to ${configuration.networkId}, expected ${networkId}`);
   }
+  if (typeof api.signData !== 'function') {
+    throw new Error(
+      `Connected Wallet ${selected.wallet.name} API ${selected.wallet.apiVersion} does not support signData`,
+    );
+  }
+  if (typeof api.hintUsage === 'function') await api.hintUsage(['signData']);
+  const walletIdentityMessage = identityMessage ?? [
+    'VSP-BROWSER-WALLET-IDENTITY-V1',
+    networkId.toLowerCase(),
+    configuration.networkId.toLowerCase(),
+  ].join('\n');
+  const walletIdentity = await api.signData(walletIdentityMessage, {
+    encoding: 'text',
+    keyType: 'unshielded',
+  });
+  if (
+    walletIdentity.data !== walletIdentityMessage
+    || typeof walletIdentity.verifyingKey !== 'string'
+    || !walletIdentity.verifyingKey
+  ) throw new Error('Midnight Wallet identity signature is invalid');
   setNetworkId(networkId as 'preprod');
   return {
     api,
     walletName: selected.wallet.name,
     walletApiVersion: selected.wallet.apiVersion,
+    walletKeySha256: await textSha256(walletIdentity.verifyingKey),
+    walletIdentitySignature: walletIdentity,
     networkId: configuration.networkId,
     shieldedAddress: shielded.shieldedAddress,
+    shieldedCoinPublicKey: shielded.shieldedCoinPublicKey,
+    shieldedEncryptionPublicKey: shielded.shieldedEncryptionPublicKey,
     indexerUri: configuration.indexerUri,
     indexerWsUri: configuration.indexerWsUri,
   };
+}
+
+async function textSha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 interface SponsoredTransactionResponse {
@@ -228,6 +273,14 @@ async function waitForSponsoredTransaction(
     }));
     if (job.deviceTransactionHash && job.deviceTransactionHash !== deviceTransactionHash) {
       throw new Error('Proof Job is bound to another Device transaction');
+    }
+    if (
+      job.status === 'reproof_required'
+      && job.errorCode === 'contract_state_changed_reproof_required'
+    ) {
+      throw new Error(
+        'contract_state_changed_reproof_required: rebuild the transaction against current contract state',
+      );
     }
     if (job.status === 'reproof_required' || job.status === 'dead_lettered') {
       throw new Error(`Sponsor processing failed: ${job.errorCode ?? job.status}`);
@@ -314,6 +367,7 @@ export async function submitBrowserAttestation(input: {
   onProgress?: (progress: SubmissionProgress) => void;
 }): Promise<BrowserSubmissionResult> {
   const notify = (progress: SubmissionProgress) => input.onProgress?.(progress);
+  const publicData = input.attestation.publicData;
   setNetworkId('preprod');
   const compiledContract = CompiledContract.make('sensor-registry', Contract).pipe(
     CompiledContract.withWitnesses(witnesses),
@@ -365,14 +419,11 @@ export async function submitBrowserAttestation(input: {
       return proof;
     },
   };
-  const shielded = await input.wallet.api.getShieldedAddresses();
   let submittedAt = '';
-  let submittedTransactionId = '';
-  let submittedTransactionHash = '';
   let sponsored: SponsoredTransactionResponse | null = null;
   const walletProvider = {
-    getCoinPublicKey: () => shielded.shieldedCoinPublicKey,
-    getEncryptionPublicKey: () => shielded.shieldedEncryptionPublicKey,
+    getCoinPublicKey: () => input.wallet.shieldedCoinPublicKey,
+    getEncryptionPublicKey: () => input.wallet.shieldedEncryptionPublicKey,
     async balanceTx(tx: UnboundTransaction): Promise<FinalizedTransaction> {
       notify('wallet-approval');
       try {
@@ -423,11 +474,9 @@ export async function submitBrowserAttestation(input: {
       );
       notify('transaction-sponsored');
       notify('submitting-transaction');
-      submittedTransactionHash = sponsored.transactionHash;
       submittedAt = sponsored.sponsorshipCompletedAt;
       const identifier = tx.identifiers()[0];
       if (!identifier) throw new Error('Balanced transaction has no identifier');
-      submittedTransactionId = sponsored.transactionId;
       notify('transaction-submitted');
       return identifier;
     },
@@ -464,10 +513,19 @@ export async function submitBrowserAttestation(input: {
         `Midnight Indexer contract lookup at ${candidate.query}`,
       );
       if (!state) throw new Error('the contract was not found in the latest indexed block');
+      const contractState = decodeLedger(state.data);
+      const attestationId = pureCircuits.deriveAttestationId(
+        hexToBytes(publicData.deviceCommitment),
+        hexToBytes(publicData.measurementGroupId),
+      );
+      if (contractState.attestations.member(attestationId)) {
+        throw new Error('measurement group already attested');
+      }
       publicDataProvider = provider;
       notify('contract-state-found');
       break;
     } catch (error) {
+      if (errorDetail(error).includes('measurement group already attested')) throw error;
       indexerErrors.push(`${candidate.query}: ${errorDetail(error)}`);
     }
   }
@@ -499,7 +557,6 @@ export async function submitBrowserAttestation(input: {
     throw new Error(`Midnight contract connection failed: ${errorDetail(error)}`, { cause: error });
   }
   notify('contract-connected');
-  const publicData = input.attestation.publicData;
   notify('building-transaction');
   const transaction = await deployed.callTx.submitDailyAttestation(
     hexToBytes(publicData.attestationCommitment),
@@ -514,16 +571,30 @@ export async function submitBrowserAttestation(input: {
     BigInt(publicData.schemaVersion),
     BigInt(publicData.circuitVersion),
   );
-  const confirmedAt = new Date().toISOString();
-  notify('confirmed');
   const returnedId = transactionId(transaction.public.txId);
-  const id = returnedId ?? submittedTransactionId;
-  if (!id) throw new Error('Midnight transaction did not return a transaction ID');
+  if (!returnedId) throw new Error('Midnight transaction did not return a transaction ID');
   const sponsorship = sponsored as SponsoredTransactionResponse | null;
   if (!sponsorship) throw new Error('Sponsor Wallet did not return a submission result');
+  const finalized = await withTimeout(
+    publicDataProvider.watchForTxData(sponsorship.transactionId),
+    TRANSACTION_CONFIRMATION_TIMEOUT_MS,
+    'Midnight sponsored transaction confirmation',
+  );
+  const confirmation = summarizeBrowserSponsoredTransactionConfirmation(
+    sponsorship.transactionId,
+    sponsorship.transactionHash,
+    finalized,
+  );
+  if (
+    returnedId !== confirmation.transactionId
+    && !finalized.identifiers.includes(returnedId)
+  ) throw new Error('Midnight contract call returned a different transaction identifier');
+  const confirmedAt = new Date().toISOString();
+  notify('confirmed');
   return {
-    transactionId: id,
-    transactionHash: submittedTransactionHash,
+    transactionId: confirmation.transactionId,
+    transactionHash: confirmation.transactionHash,
+    blockHeight: confirmation.blockHeight,
     sponsorTransactionId: sponsorship.sponsorTransactionId,
     feeSpecks: sponsorship.feeSpecks,
     feeDust: sponsorship.feeDust,
