@@ -42,7 +42,7 @@ Each hour is recorded as either observed or STOPPED. A third party can check whi
 
 ## What has been verified so far?
 
-For the current source on 2026-08-31, all 6 proof circuits compiled, 287 automated tests passed, and the type checks, builds, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are separate evidence.
+For the current source on 2026-08-31, all 6 proof circuits compiled, 288 automated tests passed, and the type checks, builds, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are separate evidence.
 
 ## Can the third-party view verify independently?
 

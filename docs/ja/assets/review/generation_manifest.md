@@ -78,7 +78,7 @@ Prompt Set:
 Prompt Set:
 
 - 2 × 2の技術的な実証結果。
-- 6つの証明回路のコンパイル、182件の自動テスト、型検査・ビルド、Cloudflare配備前検査を表示。
+- 6つの証明回路のコンパイル、288件の自動テスト、型検査・ビルド、Cloudflare配備前検査を表示。
 - 2026-08-29 JSTの現行ソース検証と、2026-08-28のMidnight事前公開ネットワーク記録を分離。
 - 回路行数、関数名、`k`値など、顧客価値の理解に不要な内部指標は載せない。
 
@@ -113,7 +113,7 @@ Prompt Set:
 
 ## cloudflare-uc01〜05-*-ja.svg／.png
 
-生成方法: `scripts/build-cloudflare-uc-materials.cjs`でSVGを作成し、1672×941 PNG、5ページPPTX、5ページPDFへ変換。画像生成モデルは不使用。
+生成方法: `tools/submission-media/build-cloudflare-uc-materials.cjs`でSVGを作成し、1672×941 PNG、5ページPPTX、5ページPDFへ変換。画像生成モデルは不使用。
 
 - 1枚に全経路を詰め込まず、認証、1時間Summary、日次ZKP、署名・送信、第三者確認の5 UCへ分割。
 - 各ページは同じ配置を保ち、UC順にリソースを追加。現在のUCで使うリソースと線だけを明るく表示。

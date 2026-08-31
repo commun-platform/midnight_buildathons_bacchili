@@ -38,7 +38,7 @@ Wave 1 produced the daily threshold proof, multi-Device registration, a public t
 The current working source was validated on 2026-08-29 JST:
 
 - all 6 proof circuits compiled;
-- all 287 automated tests passed;
+- all 288 automated tests passed;
 - all workspace type checks and builds passed; and
 - the Cloudflare pre-deployment check passed.
 
@@ -73,9 +73,10 @@ The browser independently checks public Midnight transaction and Contract state 
 ## Submission links
 
 - Repository: add the final public GitHub URL
-- English deck: [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf)
+- English deck: [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf), synchronized with the 2:18 video pitch
 - Japanese deck: [PPTX](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) / [PDF](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf)
 - Video pitch: `bacchiri-demo-pitch-en.mp4` produced (2:18); add the final public URL
+- Submission thumbnail and six-shot review pack: [captures/](captures/)
 - Claim-to-evidence map: [evidence_matrix.md](evidence_matrix.md)
 - Judge review path: [README](../../README.md)
 

@@ -6,9 +6,9 @@ Last local check: 2026-08-31 JST
 
 | Gate | Status | Evidence / action |
 | --- | --- | --- |
-| Operational Compact contract exists | PASS | contracts/sensor-registry/src/sensor-registry.compact |
+| Operational Compact contract exists | PASS | midnight/contracts/sensor-registry/src/sensor-registry.compact |
 | Compact compilation | PASS | 6 circuits compiled; submitDailyAttestation 28,699 rows, k=15 |
-| Repository tests | PASS | 287 / 287 passed across nine workspaces |
+| Repository tests | PASS | 288 / 288 passed across nine workspaces |
 | Type checking | PASS | All configured workspaces |
 | Production builds | PASS | Dashboard, CLI, Device workspaces |
 | Cloudflare package validation | PASS | Wrangler deploy dry-run and deployed Worker version `d88891bc-17b3-40c1-9771-5fc92fbd9cc0` |
@@ -19,9 +19,10 @@ Last local check: 2026-08-31 JST
 | Public repository visibility | PENDING EXTERNAL | Confirm after publishing |
 | GitHub topic midnightntwrk | PASS | Confirmed on the GitHub repository |
 | Final submission commit | PENDING | Freeze after GUI implementation and final capture |
-| Final GUI screenshots | PENDING | Capture after GUI implementation stabilizes |
+| Final GUI screenshots | PASS (LOCAL) | Six reviewed English stills and a 1920×1080 submission thumbnail are under `docs/submission/captures/` |
 | Demo / video pitch | PASS (LOCAL) | English H.264/AAC 1080p video produced: `bacchiri-demo-pitch-en.mp4` (2:18); public URL remains external |
-| Slide public link | PENDING EXTERNAL | Publish generated deck or PDF and add URL |
+| Slide package | PASS (LOCAL) | English 9-slide PPTX and independently generated 9-page PDF match the 2:18 video story |
+| Slide public link | PENDING EXTERNAL | Publish the generated deck/PDF and add the public URL |
 | AKINDO form and Official Rules | PENDING EXTERNAL | Recheck deadline time, limits, team and link fields |
 
 ## Final release commands

@@ -24,14 +24,14 @@
 
 リポジトリに`pptxgenjs`／`pdf-lib`がない場合は、Codex作業環境のNode.jsモジュールパスを指定します。
 
-    NODE_PATH=<workspace-dependencies-node-modules> node scripts/build-submission-decks.cjs
-    NODE_PATH=<workspace-dependencies-node-modules> node scripts/build-submission-pdfs.cjs
+    NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-submission-decks.cjs
+    NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-submission-pdfs.cjs
 
 PPTXとPDFは、同じ主要10ページと技術補足2ページから個別に生成します。最終画面は確定・録画済みで、第8ページには動画から選んだ静止画を差し替える作業が残っています。
 
 Cloudflare UC別技術補足は、次のコマンドで5枚のSVG／PNG、PPTX、PDFを一括再生成します。
 
-    NODE_PATH=<workspace-dependencies-node-modules> node scripts/build-cloudflare-uc-materials.cjs
+    NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-cloudflare-uc-materials.cjs
 
 ## 最終化の順序
 

@@ -18,22 +18,20 @@ Output: `bacchiri-demo-pitch-en.mp4`; produce a separate Japanese version only i
 
 ![The six steps that the final GUI video must show while keeping private values out of view](../assets/guides/judge-review-path-en.png)
 
-## Storyboard and narration
+## Final 2:18 storyboard and narration
 
 | Time | Visual / action | English narration |
 | --- | --- | --- |
-| 0:00–0:18 | Open on the final verifier result, then title | This system shows a third party that the sensor values are within the registered threshold without disclosing the sensor values. |
-| 0:18–0:40 | Show the value-proposition figure | The third party sees the threshold result—WITHIN, OUTSIDE, or STOPPED—not the sensor values. |
-| 0:40–1:02 | Show the four-domain architecture | The Edge Device keeps raw data and signing keys. The Frontend shows public information only. The trusted Backend accepts proof requests and generates proofs. Midnight records the public threshold, target Device, and confirmed result. |
-| 1:02–1:20 | Show exact claim / non-claim | The proof checks every submitted observed-hour minimum and maximum. It does not prove sensor integrity, continuous sampling, completeness, or local aggregation correctness. |
-| 1:20–1:30 | Open Device Workflow; connect the Midnight Wallet | The workflow begins with an explicitly authorized wallet connection. |
-| 1:30–1:43 | Create or restore the review Device; show the registration step | API identity, Compact authority, and Midnight Wallet responsibilities are separated. |
-| 1:43–1:57 | Select a completed day and run the final generation / capture action | Raw readings remain local and are reduced to a private minimum and maximum for each of 24 hourly slots. Missing hours are STOPPED. |
-| 1:57–2:12 | Request proof processing; show the proof-request ID and status | D1 records the request and prevents duplicate execution. The Device cannot substitute a different threshold at proof time. |
-| 2:12–2:35 | Generate proof and submit; show progress through confirmed | The trusted Proof Server creates the proof, then the Device signs one Midnight transaction. The Proof Server cannot sign for the Device. |
-| 2:35–2:55 | Open Verify daily ZKP / Third-Party Verification | The public view shows the threshold, WITHIN or OUTSIDE result, observed and STOPPED counts, commitment, and transaction identifier—never the private hourly minimum / maximum values or nonce. |
-| 2:55–3:15 | Show Engineering Evidence | The current source compiles six proof circuits and passes 287 tests, all type checks, builds, and the Cloudflare pre-deployment check. Dated Preprod evidence includes self-funded WITHIN/OUTSIDE and Sponsor-funded schema-5. |
-| 3:15–3:30 | Show roadmap | Wave 2 hardens local/multi-source verification and adds signed provenance evidence. Wave 3 plans calibrated-device proof for a construction-site PoC and wider adoption. |
+| 0:00–0:11.984 | Title/value slide | Ask whether an auditor can verify a threshold result without receiving the sensor values; introduce BACCHIRI as a verifiable measurement layer. |
+| 0:11.984–0:32.392 | Minimum-evidence explanation slide | Explain the cross-organization reporting problem and why BACCHIRI shares only the evidence required for trust. |
+| 0:32.392–0:48.816 | Device Workflow GUI; source 0:20.500–0:36.924 | Show the connected user-controlled Wallet, Device identity, and policy bound before measurement. |
+| 0:48.816–1:06.296 | Private sensor-evidence explanation slide | Explain private raw readings, 24 ordered hourly MIN/MAX slots, and explicit STOPPED hours. Do not show a proof-transaction screen in this scene. |
+| 1:06.296–1:22.216 | ZK proof GUI; source 3:58.000–4:13.920 | Show proof generation against the threshold already registered on Midnight. |
+| 1:22.216–1:39.864 | Device approval GUI; source 4:58.000–5:15.648 | Show Device approval of the exact payload and separate Sponsor Wallet DUST contribution. |
+| 1:39.864–1:58.664 | Third-party GUI and Explorer; source 5:54.000–6:12.800 | Show the public policy, result, observed hours, commitment, and transaction evidence while private values remain redacted. |
+| 1:58.664–2:18.040 | Exact claim-boundary slide | State what Midnight proves and explicitly exclude physical sensor accuracy, complete sampling, and correct Device aggregation. |
+
+The burned-in captions reproduce the TTS script exactly and use speech/silence boundaries measured from the generated narration. Browser chrome, the Windows taskbar, and the password-entry sequence are excluded.
 
 ## Exact GUI capture sequence
 
@@ -67,7 +65,7 @@ Output: `bacchiri-demo-pitch-en.mp4`; produce a separate Japanese version only i
 | GUI-08 | Public verifier | Policy, result, observed / STOPPED, commitment, TX |
 | GUI-09 | Negative / boundary | OUTSIDE or one explicit tamper-rejection result |
 | EVD-01 | Compile | Six circuits and submitDailyAttestation rows |
-| EVD-02 | Tests | 287 passed |
+| EVD-02 | Tests | 288 passed |
 
 ## Fallback policy
 

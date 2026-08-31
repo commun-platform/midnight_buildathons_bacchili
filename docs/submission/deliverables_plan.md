@@ -14,8 +14,8 @@ This is the production brief for the Wave 1 submission. The central message is:
 | --- | --- | --- |
 | Public GitHub repository | Repository, top README, license, topic | Publicly accessible with the midnightntwrk topic |
 | Clear README | Top README and detailed guides | Covers project, setup, architecture, Midnight integration, and evaluation |
-| Slide deck | Separate English and Japanese 16:9 decks: ten core slides plus two technical appendices | Claims and evidence match the repository |
-| Demo / video pitch | Separate English and Japanese versions | Shows UI, proof flow, public evidence, and engineering results |
+| Slide deck | English 16:9 nine-slide pitch synchronized with the final video; Japanese version only if required | Claims, screenshots, and evidence boundaries match the final video |
+| Demo / video pitch | English 2:18 version complete; Japanese version only if required | Concept slides and GUI footage are matched one-to-one with narration |
 | Wave progress | Dated progress record | Distinguishes pre-existing work from Wave 1 additions |
 | Compiling Compact contract | Technical-gate evidence | sensor-registry compiles with the pinned toolchain |
 | Apache 2.0 Midnight code | License audit | Scope and attribution are explicit |
@@ -38,8 +38,8 @@ Recheck the exact submission time, field limits, upload constraints, and Officia
 
 1. Submission copy with title, value, problem, solution, why Midnight, progress, and links.
 2. Judge-ready README with 30-second, three-minute, and ten-minute reading paths.
-3. Separate English and Japanese decks with a ten-slide core story and two technical appendix sequence diagrams.
-4. Separate approximately 3:30 English and Japanese demo videos.
+3. English nine-slide pitch deck synchronized with the final 2:18 video; keep deeper technical diagrams in the documentation package.
+4. English 2:18 demo video; produce a separate Japanese version only if the review audience requires it.
 5. Scene-level demo script and capture list.
 6. Evidence matrix connecting each claim to source, tests, runtime proof, and validation boundary.
 7. Dated Wave 1 progress record.
