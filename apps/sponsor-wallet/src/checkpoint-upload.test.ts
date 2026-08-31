@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { uploadShutdownCheckpoint } from './checkpoint-upload.js';
+import {
+  canPersistSynchronizationCheckpoint,
+  uploadShutdownCheckpoint,
+} from './checkpoint-upload.js';
+
+test('allows periodic checkpoints while the wallet SDK is still synchronizing', () => {
+  assert.equal(canPersistSynchronizationCheckpoint('running', true, 'syncing'), true);
+  assert.equal(canPersistSynchronizationCheckpoint('succeeded', true, 'syncing'), true);
+  assert.equal(canPersistSynchronizationCheckpoint('not-started', true, 'syncing'), false);
+  assert.equal(canPersistSynchronizationCheckpoint('failed', true, 'syncing'), false);
+  assert.equal(canPersistSynchronizationCheckpoint('running', false, 'syncing'), false);
+  assert.equal(canPersistSynchronizationCheckpoint('running', true, 'ready'), false);
+});
 
 test('uploads an encrypted shutdown checkpoint only to the internal state endpoint', async () => {
   const checkpoint = new Uint8Array([1, 2, 3, 4]);
@@ -32,4 +44,42 @@ test('rejects a failed internal checkpoint upload', async () => {
     }),
     /HTTP 503/u,
   );
+});
+
+test('includes synchronization progress in a periodic checkpoint upload', async () => {
+  let sent: Request | undefined;
+  await uploadShutdownCheckpoint(new Uint8Array([7, 8, 9]), 'periodic-sync', {
+    fetcher: async (input, init) => {
+      sent = new Request(input, init);
+      return new Response(null, { status: 204 });
+    },
+    progress: {
+      phase: 'syncing',
+      shieldedApplied: '1466979',
+      unshieldedApplied: '577250',
+      dustApplied: '463779',
+    },
+    timeoutMs: 1_000,
+  });
+
+  assert.ok(sent);
+  assert.equal(sent.headers.get('X-Sponsor-Checkpoint-Reason'), 'periodic-sync');
+  assert.equal(sent.headers.get('X-Sponsor-Checkpoint-Phase'), 'syncing');
+  assert.equal(sent.headers.get('X-Sponsor-Checkpoint-Dust-Applied'), '463779');
+});
+
+test('retries a transient periodic checkpoint upload without changing the checkpoint', async () => {
+  let attempts = 0;
+  const bodies: Uint8Array[] = [];
+  await uploadShutdownCheckpoint(new Uint8Array([7, 8, 9]), 'periodic-sync', {
+    retryDelayMs: 0,
+    fetcher: async (_input, init) => {
+      attempts += 1;
+      bodies.push(new Uint8Array(init?.body as ArrayBuffer));
+      if (attempts === 1) throw new TypeError('fetch failed');
+      return new Response(null, { status: 204 });
+    },
+  });
+  assert.equal(attempts, 2);
+  assert.deepEqual(bodies, [new Uint8Array([7, 8, 9]), new Uint8Array([7, 8, 9])]);
 });

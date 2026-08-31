@@ -8,6 +8,18 @@ import {
   SupervisorHealthState,
   type CachedWalletHealth,
 } from './supervisor-health.js';
+import {
+  drainProxyRequest,
+  proxyMethodHasRequestBody,
+} from './supervisor-proxy.js';
+import {
+  verifyWalletSignatureRequest,
+  walletSignatureVerificationPath,
+} from './wallet-signature.js';
+import {
+  readSynchronizationCheckpointCache,
+  readSynchronizationCheckpointCacheMetadata,
+} from './checkpoint-cache.js';
 
 function configuredPort(name: string, fallback: number): number {
   const value = Number(process.env[name] ?? fallback);
@@ -23,7 +35,11 @@ if (supervisorPort === walletPort) {
   throw new Error('Sponsor Wallet Supervisor and internal service ports must differ');
 }
 const walletProbeIntervalMs = 2_000;
-const walletProbeTimeoutMs = 250;
+// The Wallet SDK yields between synchronization batches, which can delay the
+// internal health handler by a few seconds even though the Supervisor remains
+// responsive. Allow one batch to yield before declaring the cached status
+// stale; probeInFlight still prevents overlapping requests.
+const walletProbeTimeoutMs = 5_000;
 const walletNicePriority = 10;
 const forcedShutdownMs = 14 * 60_000;
 const healthState = new SupervisorHealthState();
@@ -44,6 +60,27 @@ function responseJson(response: http.ServerResponse, status: number, value: unkn
     'X-Content-Type-Options': 'nosniff',
   });
   response.end(body);
+}
+
+function supervisorHealth() {
+  const health = healthState.snapshot(
+    walletProcess?.pid ?? null,
+    walletProcessAlive,
+  );
+  const cachedCheckpoint = readSynchronizationCheckpointCacheMetadata();
+  if (cachedCheckpoint && health.phase !== 'ready') {
+    health.synchronizationCheckpoint = {
+      status: 'succeeded',
+      attemptedAt: cachedCheckpoint.updatedAt,
+      completedAt: cachedCheckpoint.updatedAt,
+      durationMs: null,
+      bytes: cachedCheckpoint.bytes,
+      dustApplied: cachedCheckpoint.dustApplied,
+      error: null,
+      delivery: 'local-cache',
+    };
+  }
+  return health;
 }
 
 function startWalletProcess(): ChildProcess {
@@ -116,8 +153,25 @@ function proxyToWallet(
   request: http.IncomingMessage,
   response: http.ServerResponse,
 ): void {
+  const respondUnavailable = (message: string, proxyError?: Error): void => {
+    const sendResponse = (): void => {
+      if (!response.headersSent) {
+        responseJson(response, 503, { error: message });
+      } else if (proxyError) {
+        response.destroy(proxyError);
+      }
+    };
+    if (!proxyMethodHasRequestBody(request.method) || request.readableEnded) {
+      sendResponse();
+      return;
+    }
+    request.unpipe();
+    void drainProxyRequest(request).then(sendResponse, (error: unknown) => {
+      response.destroy(error instanceof Error ? error : new Error(String(error)));
+    });
+  };
   if (!walletProcessAlive) {
-    responseJson(response, 503, { error: 'Sponsor Wallet process is unavailable' });
+    respondUnavailable('Sponsor Wallet process is unavailable');
     return;
   }
   const upstream = http.request({
@@ -143,24 +197,100 @@ function proxyToWallet(
       pathname: new URL(request.url ?? '/', 'http://sponsor.internal').pathname,
       ...diagnosticError(error),
     }, 'warn');
-    if (!response.headersSent) {
-      responseJson(response, 503, { error: 'Sponsor Wallet process is starting' });
-    } else {
-      response.destroy(error);
-    }
+    respondUnavailable('Sponsor Wallet process is starting', error);
   });
-  request.once('aborted', () => upstream.destroy());
-  request.pipe(upstream);
+  if (proxyMethodHasRequestBody(request.method)) {
+    request.once('aborted', () => upstream.destroy());
+    request.pipe(upstream);
+  } else {
+    upstream.end();
+  }
+}
+
+async function readBody(request: http.IncomingMessage, maximumBytes: number): Promise<Uint8Array> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of request) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += bytes.byteLength;
+    if (total > maximumBytes) throw new Error('Request body is too large');
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function handleWalletSignatureVerification(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  const body = await readBody(request, 8 * 1024);
+  const provisioningVersion = request.headers['x-operator-provisioning'];
+  verifyWalletSignatureRequest(
+    typeof provisioningVersion === 'string' ? provisioningVersion : undefined,
+    body,
+  );
+  responseJson(response, 200, { verified: true });
+}
+
+async function serveSynchronizationCheckpoint(
+  response: http.ServerResponse,
+): Promise<boolean> {
+  const cached = await readSynchronizationCheckpointCache();
+  if (!cached) return false;
+  response.writeHead(200, {
+    'Cache-Control': 'no-store',
+    'Content-Length': cached.checkpoint.byteLength,
+    'Content-Type': 'application/octet-stream',
+    'X-Sponsor-Checkpoint-Boot-Id': cached.metadata.bootId,
+    'X-Sponsor-Checkpoint-Phase': cached.metadata.phase,
+    'X-Sponsor-Checkpoint-Shielded-Applied': cached.metadata.shieldedApplied,
+    'X-Sponsor-Checkpoint-Unshielded-Applied': cached.metadata.unshieldedApplied,
+    'X-Sponsor-Checkpoint-Dust-Applied': cached.metadata.dustApplied,
+    'X-Sponsor-Checkpoint-Source': 'local-cache',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  response.end(Buffer.from(cached.checkpoint));
+  return true;
 }
 
 const server = http.createServer((request, response) => {
   const pathname = new URL(request.url ?? '/', 'http://sponsor.internal').pathname;
   if (request.method === 'GET' && pathname === '/health') {
-    responseJson(response, 200, healthState.snapshot(
-      walletProcess?.pid ?? null,
-      walletProcessAlive,
-    ));
+    responseJson(response, 200, supervisorHealth());
     void probeWallet();
+    return;
+  }
+  if (request.method === 'GET' && pathname === '/checkpoint') {
+    const phase = supervisorHealth().phase;
+    if (phase !== 'ready') {
+      void serveSynchronizationCheckpoint(response).then((served) => {
+        if (!served && !response.headersSent) {
+          responseJson(response, 503, { error: 'Synchronization checkpoint is not available yet' });
+        }
+      }).catch((error) => {
+        diagnosticLog('sponsor_wallet_supervisor_checkpoint_failed', {
+          ...diagnosticError(error),
+        }, 'warn');
+        if (!response.headersSent) {
+          responseJson(response, 503, { error: 'Synchronization checkpoint is unavailable' });
+        }
+      });
+      return;
+    }
+  }
+  if (request.method === 'POST' && pathname === walletSignatureVerificationPath) {
+    void handleWalletSignatureVerification(request, response).catch((error) => {
+      diagnosticLog('sponsor_wallet_supervisor_signature_verification_failed', {
+        ...diagnosticError(error),
+      }, 'warn');
+      if (!response.headersSent) {
+        responseJson(response, 400, {
+          error: error instanceof Error ? error.message : 'Wallet signature verification failed',
+        });
+      } else {
+        response.destroy();
+      }
+    });
     return;
   }
   proxyToWallet(request, response);

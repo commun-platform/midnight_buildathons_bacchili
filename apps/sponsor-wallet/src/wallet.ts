@@ -3,6 +3,7 @@ import * as Rx from 'rxjs';
 import { WebSocket } from 'ws';
 
 import { httpClientProvingProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { getNetworkId, setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
@@ -30,6 +31,11 @@ import {
   sponsorSyncProgressDetails,
   type SponsorSyncProgressDetails,
 } from './sync-progress.js';
+import {
+  isReplayProtectionSubmissionError,
+  summarizeSponsorSubmissionConfirmation,
+  type SponsorSubmissionConfirmation,
+} from './submission-confirmation.js';
 
 class DiagnosticWebSocket extends WebSocket {
   constructor(address: string | URL, protocols?: string | string[]) {
@@ -104,6 +110,7 @@ const relayURL = 'wss://rpc.preprod.midnight.network';
 // route on HTTP lets external Indexer/RPC TLS and WSS bypass HTTPS interception.
 const proofServerUrl = 'http://proof.internal';
 const defaultSyncTimeoutMs = 12 * 60 * 60_000;
+const submissionConfirmationTimeoutMs = 2 * 60_000;
 
 function deriveKeys(seedHex: string) {
   const hdWallet = HDWallet.fromSeed(Buffer.from(seedHex, 'hex'));
@@ -123,6 +130,20 @@ function timeoutMs(): number {
     throw new Error('MIDNIGHT_SPONSOR_SYNC_TIMEOUT_MS must be between one minute and 24 hours');
   }
   return parsed;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeout: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeout} ms`)), timeout);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -229,7 +250,8 @@ export class SponsorWalletRuntime {
         costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
       };
       const zkConfigProvider = new NodeZkConfigProvider(
-        process.env.SPONSOR_ZK_CONFIG_PATH ?? '/app/contracts/sensor-registry/src/managed',
+        process.env.SPONSOR_ZK_CONFIG_PATH
+          ?? '/app/contracts/sensor-registry/src/managed/sensor-registry',
       );
       const provingProvider = httpClientProvingProvider(
         proofServerUrl,
@@ -389,7 +411,9 @@ export class SponsorWalletRuntime {
     await activation;
   }
 
-  async submitPreparedTransaction(transaction: ledger.FinalizedTransaction): Promise<string> {
+  async submitPreparedTransactionAndConfirm(
+    transaction: ledger.FinalizedTransaction,
+  ): Promise<SponsorSubmissionConfirmation & { replayRecovered: boolean }> {
     await Rx.firstValueFrom(
       this.wallet.state().pipe(
         Rx.filter((state) => (
@@ -408,13 +432,43 @@ export class SponsorWalletRuntime {
     diagnosticLog('sponsor_wallet_prepared_submission_started', {
       phase: this.#phase,
     });
-    await this.wallet.submissionService.submitTransaction(transaction, 'Finalized');
     const identifier = transaction.identifiers().at(-1);
     if (!identifier) throw new Error('Sponsored transaction has no submission identifier');
+    let replayRecovered = false;
+    try {
+      await this.wallet.submissionService.submitTransaction(transaction, 'Finalized');
+    } catch (error) {
+      if (!isReplayProtectionSubmissionError(error)) throw error;
+      replayRecovered = true;
+      diagnosticLog('sponsor_wallet_replay_confirmation_started', {
+        phase: this.#phase,
+        transactionId: String(identifier),
+        ...diagnosticError(error),
+      }, 'warn');
+    }
+    const provider = indexerPublicDataProvider(
+      indexerHttpUrl,
+      indexerWsUrl,
+      DiagnosticWebSocket as unknown as typeof import('isomorphic-ws'),
+    );
+    const finalized = await withTimeout(
+      provider.watchForTxData(String(identifier)),
+      submissionConfirmationTimeoutMs,
+      'Sponsor transaction Indexer confirmation',
+    );
+    const confirmation = summarizeSponsorSubmissionConfirmation(transaction, finalized);
     diagnosticLog('sponsor_wallet_prepared_submission_completed', {
       phase: this.#phase,
+      transactionId: confirmation.transactionId,
+      transactionHash: confirmation.transactionHash,
+      blockHeight: confirmation.blockHeight,
+      replayRecovered,
     });
-    return String(identifier);
+    return { ...confirmation, replayRecovered };
+  }
+
+  async submitPreparedTransaction(transaction: ledger.FinalizedTransaction): Promise<string> {
+    return (await this.submitPreparedTransactionAndConfirm(transaction)).transactionId;
   }
 
   async releasePreparedTransaction(transaction: ledger.FinalizedTransaction): Promise<void> {
@@ -426,6 +480,17 @@ export class SponsorWalletRuntime {
       pendingDustCoins: before.pendingDustCoins,
     });
     await this.wallet.revert(transaction);
+    await Rx.firstValueFrom(
+      this.wallet.state().pipe(
+        Rx.filter((state) => state.dust.availableCoins.length > before.spendableDustCoins),
+        Rx.timeout({
+          first: 30_000,
+          with: () => Rx.throwError(() => new Error(
+            'Sponsor Wallet DUST reservation was not released into spendable state',
+          )),
+        }),
+      ),
+    );
     const after = this.status();
     diagnosticLog('sponsor_wallet_prepared_release_completed', {
       phase: this.#phase,

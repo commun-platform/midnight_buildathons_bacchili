@@ -2,6 +2,26 @@ import crypto from 'node:crypto';
 
 const magic = Buffer.from('VSP-SPONSOR-CHECKPOINT-V1\0', 'utf8');
 
+interface CheckpointState {
+  shielded?: unknown;
+  unshielded?: unknown;
+  dust?: string;
+}
+
+export function selectCheckpointState(
+  state: CheckpointState,
+  mode: string | null,
+): CheckpointState {
+  if (mode === null) return state;
+  if (mode === 'without-dust') {
+    return {
+      shielded: state.shielded,
+      unshielded: state.unshielded,
+    };
+  }
+  throw new Error('Unknown checkpoint mode');
+}
+
 function encryptionKey(seedHex: string): Buffer {
   return crypto
     .createHash('sha256')

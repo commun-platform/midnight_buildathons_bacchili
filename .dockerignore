@@ -9,8 +9,8 @@ apps/*
 !contracts/
 contracts/*
 !contracts/sensor-registry/
-contracts/sensor-registry/*
-!contracts/sensor-registry/src/
-contracts/sensor-registry/src/*
-!contracts/sensor-registry/src/managed/
-!contracts/sensor-registry/src/managed/**
+!contracts/sensor-registry/**
+!packages/
+packages/*
+!packages/shared/
+!packages/shared/**
