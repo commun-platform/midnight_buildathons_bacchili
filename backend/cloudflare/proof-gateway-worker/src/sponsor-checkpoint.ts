@@ -26,36 +26,48 @@ async function copySponsorCheckpoint(
   sourceKey: string,
   destinationKey: string,
   source: 'pre-reservation' | 'operator-recovery',
+  signal?: AbortSignal,
 ): Promise<boolean> {
   const checkpoint = await env.SPONSOR_STATE.get(sourceKey);
   if (!checkpoint) return false;
   if (checkpoint.size <= 0 || checkpoint.size > maxSponsorCheckpointBytes) {
     throw new Error('Stored Sponsor Wallet checkpoint has an invalid size');
   }
-  const fixedLength = new FixedLengthStream(checkpoint.size);
-  await Promise.all([
-    checkpoint.body.pipeTo(fixedLength.writable),
-    env.SPONSOR_STATE.put(destinationKey, fixedLength.readable, {
-      httpMetadata: { contentType: 'application/octet-stream' },
-      customMetadata: {
-        format: 'vsp-sponsor-checkpoint-v1',
-        updatedAt: new Date().toISOString(),
-        source,
-      },
-    }),
-  ]);
+  if (signal?.aborted) throw signal.reason;
+  const bytes = await checkpoint.arrayBuffer();
+  if (signal?.aborted) throw signal.reason;
+  if (bytes.byteLength !== checkpoint.size) {
+    throw new Error('Stored Sponsor Wallet checkpoint size changed while copying');
+  }
+  await env.SPONSOR_STATE.put(destinationKey, bytes, {
+    httpMetadata: { contentType: 'application/octet-stream' },
+    customMetadata: {
+      format: 'vsp-sponsor-checkpoint-v1',
+      updatedAt: new Date().toISOString(),
+      source,
+    },
+  });
   return true;
 }
 
-export async function preserveSponsorRecoveryCheckpoint(env: Env): Promise<void> {
-  if (!await copySponsorCheckpoint(
-    env,
-    sponsorCheckpointKey,
-    sponsorCheckpointRecoveryKey,
-    'pre-reservation',
-  )) {
+export async function preserveSponsorRecoveryCheckpoint(
+  env: Env,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (signal?.aborted) throw signal.reason;
+  const checkpoint = await env.SPONSOR_STATE.head(sponsorCheckpointKey);
+  if (
+    checkpoint === null
+    || checkpoint.size <= 0
+    || checkpoint.size > maxSponsorCheckpointBytes
+  ) {
     throw new Error('Sponsor Wallet checkpoint is unavailable before DUST reservation');
   }
+  // The main checkpoint is frozen while a Sponsor reservation is active, so
+  // it is already the pre-DUST recovery point. Remove a stale maintenance
+  // checkpoint without copying the multi-megabyte object on the Queue path.
+  await env.SPONSOR_STATE.delete(sponsorCheckpointRecoveryKey);
+  if (signal?.aborted) throw signal.reason;
 }
 
 export async function clearSponsorRecoveryCheckpoint(env: Env): Promise<void> {
@@ -70,7 +82,11 @@ export async function restoreSponsorRecoveryCheckpoint(env: Env): Promise<boolea
     'operator-recovery',
   );
   if (restored) await env.SPONSOR_STATE.delete(sponsorCheckpointRecoveryKey);
-  return restored;
+  if (restored) return true;
+  const checkpoint = await env.SPONSOR_STATE.head(sponsorCheckpointKey);
+  return checkpoint !== null
+    && checkpoint.size > 0
+    && checkpoint.size <= maxSponsorCheckpointBytes;
 }
 
 export function parseSponsorCheckpointUpload(request: Request): SponsorCheckpointUpload {
@@ -127,6 +143,7 @@ async function storeSponsorCheckpointAt(
     reason?: string;
     progress?: SponsorCheckpointProgress;
   },
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!Number.isSafeInteger(bytes) || bytes <= 0 || bytes > maxSponsorCheckpointBytes) {
     throw new Error('Sponsor Wallet checkpoint has an invalid Content-Length');
@@ -134,7 +151,7 @@ async function storeSponsorCheckpointAt(
   const updatedAt = new Date().toISOString();
   const fixedLength = new FixedLengthStream(bytes);
   await Promise.all([
-    body.pipeTo(fixedLength.writable),
+    body.pipeTo(fixedLength.writable, { signal }),
     env.SPONSOR_STATE.put(key, fixedLength.readable, {
       httpMetadata: { contentType: 'application/octet-stream' },
       customMetadata: {
@@ -165,8 +182,9 @@ export async function storeSponsorCheckpoint(
     reason?: string;
     progress?: SponsorCheckpointProgress;
   },
+  signal?: AbortSignal,
 ): Promise<void> {
-  await storeSponsorCheckpointAt(env, sponsorCheckpointKey, body, bytes, metadata);
+  await storeSponsorCheckpointAt(env, sponsorCheckpointKey, body, bytes, metadata, signal);
 }
 
 export async function storeSponsorDustReplayCheckpoint(

@@ -9,14 +9,14 @@ describe('local dashboard CORS', () => {
       headers: {
         Origin: 'http://localhost:8792',
         'Access-Control-Request-Method': 'POST',
-        'Access-Control-Request-Headers': 'Content-Type, Authorization, X-Proof-Job-Id',
+        'Access-Control-Request-Headers': 'Content-Type, Authorization, X-Proof-Job-Id, X-Client-Operation-Id',
       },
     });
     const response = corsPreflightResponse(request);
     expect(response?.status).toBe(204);
     expect(response?.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8792');
     expect(response?.headers.get('Access-Control-Allow-Headers')).toBe(
-      'authorization, content-type, x-proof-job-id, x-provisioning-token',
+      'authorization, content-type, x-client-operation-id, x-proof-job-id, x-provisioning-token',
     );
     expect(response?.headers.get('Access-Control-Allow-Credentials')).toBeNull();
     expect(response?.headers.get('Vary')).toBe('Origin');

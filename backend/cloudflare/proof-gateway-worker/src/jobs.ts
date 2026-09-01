@@ -53,6 +53,9 @@ export interface ProofJobRow {
   sponsor_attempt_count: number;
   sponsor_available_after: string;
   sponsor_lease_expires_at: string | null;
+  sponsor_stage?: string | null;
+  sponsor_reason_code?: string | null;
+  sponsor_stage_updated_at?: string | null;
   sponsorship_started_at: string | null;
   sponsorship_completed_at: string | null;
   attest_tx_id: string | null;
@@ -120,7 +123,7 @@ export async function dispatchProofJobs(env: Env, scheduledTime: number): Promis
        WHERE id = ?2 AND status IN ('pending', 'retryable_failed')`,
       [updatedAt, job.id],
     );
-    if (claimed !== 1) continue;
+    if (claimed < 1) continue;
     try {
       await env.PROOF_QUEUE.send({ kind: 'admit-proof', proofJobId: job.id } satisfies ProofQueueMessage);
     } catch (error) {
@@ -267,7 +270,7 @@ export async function authorizeProofJob(
        WHERE id = ?2 AND status IN ('ready_for_input', 'proof_ready')`,
       [updatedAt, job.id],
     );
-    if (changes === 1) return { ok: true, job: { ...job, status: 'proving', updated_at: updatedAt } };
+    if (changes > 0) return { ok: true, job: { ...job, status: 'proving', updated_at: updatedAt } };
     const current = await database.first<ProofJobRow>(
       'SELECT * FROM daily_proof_jobs WHERE id = ?1',
       [job.id],
@@ -281,10 +284,14 @@ export async function authorizeProofJob(
 }
 
 export async function markProofReady(env: Env, proofJobId: string): Promise<void> {
+  const completedAt = new Date().toISOString();
   await createSqlDatabase(env).execute(
-    `UPDATE daily_proof_jobs SET status = 'proof_ready', updated_at = ?1
+    `UPDATE daily_proof_jobs
+     SET status = 'proof_ready',
+         proof_generated_at = COALESCE(proof_generated_at, ?1),
+         updated_at = ?1
      WHERE id = ?2 AND status = 'proving'`,
-    [new Date().toISOString(), proofJobId],
+    [completedAt, proofJobId],
   );
 }
 

@@ -52,6 +52,7 @@
     "cloudflare:config:contract": "npm run dev:guard && npm run config:contract -w @midnight-demo/proof-gateway",
     "cloudflare:config:sponsor": "npm run dev:guard && npm run config:sponsor -w @midnight-demo/proof-gateway",
     "cloudflare:config:operator-authority": "npm run dev:guard && npm run config:operator-authority -w @midnight-demo/proof-gateway",
+    "cloudflare:config:discord": "npm run dev:guard && npm run config:discord -w @midnight-demo/proof-gateway",
     "cloudflare:deploy": "npm run dev:guard && npm run contract:compile && npm run deploy -w @midnight-demo/proof-gateway",
     "cloudflare:destroy": "npm run dev:guard && npm run destroy -w @midnight-demo/proof-gateway",
     "development:funding": "npm run dev:guard && npm run funding -w @midnight-demo/development-cli --",

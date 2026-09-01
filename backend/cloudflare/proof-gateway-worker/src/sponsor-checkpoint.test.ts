@@ -6,6 +6,7 @@ import {
   restoreSponsorRecoveryCheckpoint,
   sponsorCheckpointKey,
   sponsorCheckpointRecoveryKey,
+  storeSponsorCheckpoint,
   storeSponsorDustReplayCheckpoint,
 } from './sponsor-checkpoint.js';
 
@@ -81,12 +82,17 @@ function checkpointEnv(initial: Record<string, Uint8Array>) {
   const deleted: string[] = [];
   const env = {
     SPONSOR_STATE: {
+      async head(key: string) {
+        const bytes = objects.get(key);
+        return bytes ? { size: bytes.byteLength, customMetadata: {} } : null;
+      },
       async get(key: string) {
         const bytes = objects.get(key);
         if (!bytes) return null;
         return {
           size: bytes.byteLength,
           body: new Response(bytes).body,
+          async arrayBuffer() { return bytes.buffer.slice(0); },
         };
       },
       async put(key: string, body: ReadableStream<Uint8Array>) {
@@ -104,7 +110,7 @@ function checkpointEnv(initial: Record<string, Uint8Array>) {
 describe('Sponsor Wallet recovery checkpoint', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('preserves the exact pre-reservation checkpoint for restart recovery', async () => {
+  it('freezes the main pre-reservation checkpoint without copying it', async () => {
     vi.stubGlobal('FixedLengthStream', class {
       readonly readable: ReadableStream<Uint8Array>;
       readonly writable: WritableStream<Uint8Array>;
@@ -116,11 +122,16 @@ describe('Sponsor Wallet recovery checkpoint', () => {
       }
     });
     const checkpoint = new Uint8Array([1, 3, 3, 7]);
-    const { env, objects } = checkpointEnv({ [sponsorCheckpointKey]: checkpoint });
+    const { env, objects, deleted } = checkpointEnv({
+      [sponsorCheckpointKey]: checkpoint,
+      [sponsorCheckpointRecoveryKey]: new Uint8Array([9]),
+    });
 
     await preserveSponsorRecoveryCheckpoint(env);
 
-    expect(objects.get(sponsorCheckpointRecoveryKey)).toEqual(checkpoint);
+    expect(objects.get(sponsorCheckpointKey)).toEqual(checkpoint);
+    expect(objects.has(sponsorCheckpointRecoveryKey)).toBe(false);
+    expect(deleted).toEqual([sponsorCheckpointRecoveryKey]);
   });
 
   it('restores the preserved checkpoint and consumes it exactly once', async () => {
@@ -147,7 +158,7 @@ describe('Sponsor Wallet recovery checkpoint', () => {
     expect(deleted).toEqual([sponsorCheckpointRecoveryKey]);
   });
 
-  it('does not delete the resumable checkpoint when no recovery checkpoint exists', async () => {
+  it('uses the frozen main checkpoint when no maintenance recovery copy exists', async () => {
     vi.stubGlobal('FixedLengthStream', class {
       readonly readable: ReadableStream<Uint8Array>;
       readonly writable: WritableStream<Uint8Array>;
@@ -162,7 +173,7 @@ describe('Sponsor Wallet recovery checkpoint', () => {
       [sponsorCheckpointKey]: new Uint8Array([1]),
     });
 
-    expect(await restoreSponsorRecoveryCheckpoint(env)).toBe(false);
+    expect(await restoreSponsorRecoveryCheckpoint(env)).toBe(true);
 
     expect(objects.get(sponsorCheckpointKey)).toEqual(new Uint8Array([1]));
     expect(deleted).toEqual([]);
@@ -189,5 +200,39 @@ describe('Sponsor Wallet recovery checkpoint', () => {
     );
 
     expect(objects.get(sponsorCheckpointRecoveryKey)).toEqual(checkpoint);
+  });
+
+  it('aborts the complete Container-to-R2 stream when its operation deadline expires', async () => {
+    vi.stubGlobal('FixedLengthStream', class {
+      readonly readable: ReadableStream<Uint8Array>;
+      readonly writable: WritableStream<Uint8Array>;
+
+      constructor() {
+        const stream = new TransformStream<Uint8Array, Uint8Array>();
+        this.readable = stream.readable;
+        this.writable = stream.writable;
+      }
+    });
+    let sourceCancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1]));
+      },
+      cancel() {
+        sourceCancelled = true;
+      },
+    });
+    const { env } = checkpointEnv({});
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(storeSponsorCheckpoint(
+      env,
+      body,
+      4,
+      { source: 'periodic-pull' },
+      controller.signal,
+    )).rejects.toThrow();
+    expect(sourceCancelled).toBe(true);
   });
 });

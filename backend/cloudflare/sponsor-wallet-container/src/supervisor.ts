@@ -153,6 +153,8 @@ function proxyToWallet(
   request: http.IncomingMessage,
   response: http.ServerResponse,
 ): void {
+  const pathname = new URL(request.url ?? '/', 'http://sponsor.internal').pathname;
+  const operationalRequest = !['/health', '/status'].includes(pathname);
   const respondUnavailable = (message: string, proxyError?: Error): void => {
     const sendResponse = (): void => {
       if (!response.headersSent) {
@@ -174,6 +176,14 @@ function proxyToWallet(
     respondUnavailable('Sponsor Wallet process is unavailable');
     return;
   }
+  if (operationalRequest) {
+    diagnosticLog('sponsor_wallet_supervisor_proxy_started', {
+      method: request.method,
+      pathname,
+      declaredBytes: request.headers['content-length'] ?? null,
+      transferEncoding: request.headers['transfer-encoding'] ?? null,
+    });
+  }
   const upstream = http.request({
     host: '127.0.0.1',
     port: walletPort,
@@ -184,6 +194,13 @@ function proxyToWallet(
       host: `127.0.0.1:${walletPort}`,
     },
   }, (upstreamResponse) => {
+    if (operationalRequest) {
+      diagnosticLog('sponsor_wallet_supervisor_proxy_response_started', {
+        method: request.method,
+        pathname,
+        status: upstreamResponse.statusCode ?? 502,
+      });
+    }
     response.writeHead(
       upstreamResponse.statusCode ?? 502,
       upstreamResponse.statusMessage,
@@ -198,6 +215,15 @@ function proxyToWallet(
       ...diagnosticError(error),
     }, 'warn');
     respondUnavailable('Sponsor Wallet process is starting', error);
+  });
+  upstream.once('finish', () => {
+    if (operationalRequest) {
+      diagnosticLog('sponsor_wallet_supervisor_proxy_body_completed', {
+        method: request.method,
+        pathname,
+        requestReadableEnded: request.readableEnded,
+      });
+    }
   });
   if (proxyMethodHasRequestBody(request.method)) {
     request.once('aborted', () => upstream.destroy());

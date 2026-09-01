@@ -20,15 +20,30 @@ import { authorizeOperatorProofRequest } from './operator-proof.js';
 import {
   parseSponsorCheckpointUpload,
   restoreSponsorRecoveryCheckpoint,
+  sponsorCheckpointKey,
   sponsorCheckpointRecoveryKey,
   storeSponsorCheckpoint,
 } from './sponsor-checkpoint.js';
 import {
   dispatchSponsorJobs,
   handleSponsorQueue,
+  processNextSponsorJob,
   sponsorProofTransaction,
   warmSponsorWallet,
 } from './sponsor.js';
+import {
+  prepareRequestAudit,
+  recordRequestAudit,
+  recordSponsorWalletHealth,
+  recordSponsorWalletUnavailable,
+} from './operations-audit.js';
+import {
+  dispatchOperationsNotifications,
+  evaluateOperationalAlerts,
+} from './operations-notifications.js';
+import { handleSystemOperations } from './system-operations.js';
+import { createSqlDatabase } from './storage/index.js';
+import { parseSponsorArtifactReference, sha256Hex } from './container-request.js';
 
 const instanceName = 'midnight-proof-server';
 // Keep the Durable Object lifecycle revision coupled to Sponsor Wallet image
@@ -157,6 +172,18 @@ export class SponsorWalletContainer extends Container {
   ];
   pingEndpoint = 'sponsor-wallet/health';
 
+  private async artifactOperation<T>(
+    operation: Promise<T>,
+    timeoutCode: string,
+  ): Promise<T> {
+    return Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => reject(new Error(timeoutCode)), 10_000);
+      }),
+    ]);
+  }
+
   private async runtimeDiagnostics(): Promise<Record<string, unknown>> {
     const state = await this.getState();
     const runtime = this.ctx.container;
@@ -167,10 +194,10 @@ export class SponsorWalletContainer extends Container {
       "import { readFile } from 'node:fs/promises';",
       "const readText = async (path) => { try { return await readFile(path, 'utf8'); } catch { return null; } };",
       "const parseStats = (value) => Object.fromEntries((value ?? '').trim().split('\\n').filter(Boolean).map((line) => { const [key, raw] = line.trim().split(/\\s+/, 2); return [key, Number(raw)]; }));",
-      "const result = { pidOne: 'unavailable', pidOneStatus: null, stageLogTail: null, healthStatus: null, healthBody: null, healthError: null, cpu: null, memory: null, pressure: null, loadAverage: null };",
+      "const result = { pidOne: 'unavailable', pidOneStatus: null, stageEvents: [], healthStatus: null, healthBody: null, healthError: null, cpu: null, memory: null, pressure: null, loadAverage: null };",
       "try { result.pidOne = (await readFile('/proc/1/cmdline', 'utf8')).replaceAll('\\0', ' ').slice(0, 256); } catch {}",
       "const statusText = await readText('/proc/1/status'); result.pidOneStatus = statusText?.split('\\n').filter((line) => /^(?:State|VmRSS|Threads):/u.test(line)).join('; ') ?? null;",
-      "const stageLog = await readText('/tmp/sponsor-wallet-diagnostics.jsonl'); result.stageLogTail = stageLog?.slice(-6000) ?? null;",
+      "const stageLog = await readText('/tmp/sponsor-wallet-diagnostics.jsonl'); result.stageEvents = (stageLog ?? '').split('\\n').filter(Boolean).flatMap((line) => { try { const event = JSON.parse(line); const message = String(event.message ?? ''); const operationalRequest = /^(?:sponsor_wallet_request_(?:started|completed|failed))$/u.test(message) && !['/health', '/status'].includes(String(event.pathname ?? '')); return /^(?:sponsor_wallet_(?:prepare|balance|finalize|submit|supervisor_proxy))/u.test(message) || operationalRequest ? [event] : []; } catch { return []; } }).slice(-40);",
       "const healthPromise = (async () => { try { const response = await fetch('http://127.0.0.1:8789/health', { signal: AbortSignal.timeout(5000) }); result.healthStatus = response.status; result.healthBody = (await response.text()).slice(0, 4096); } catch (error) { result.healthError = error instanceof Error ? `${error.name}: ${error.message}` : String(error); } })();",
       "const sampleStartedAt = performance.now(); const before = parseStats(await readText('/sys/fs/cgroup/cpu.stat'));",
       "const [cpuMaxText, memoryCurrentText, memoryMaxText, memoryEventsText, cpuPressure, memoryPressure, loadAverage] = await Promise.all([readText('/sys/fs/cgroup/cpu.max'), readText('/sys/fs/cgroup/memory.current'), readText('/sys/fs/cgroup/memory.max'), readText('/sys/fs/cgroup/memory.events'), readText('/proc/pressure/cpu'), readText('/proc/pressure/memory'), readText('/proc/loadavg')]);",
@@ -210,7 +237,10 @@ export class SponsorWalletContainer extends Container {
         request.method !== 'POST'
         || request.headers.get('X-Sponsor-Maintenance') !== 'replay-dust-from-chain'
       ) return json(404, { error: 'Not found' });
-      if (await this.env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey) === null) {
+      if (
+        await this.env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey) === null
+        && await this.env.SPONSOR_STATE.head(sponsorCheckpointKey) === null
+      ) {
         return json(409, { error: 'Sponsor Wallet DUST replay checkpoint is unavailable' });
       }
       // Drain the maintenance request before stopping the Container. Otherwise
@@ -289,7 +319,50 @@ export class SponsorWalletContainer extends Container {
           },
         });
       }
-      const response = await this.containerFetch(request, this.defaultPort);
+      let response: Response;
+      if (
+        request.method === 'GET'
+        && ['/prepare', '/release', '/submit'].includes(pathname)
+      ) {
+        const parsed = parseSponsorArtifactReference(request, pathname);
+        if (!parsed.ok) return json(parsed.status, { error: parsed.error });
+        const artifact = await this.artifactOperation(
+          this.env.SPONSOR_STATE.get(parsed.reference.objectKey),
+          'sponsor_container_artifact_get_timeout',
+        );
+        if (!artifact) return json(404, { error: 'Sponsor Wallet artifact was not found' });
+        if (artifact.size !== parsed.reference.bytes) {
+          return json(400, { error: 'Sponsor Wallet artifact size does not match' });
+        }
+        const body = await this.artifactOperation(
+          artifact.arrayBuffer(),
+          'sponsor_container_artifact_body_timeout',
+        );
+        if (await sha256Hex(body) !== parsed.reference.sha256) {
+          return json(400, { error: 'Sponsor Wallet artifact hash does not match' });
+        }
+        const headers = new Headers(request.headers);
+        headers.set('Content-Type', 'application/octet-stream');
+        headers.set('Content-Length', String(body.byteLength));
+        console.log(JSON.stringify({
+          message: 'sponsor_wallet_container_request_buffered',
+          requestId,
+          pathname,
+          objectKey: parsed.reference.objectKey,
+          bytes: body.byteLength,
+          durationMs: Math.round(performance.now() - startedAt),
+        }));
+        response = await this.containerFetch(request.url, {
+          // Only immutable R2 references cross the Worker-to-DO boundary.
+          // The state-changing request is reconstructed inside the DO and is
+          // sent as POST solely over the local Container port.
+          method: 'POST',
+          headers,
+          body,
+        }, this.defaultPort);
+      } else {
+        response = await this.containerFetch(request, this.defaultPort);
+      }
       console.log(JSON.stringify({
         message: 'sponsor_wallet_container_request_completed',
         requestId,
@@ -322,13 +395,15 @@ export class SponsorWalletContainer extends Container {
   }
 
   async onActivityExpired(): Promise<void> {
-    // Sponsor Wallet synchronization is a 24-hour service. Do not call
-    // stop()/destroy() here; the one-minute development Cron also recovers the
-    // instance after a crash or rollout.
-    this.renewActivityTimeout();
     console.log(JSON.stringify({
-      message: 'sponsor_wallet_container_keepalive_renewed',
+      message: 'sponsor_wallet_container_idle_stop_started',
     }));
+    // The one-minute Cron keeps the active Sponsor Wallet alive. An instance
+    // that is no longer addressed must be allowed to stop; otherwise a stale
+    // Named Instance permanently consumes max_instances and blocks its
+    // replacement. The standard lifecycle sends SIGTERM, which lets the
+    // Supervisor upload its encrypted shutdown checkpoint.
+    await super.onActivityExpired();
   }
 
   onStop({ exitCode, reason }: { exitCode: number; reason: string }): void {
@@ -379,6 +454,24 @@ SponsorWalletContainer.outboundByHost = {
     const startedAt = performance.now();
     try {
       const checkpoint = parseSponsorCheckpointUpload(request);
+      const active = await createSqlDatabase(env).first<{ active_count: number }>(
+        `SELECT COUNT(*) AS active_count FROM daily_proof_jobs
+         WHERE status IN ('sponsor_retryable', 'sponsoring', 'sponsored')`,
+      );
+      const activeReservations = Number(active?.active_count ?? 0);
+      if (activeReservations !== 0) {
+        await checkpoint.body.cancel();
+        console.log(JSON.stringify({
+          message: 'sponsor_wallet_checkpoint_upload_skipped_for_active_reservation',
+          containerId: context.containerId,
+          bootId: checkpoint.bootId,
+          reason: checkpoint.reason,
+          bytes: checkpoint.bytes,
+          activeReservations,
+          durationMs: Math.round(performance.now() - startedAt),
+        }));
+        return new Response(null, { status: 204 });
+      }
       await storeSponsorCheckpoint(env, checkpoint.body, checkpoint.bytes, {
         source: checkpoint.reason === 'periodic-sync'
           ? 'periodic-push'
@@ -434,6 +527,8 @@ function validProofRequest(request: Request): boolean {
 
 async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
+  const systemOperationsResponse = await handleSystemOperations(request, env, ctx);
+  if (systemOperationsResponse) return systemOperationsResponse;
   const authResponse = await handleDeviceAuth(request, env);
   if (authResponse) return authResponse;
   const parts = url.pathname.split('/').filter(Boolean);
@@ -596,13 +691,45 @@ export default {
       for (const [name, value] of Object.entries(securityHeaders)) headers.set(name, value);
       return new Response(null, { status: preflight.status, headers });
     }
-    return withDevelopmentCors(request, await routeRequest(request, env, ctx));
+    const requestId = crypto.randomUUID();
+    const audit = prepareRequestAudit(request, requestId);
+    try {
+      const routed = await routeRequest(request, env, ctx);
+      const response = withDevelopmentCors(request, routed);
+      const headers = new Headers(response.headers);
+      headers.set('X-Request-Id', requestId);
+      const correlated = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+      if (audit) ctx.waitUntil(recordRequestAudit(env, request, correlated, audit));
+      return correlated;
+    } catch (error) {
+      if (audit) {
+        ctx.waitUntil(recordRequestAudit(
+          env,
+          request,
+          json(500, { error: 'Unhandled Worker error' }),
+          audit,
+        ));
+      }
+      throw error;
+    }
   },
   scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+    const sponsorMaintenance = () => warmSponsorWallet(env).then(async ({ health, errorCode }) => {
+      if (health) await recordSponsorWalletHealth(env, health);
+      else await recordSponsorWalletUnavailable(env, errorCode ?? 'sponsor_wallet_warmup_failed');
+      await evaluateOperationalAlerts(env, health);
+      await dispatchOperationsNotifications(env, health);
+    });
+    const sponsorCycle = processNextSponsorJob(env, controller.scheduledTime)
+      .then(sponsorMaintenance);
     ctx.waitUntil(Promise.all([
       dispatchProofJobs(env, controller.scheduledTime),
       dispatchSponsorJobs(env, controller.scheduledTime),
-      warmSponsorWallet(env),
+      sponsorCycle,
     ]).then(() => undefined));
   },
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
@@ -612,6 +739,7 @@ export default {
     }
     if (batch.queue === 'midnight-sponsor-jobs') {
       await handleSponsorQueue(batch, env);
+      await dispatchOperationsNotifications(env, null);
       return;
     }
     batch.retryAll({ delaySeconds: 60 });

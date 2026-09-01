@@ -227,16 +227,24 @@ async function handlePrepare(
   request: http.IncomingMessage,
   response: http.ServerResponse,
 ): Promise<void> {
+  const proofJobId = requiredHeader(request, 'X-Proof-Job-Id', 128);
   const contractAddress = requiredHeader(request, 'X-Sponsor-Contract-Address', 128);
   const expectedSerializedHash = requiredHeader(request, 'X-Device-Transaction-Hash', 64);
   const bytes = await readBody(request, maxTransactionBytes);
   if (serializedSha256(bytes) !== expectedSerializedHash) {
     throw new Error('Device transaction hash does not match its serialized bytes');
   }
+  diagnosticLog('sponsor_wallet_prepare_input_validated', {
+    proofJobId,
+    deviceTransactionBytes: bytes.byteLength,
+  });
   const original = deserializeFinalizedTransaction(bytes);
   const originalPolicy = validateSponsorTransaction(original, contractAddress, false);
   const runtime = await initializedSponsor();
   await runtime.waitUntilReady();
+  diagnosticLog('sponsor_wallet_prepare_wallet_ready', { proofJobId });
+  const balanceStartedAt = performance.now();
+  diagnosticLog('sponsor_wallet_balance_started', { proofJobId });
   const recipe = await runtime.wallet.balanceFinalizedTransaction(
     original,
     {
@@ -248,7 +256,17 @@ async function handlePrepare(
       tokenKindsToBalance: ['dust'],
     },
   );
+  diagnosticLog('sponsor_wallet_balance_completed', {
+    proofJobId,
+    durationMs: Math.round(performance.now() - balanceStartedAt),
+  });
+  const finalizeStartedAt = performance.now();
+  diagnosticLog('sponsor_wallet_finalize_started', { proofJobId });
   const finalized = await runtime.wallet.finalizeRecipe(recipe);
+  diagnosticLog('sponsor_wallet_finalize_completed', {
+    proofJobId,
+    durationMs: Math.round(performance.now() - finalizeStartedAt),
+  });
   const finalPolicy = validateSponsorTransaction(finalized, contractAddress, true);
   const contractTransactionId = preservedContractTransactionId(
     originalPolicy.transactionIdentifiers,
@@ -257,6 +275,7 @@ async function handlePrepare(
   const serialized = finalized.serialize();
   const metrics = transactionMetrics(finalized);
   diagnosticLog('sponsor_wallet_prepare_completed', {
+    proofJobId,
     deviceTransactionBytes: bytes.byteLength,
     sponsoredTransactionBytes: metrics.transactionBytes,
     deviceIdentifiers: originalPolicy.transactionIdentifiers.length,

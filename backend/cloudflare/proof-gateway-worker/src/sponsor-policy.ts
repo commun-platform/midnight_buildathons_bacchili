@@ -3,7 +3,9 @@ import type { ProofJobRow } from './jobs.js';
 // A Sponsor Wallet request may legitimately spend up to 15 minutes waiting on
 // its Container subrequest. Keep the recovery horizon beyond the Device's
 // 30-minute request timeout so an active preparation is never reclaimed.
-const staleSponsorshipMs = 35 * 60_000;
+// Queue consumers have a hard 15-minute wall time. One extra minute avoids
+// reclaiming on the boundary while keeping recovery server-owned and prompt.
+const staleSponsorshipMs = 16 * 60_000;
 // Sponsor Wallet prepares transactions with a 30-minute TTL. Refresh five
 // minutes early so queue latency cannot turn a valid retry into an expired one.
 const sponsorTransactionRefreshMs = 25 * 60_000;

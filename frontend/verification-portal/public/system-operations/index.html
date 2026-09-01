@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000080">
+    <meta name="description" content="BACCHIRI system operations dashboard">
+    <title>BACCHIRI! System Operations</title>
+    <link rel="stylesheet" href="./operations.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">本文へ移動</a>
+    <div class="application-frame">
+      <header class="system-header">
+        <div class="system-mark" aria-hidden="true">OPS</div>
+        <div>
+          <p class="eyebrow">BACCHIRI! / AUTHORIZED OPERATORS ONLY</p>
+          <h1>システム運用監視</h1>
+          <p class="subtitle">SYSTEM HEALTH, SPONSOR FUNDING &amp; CUSTOMER TRACE</p>
+        </div>
+        <div class="header-actions">
+          <span class="live-indicator"><i aria-hidden="true"></i> 30秒ごとに更新</span>
+          <button id="refresh-button" type="button">今すぐ更新</button>
+        </div>
+      </header>
+
+      <div class="location-bar">
+        <span>Cloudflare Access</span>
+        <strong id="operator-name">認証を確認中…</strong>
+        <span class="location-spacer"></span>
+        <span id="last-updated">最終更新: —</span>
+      </div>
+
+      <main id="main-content" tabindex="-1">
+        <div id="global-message" class="global-message" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span>
+          運用状態を読み込んでいます…
+        </div>
+
+        <section aria-labelledby="overview-heading">
+          <div class="section-heading">
+            <div>
+              <p>01 / CURRENT STATE</p>
+              <h2 id="overview-heading">現在の稼働状態</h2>
+            </div>
+          </div>
+          <div id="summary-cards" class="summary-grid" aria-busy="true"></div>
+        </section>
+
+        <div class="two-column">
+          <section class="window" aria-labelledby="wallet-heading">
+            <div class="window-title">
+              <span id="wallet-heading">Sponsor Wallet</span>
+              <span id="wallet-source" class="title-meta">—</span>
+            </div>
+            <div id="wallet-panel" class="window-body skeleton-block" aria-busy="true"></div>
+          </section>
+
+          <section class="window" aria-labelledby="alerts-heading">
+            <div class="window-title">
+              <span id="alerts-heading">要対応アラート</span>
+              <span id="discord-state" class="title-meta">Discord: 確認中</span>
+            </div>
+            <div id="alerts-panel" class="window-body skeleton-block" aria-busy="true"></div>
+          </section>
+        </div>
+
+        <section class="window" aria-labelledby="pipeline-heading">
+          <div class="window-title">
+            <span id="pipeline-heading">処理パイプライン</span>
+            <span class="title-meta">D1 JOB STATE</span>
+          </div>
+          <div id="pipeline-panel" class="window-body skeleton-block" aria-busy="true"></div>
+        </section>
+
+        <section class="window" aria-labelledby="metrics-heading">
+          <div class="window-title title-with-controls">
+            <span id="metrics-heading">日次処理量</span>
+            <label>表示期間
+              <select id="metrics-days">
+                <option value="7">7日</option>
+                <option value="30" selected>30日</option>
+                <option value="90">90日</option>
+              </select>
+            </label>
+          </div>
+          <div class="window-body">
+            <div class="chart-legend" id="chart-legend"></div>
+            <div id="metrics-chart" class="metrics-chart skeleton-block" aria-busy="true"></div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>日付 (UTC)</th>
+                    <th>Midnight登録Device</th>
+                    <th>Proof受付</th>
+                    <th>ZKP生成</th>
+                    <th>Sponsored TX</th>
+                    <th>要対応Job（更新日）</th>
+                    <th>計測Window数</th>
+                    <th>サンプル数</th>
+                  </tr>
+                </thead>
+                <tbody id="metrics-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="window" aria-labelledby="events-heading">
+          <div class="window-title">
+            <span id="events-heading">顧客操作・運用イベント</span>
+            <span class="title-meta">REDACTED AUDIT TRAIL</span>
+          </div>
+          <div class="window-body">
+            <form id="event-filters" class="filter-bar">
+              <label>検索
+                <input id="event-query" name="q" maxlength="80" placeholder="Wallet / Request ID / Device">
+              </label>
+              <label>種類
+                <select id="event-category" name="category">
+                  <option value="">すべて</option>
+                  <option value="api">API</option>
+                  <option value="workflow">非同期処理</option>
+                  <option value="health">ヘルス</option>
+                </select>
+              </label>
+              <label>結果
+                <select id="event-outcome" name="outcome">
+                  <option value="">すべて</option>
+                  <option value="accepted">受付</option>
+                  <option value="rejected">拒否</option>
+                  <option value="failed">失敗</option>
+                  <option value="retrying">再試行</option>
+                  <option value="completed">完了</option>
+                </select>
+              </label>
+              <button type="submit">絞り込む</button>
+            </form>
+            <div id="events-loading" class="inline-message" role="status">イベントを読み込んでいます…</div>
+            <div class="table-scroll">
+              <table class="events-table">
+                <thead>
+                  <tr>
+                    <th>発生日時</th>
+                    <th>種類</th>
+                    <th>主体</th>
+                    <th>操作</th>
+                    <th>結果</th>
+                    <th>Request等のID</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="events-table"></tbody>
+              </table>
+            </div>
+            <div class="pager">
+              <span id="events-empty" hidden>条件に一致するイベントはありません。</span>
+              <button id="events-more" type="button" hidden>さらに読み込む</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>秘密値・認証情報・Raw センサー値は監査ログへ保存しません。</span>
+        <a href="/">審査用画面へ戻る</a>
+      </footer>
+    </div>
+
+    <dialog id="event-dialog">
+      <div class="dialog-title">
+        <strong>イベント詳細</strong>
+        <button id="dialog-close" type="button" aria-label="閉じる">×</button>
+      </div>
+      <div id="event-detail" class="dialog-body"></div>
+    </dialog>
+
+    <script type="module" src="./operations.js"></script>
+  </body>
+</html>

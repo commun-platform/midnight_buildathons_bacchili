@@ -71,6 +71,7 @@
 | `FF-O10` | P0 | 組織・Project・Role認可 | Wave 1のOwnershipと審査認可はPoC範囲です。 | 全API／Workflow遷移で組織、Project、Role Claimを強制し、Tenant分離とNegative Authorization Testを実施します。 |
 | `FF-O11` | P0 | 監査・解析・運用ダッシュボード | Logと処理状態は主に開発・審査用途です。 | Security上重要な操作のAudit Trail、秘匿化済み構造化Log、Metric、Health、Queue Depth、Retry、Alert、Recovery Controlを認可済みSystem Operatorが確認できます。 |
 | `FF-O12` | P1 | パートナーPilot運用 | Wave 1では実Partner業務を本番Serviceとして運用していません。 | 実際の現場業務を合意期間運用し、信頼性、支援工数、原価、顧客価値、価格評価を測定します。 |
+| `FF-O13` | P1 | Proof Serverの水平スケーリング | 現行Deployは、名前を固定した`standard-2` Proof Server Container 1台、Proof Queue Consumer同時実行数1、全体のProof Admission Lease 1件で動作します。`max_instances`を増やすだけでは処理を分散できません。 | StatelessなProof Serverを設定可能な台数でPool化し、明示的なInstance SlotとD1 Leaseで割り当てます。Queue同時実行数とAdmission Capacityを台数に合わせ、Retryの冪等性、Busy Instanceへの重複割当防止、未使用時のScale-to-zeroを維持します。Sponsor Walletは単一Instanceのままとし、Backlog負荷試験でProofの並列処理を確認します。 |
 
 デバイスは証明提出時にしきい値を選びません。所有者が認可し、Midnightで確定済みのしきい値と適用設定だけを
 受け取ります。新しい設定は次の計測期間境界から有効とし、保留中または過去期間の証明は元の版を維持します。

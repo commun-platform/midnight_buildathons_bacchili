@@ -11,12 +11,12 @@ import {
 } from '@midnight-demo/shared/browser-provisioning';
 
 import { sponsorWalletCanSubmit } from './sponsor-policy.js';
+import { sponsorContainerName } from './sponsor-container.js';
 import { createSqlDatabase, type SqlDatabase } from './storage/index.js';
 
 export { browserProvisioningCanonicalMessage } from '@midnight-demo/shared/browser-provisioning';
 
 const defaultProjectId = 'measurement-authenticity-01';
-const sponsorContainerName = 'midnight-sponsor-wallet';
 const challengeTtlSeconds = 5 * 60;
 const projectSessionTtlSeconds = 24 * 60 * 60;
 const maximumProjectsPerWallet = 10;

@@ -24,12 +24,14 @@
     "config:contract": "node ../../../tools/repository-checks/require-development-host.mjs && wrangler secret put PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS --config ../deployment/wrangler.jsonc",
     "config:sponsor": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/configure-sponsor-wallet.mjs",
     "config:operator-authority": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/configure-operator-authority.mjs",
+    "config:discord": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/configure-discord-webhook.mjs",
     "deploy": "node ../../../tools/repository-checks/require-development-host.mjs && npm run db:migrate:remote && wrangler deploy --config ../deployment/wrangler.jsonc",
     "destroy": "node ../../../tools/repository-checks/require-development-host.mjs && wrangler delete --config ../deployment/wrangler.jsonc --name midnight-proof-gateway && wrangler d1 delete midnight-sensor-data-v2 --config ../deployment/wrangler.jsonc --skip-confirmation"
   },
   "dependencies": {
     "@cloudflare/containers": "0.3.7",
-    "@midnight-demo/shared": "*"
+    "@midnight-demo/shared": "*",
+    "jose": "^6.2.10"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260828.1",

@@ -16,13 +16,17 @@ import {
 vi.mock('@cloudflare/containers', () => ({ getContainer: vi.fn() }));
 
 import {
+  dispatchSponsorJobs,
   handleSponsorQueue,
   releaseAlreadyAttestedSponsorReservation,
   releaseExpiredSponsorReservation,
   releaseStaleSponsorReservationForReproof,
+  sponsorClaimWasApplied,
   sponsorProofTransaction,
   submitSponsoredTransaction,
   warmSponsorWallet,
+  withSponsorCheckpointTimeout,
+  withSponsorOperationTimeout,
 } from './sponsor.js';
 
 const runtimeCrypto = crypto;
@@ -77,6 +81,44 @@ describe('prepared Sponsor transaction readiness', () => {
 });
 
 describe('Sponsor Wallet deadlock regression', () => {
+  it('accepts a guarded D1 claim when audit triggers increase meta.changes', () => {
+    expect(sponsorClaimWasApplied(0)).toBe(false);
+    expect(sponsorClaimWasApplied(1)).toBe(true);
+    expect(sponsorClaimWasApplied(2)).toBe(true);
+  });
+
+  it('returns control after 60 seconds even when Container RPC ignores abort', async () => {
+    vi.useFakeTimers();
+    try {
+      const operation = withSponsorCheckpointTimeout(() => new Promise<never>(() => {}));
+      const rejection = expect(operation).rejects.toThrow('sponsor_checkpoint_timeout');
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses an operation-specific deadline instead of the Queue wall-time limit', async () => {
+    vi.useFakeTimers();
+    try {
+      const operation = withSponsorOperationTimeout(
+        30_000,
+        'sponsor_wallet_health_timeout',
+        () => new Promise<never>(() => {}),
+      );
+      const rejection = expect(operation).rejects.toThrow('sponsor_wallet_health_timeout');
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it.each([
     ['no reservation', 0, ['/health', '/checkpoint']],
     ['an active reservation', 1, ['/health']],
@@ -192,6 +234,7 @@ describe('Sponsor Wallet deadlock regression', () => {
       last_error_code: 'sponsor_submit_failed',
     });
     const deleted: string[] = [];
+    const requeued: unknown[] = [];
     const messageEffects = { acknowledgements: 0, retries: 0 };
     vi.mocked(getContainer).mockReturnValue({
       async fetch(request: Request) {
@@ -236,6 +279,13 @@ describe('Sponsor Wallet deadlock regression', () => {
             throw new Error(`Unexpected D1 first query: ${query}`);
           },
           async run<T>() {
+            if (query.includes('SET sponsor_stage = ?1') && bindings[4] === job.status) {
+              job.sponsor_stage = String(bindings[0]);
+              job.sponsor_reason_code = String(bindings[1]);
+              job.sponsor_stage_updated_at = String(bindings[2]);
+              job.updated_at = String(bindings[2]);
+              return d1Result(1) as D1Result<T>;
+            }
             if (
               query.includes("SET status = 'awaiting_sponsor'")
               && bindings[1] === job.id
@@ -274,6 +324,9 @@ describe('Sponsor Wallet deadlock regression', () => {
     const env = {
       DB: database,
       SPONSOR_WALLET: {},
+      SPONSOR_QUEUE: {
+        async send(body: unknown) { requeued.push(body); },
+      },
       PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS: 'ab'.repeat(32),
       SPONSOR_STATE: {
         async get(key: string) {
@@ -306,11 +359,12 @@ describe('Sponsor Wallet deadlock regression', () => {
     expect(completed).toBe(true);
     expect(messageEffects).toEqual({ acknowledgements: 1, retries: 0 });
     expect(deleted).toEqual([artifactKey]);
+    expect(requeued).toEqual([{ kind: 'sponsor-transaction', proofJobId: job.id }]);
     expect(job).toMatchObject({
       status: 'awaiting_sponsor',
       sponsor_transaction_object_key: null,
       sponsor_serialized_sha256: null,
-      last_error_code: 'sponsor_wallet_not_ready',
+      last_error_code: 'sponsor_transaction_expired_reprepare',
     });
   });
 });
@@ -446,12 +500,22 @@ describe('server-owned Sponsor confirmation', () => {
             throw new Error(`Unexpected D1 first query: ${query}`);
           },
           async run<T>() {
-            if (query.includes('SET status = ?1') && bindings[4] === job.id) {
+            if (query.includes('SET sponsor_stage = ?1') && bindings[4] === job.status) {
+              job.sponsor_stage = String(bindings[0]);
+              job.sponsor_reason_code = String(bindings[1]);
+              job.sponsor_stage_updated_at = String(bindings[2]);
+              job.updated_at = String(bindings[2]);
+              return d1Result(1) as D1Result<T>;
+            }
+            if (query.includes('SET status = ?1') && bindings[6] === job.id) {
               Object.assign(job, {
                 status: String(bindings[0]),
                 sponsor_transaction_id: String(bindings[1]),
                 block_height: String(bindings[2]),
                 sponsorship_completed_at: String(bindings[3]),
+                sponsor_stage: String(bindings[4]),
+                sponsor_reason_code: String(bindings[5]),
+                sponsor_stage_updated_at: String(bindings[3]),
                 sponsor_lease_expires_at: null,
                 last_error_code: null,
                 updated_at: String(bindings[3]),
@@ -995,6 +1059,9 @@ describe('stale-contract-state Sponsor reservation', () => {
                 sponsorship_completed_at: null,
                 attest_tx_id: null,
                 attest_tx_hash: null,
+                sponsor_stage: 'reproof_required',
+                sponsor_reason_code: 'contract_state_changed_reproof_required',
+                sponsor_stage_updated_at: String(bindings[0]),
                 last_error_code: 'contract_state_changed_reproof_required',
                 updated_at: String(bindings[0]),
               });
@@ -1042,6 +1109,8 @@ describe('stale-contract-state Sponsor reservation', () => {
       status: 'reproof_required',
       device_transaction_hash: null,
       sponsor_serialized_sha256: null,
+      sponsor_stage: 'reproof_required',
+      sponsor_reason_code: 'contract_state_changed_reproof_required',
       last_error_code: 'contract_state_changed_reproof_required',
     });
     expect(deviceTransactionAcceptance(result.status, null, 'cd'.repeat(32))).toBe('accept-new');
@@ -1203,13 +1272,107 @@ function failedJob(overrides: Partial<ProofJobRow> = {}): ProofJobRow {
   } as ProofJobRow;
 }
 
+describe('Sponsor Queue concurrency', () => {
+  it('does not overwrite the active attempt progress when a duplicate message loses the claim race', async () => {
+    vi.mocked(getContainer).mockClear();
+    const originalStageUpdatedAt = '2026-08-29T04:00:00.000Z';
+    const deviceTransaction = new Uint8Array([1, 2, 3, 4]);
+    const deviceTransactionHash = await sha256Hex(deviceTransaction);
+    const deviceTransactionObjectKey = 'device-transactions/proof-concurrent-duplicate-001.tx';
+    const job = failedJob({
+      id: 'proof-concurrent-duplicate-001',
+      status: 'sponsor_retryable',
+      sponsor_available_after: '2026-08-29T04:00:00.000Z',
+      sponsor_stage: 'retry_wait',
+      sponsor_reason_code: 'sponsor_worker_interrupted',
+      sponsor_stage_updated_at: originalStageUpdatedAt,
+      device_transaction_hash: deviceTransactionHash,
+      device_transaction_bytes: deviceTransaction.byteLength,
+      device_transaction_object_key: deviceTransactionObjectKey,
+    });
+    const database = {
+      prepare(query: string) {
+        let bindings: unknown[] = [];
+        const statement = {
+          bind(...values: unknown[]) {
+            bindings = values;
+            return statement;
+          },
+          async first<T>() {
+            if (query.includes('FROM daily_proof_jobs')) return { ...job } as T;
+            throw new Error(`Unexpected D1 first query: ${query}`);
+          },
+          async run<T>() {
+            if (query.includes('sponsor_attempt_count = sponsor_attempt_count + 1')) {
+              // Another Queue delivery claims the Job after this delivery read
+              // it but before this delivery's generation-checked claim.
+              job.status = 'sponsoring';
+              expect(bindings[3]).toBe('sponsor_retryable');
+              expect(bindings[4]).toBe(job.updated_at);
+              return d1Result(0) as D1Result<T>;
+            }
+            throw new Error(`Unexpected D1 run query: ${query}`);
+          },
+        } as unknown as D1PreparedStatement;
+        return statement;
+      },
+    } as unknown as D1Database;
+    let acknowledgements = 0;
+    const message = {
+      body: { kind: 'sponsor-transaction', proofJobId: job.id },
+      attempts: 1,
+      ack() { acknowledgements += 1; },
+      retry() {},
+    } as unknown as Message<unknown>;
+
+    vi.mocked(getContainer).mockReturnValue({
+      async fetch(request: Request) {
+        if (new URL(request.url).pathname !== '/health') {
+          throw new Error(`Unexpected Sponsor Container request: ${request.url}`);
+        }
+        return Response.json({
+          phase: 'ready',
+          spendableDustCoins: 1,
+          totalDustCoins: 1,
+          pendingDustCoins: 0,
+          initialization: { status: 'succeeded' },
+          error: null,
+        });
+      },
+    } as never);
+
+    await handleSponsorQueue({
+      queue: 'midnight-sponsor-jobs',
+      messages: [message],
+    } as unknown as MessageBatch<unknown>, {
+      DB: database,
+      SPONSOR_STATE: {
+        async get(key: string) {
+          expect(key).toBe(deviceTransactionObjectKey);
+          return {
+            size: deviceTransaction.byteLength,
+            async arrayBuffer() { return deviceTransaction.buffer.slice(0); },
+          };
+        },
+      },
+      SPONSOR_WALLET: {},
+      PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS: 'ab'.repeat(32),
+    } as unknown as Env);
+
+    expect(acknowledgements).toBe(1);
+    expect(job.sponsor_stage).toBe('retry_wait');
+    expect(job.sponsor_stage_updated_at).toBe(originalStageUpdatedAt);
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+});
+
 describe('stale Sponsor request recovery', () => {
   it('keeps a failed Device-bound transaction resumable without another Proof', () => {
     expect(canRecoverStaleSponsoringRequest(failedJob())).toBe(false);
   });
 
-  it('recovers a canceled in-progress request only after thirty-five minutes', () => {
-    const now = Date.parse('2026-08-29T04:35:00.000Z');
+  it('recovers a canceled in-progress request one minute after the Queue wall-time limit', () => {
+    const now = Date.parse('2026-08-29T04:16:00.000Z');
     expect(canRecoverStaleSponsoringRequest(failedJob({
       status: 'sponsoring',
       last_error_code: null,
@@ -1224,5 +1387,119 @@ describe('stale Sponsor request recovery', () => {
       last_error_code: null,
       sponsor_transaction_object_key: 'sponsor-transactions/job/tx',
     }), now)).toBe(false);
+  });
+
+  it('reclaims a pre-reservation checkpoint stall after two minutes without a browser retry', async () => {
+    const scheduledTime = Date.parse('2026-08-29T04:03:00.000Z');
+    const job = {
+      id: 'proof-interrupted-001',
+      status: 'sponsoring',
+      sponsor_stage: 'checkpoint_persisting',
+      sponsor_reason_code: 'sponsor_checkpoint_persisting',
+      sponsor_stage_updated_at: '2026-08-29T04:00:00.000Z',
+      sponsor_lease_expires_at: '2026-08-29T04:20:00.000Z',
+    };
+    const updates: Array<{ query: string; bindings: unknown[] }> = [];
+    const queued: string[] = [];
+    const database = {
+      prepare(query: string) {
+        let bindings: unknown[] = [];
+        const statement = {
+          bind(...values: unknown[]) {
+            bindings = values;
+            return statement;
+          },
+          async run<T>() {
+            updates.push({ query, bindings });
+            if (
+              query.includes(
+                "sponsor_stage IN ('wallet_checking', 'checkpoint_persisting', 'checkpoint_preserving')",
+              )
+              && job.status === 'sponsoring'
+              && ['checkpoint_persisting', 'checkpoint_preserving'].includes(job.sponsor_stage)
+            ) {
+              job.status = 'sponsor_retryable';
+              job.sponsor_stage = 'retry_wait';
+              job.sponsor_reason_code = 'sponsor_pre_dust_worker_interrupted';
+            } else if (query.includes("sponsor_stage = 'interrupted'") && job.status === 'sponsoring') {
+              job.sponsor_stage = 'interrupted';
+              job.sponsor_reason_code = 'sponsor_queue_wall_time_exceeded_waiting_for_safe_retry';
+            } else if (
+              query.includes("sponsor_reason_code = 'sponsor_worker_interrupted'")
+              && job.status === 'sponsoring'
+            ) {
+              job.status = 'sponsor_retryable';
+              job.sponsor_stage = 'retry_wait';
+              job.sponsor_reason_code = 'sponsor_worker_interrupted';
+            }
+            return d1Result(1) as D1Result<T>;
+          },
+          async all<T>() {
+            return {
+              ...d1Result(0),
+              results: job.status === 'sponsor_retryable' ? [{ id: job.id }] as T[] : [],
+            } as D1Result<T>;
+          },
+        } as unknown as D1PreparedStatement;
+        return statement;
+      },
+    } as unknown as D1Database;
+    const env = {
+      DB: database,
+      SPONSOR_QUEUE: {
+        async send(message: { proofJobId: string }) { queued.push(message.proofJobId); },
+      },
+    } as unknown as Env;
+
+    await dispatchSponsorJobs(env, scheduledTime);
+
+    expect(job).toMatchObject({
+      status: 'sponsor_retryable',
+      sponsor_stage: 'retry_wait',
+      sponsor_reason_code: 'sponsor_pre_dust_worker_interrupted',
+    });
+    expect(queued).toEqual([job.id]);
+    expect(updates[0]?.bindings).toEqual([
+      '2026-08-29T04:03:00.000Z',
+      '2026-08-29T04:01:00.000Z',
+    ]);
+  });
+
+  it('dispatches a Device-bound transaction that is fenced from legacy Consumers', async () => {
+    const queued: string[] = [];
+    const database = {
+      prepare(query: string) {
+        let bindings: unknown[] = [];
+        const statement = {
+          bind(...values: unknown[]) {
+            bindings = values;
+            return statement;
+          },
+          async run<T>() {
+            return d1Result(0) as D1Result<T>;
+          },
+          async all<T>() {
+            expect(query).toContain("status = 'device_bound'");
+            expect(query).toContain('device_transaction_object_key IS NOT NULL');
+            expect(bindings).toEqual(['2026-08-29T04:03:00.000Z']);
+            return {
+              ...d1Result(0),
+              results: [{ id: 'proof-generation-fenced-001' }] as T[],
+            } as D1Result<T>;
+          },
+        } as unknown as D1PreparedStatement;
+        return statement;
+      },
+    } as unknown as D1Database;
+    const env = {
+      DB: database,
+      SPONSOR_QUEUE: {
+        async send(message: { proofJobId: string }) { queued.push(message.proofJobId); },
+      },
+    } as unknown as Env;
+
+    await dispatchSponsorJobs(env, Date.parse('2026-08-29T04:03:00.000Z'));
+
+    expect(queued).toEqual(['proof-generation-fenced-001']);
   });
 });

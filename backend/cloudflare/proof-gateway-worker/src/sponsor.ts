@@ -6,7 +6,6 @@ import {
   canRecoverStaleSponsoringRequest,
   deviceTransactionAcceptance,
   shouldReplaySponsorDustState,
-  sponsorJobCanProceed,
   sponsorSubmissionIsReplayProtectionViolation,
   sponsorSubmissionRequiresReproof,
   sponsorTransactionNeedsRefresh,
@@ -15,24 +14,70 @@ import { reserveSponsorQuota, type SponsorQuotaStatus } from './sponsor-quota.js
 import {
   clearSponsorRecoveryCheckpoint,
   maxSponsorCheckpointBytes,
-  preserveSponsorRecoveryCheckpoint,
   sponsorCheckpointKey,
   sponsorCheckpointRecoveryKey,
   storeSponsorCheckpoint,
   storeSponsorDustReplayCheckpoint,
 } from './sponsor-checkpoint.js';
 import { reconcileReplayProtectedSponsorTransaction } from './sponsor-reconciliation.js';
+import { sponsorContainerName } from './sponsor-container.js';
 import { createSqlDatabase } from './storage/index.js';
 
-// Keep this logical ID stable. With max_instances=1, changing it while the old
-// 24-hour Sponsor instance is running prevents the replacement from starting.
-const sponsorContainerName = 'midnight-sponsor-wallet';
 const sponsorQueueName = 'midnight-sponsor-jobs';
 const synchronizationCheckpointIntervalMs = 60_000;
 const steadyCheckpointIntervalMs = 30 * 60_000;
 const maxTransactionBytes = 4 * 1024 * 1024;
 const sponsorRetryDelayMs = 60_000;
 const sponsorLeaseMs = 20 * 60_000;
+const sponsorQueueWallTimeMs = 15 * 60_000;
+const sponsorSafeRecoveryMs = 16 * 60_000;
+const sponsorArtifactTimeoutMs = 15_000;
+const sponsorPrepareTimeoutMs = 2 * 60_000;
+const sponsorSubmitTimeoutMs = 2 * 60_000;
+const sponsorCheckpointTimeoutMs = 60_000;
+const sponsorCheckpointWatchdogMs = 2 * 60_000;
+
+export async function withSponsorOperationTimeout<T>(
+  timeoutMs: number,
+  timeoutCode: string,
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error(timeoutCode));
+    }, timeoutMs);
+  });
+  try {
+    // Container RPC does not consistently reject when its Request signal is
+    // aborted. Race the complete operation so D1 failure persistence is not
+    // held until the Queue consumer's platform wall-time limit.
+    return await Promise.race([operation(controller.signal), deadline]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+export async function withSponsorCheckpointTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  return withSponsorOperationTimeout(
+    sponsorCheckpointTimeoutMs,
+    'sponsor_checkpoint_timeout',
+    operation,
+  );
+}
+
+// D1's meta.changes includes writes performed by AFTER triggers. A successful
+// single-row status transition can therefore report 2 or more changes after
+// the operations-audit triggers are installed. The guarded UPDATE predicates
+// below target one Proof Job, so any positive count means this delivery won
+// the claim.
+export function sponsorClaimWasApplied(changes: number): boolean {
+  return Number.isInteger(changes) && changes > 0;
+}
 
 interface SponsorQueueMessage {
   kind: 'sponsor-transaction';
@@ -111,6 +156,11 @@ export interface SponsorWalletHealth {
   };
   shuttingDown?: boolean;
   error: string | null;
+}
+
+export interface SponsorWalletWarmupResult {
+  health: SponsorWalletHealth | null;
+  errorCode: string | null;
 }
 
 interface SponsorSyncProgressDetails {
@@ -194,6 +244,32 @@ async function enqueueSponsorJob(env: Env, proofJobId: string, delaySeconds = 0)
   );
 }
 
+async function recordSponsorProgress(
+  env: Env,
+  proofJobId: string,
+  stage: string,
+  reasonCode: string,
+  expectedStatus: string,
+): Promise<boolean> {
+  const updatedAt = new Date().toISOString();
+  const updated = await createSqlDatabase(env).execute(
+    `UPDATE daily_proof_jobs
+     SET sponsor_stage = ?1, sponsor_reason_code = ?2,
+         sponsor_stage_updated_at = ?3, updated_at = ?3
+     WHERE id = ?4 AND status = ?5`,
+    [stage, reasonCode, updatedAt, proofJobId, expectedStatus],
+  );
+  if (!sponsorClaimWasApplied(updated)) return false;
+  console.log(JSON.stringify({
+    message: 'sponsor_job_progress',
+    proofJobId,
+    stage,
+    reasonCode,
+    updatedAt,
+  }));
+  return true;
+}
+
 function requiredResponseHeader(response: Response, name: string, pattern: RegExp): string {
   const value = response.headers.get(name)?.trim() ?? '';
   if (!pattern.test(value)) throw new Error(`Sponsor Wallet returned invalid ${name}`);
@@ -215,6 +291,18 @@ async function readSmallJson<T>(response: Response): Promise<T> {
 
 function sponsorContainer(env: Env) {
   return getContainer(env.SPONSOR_WALLET, sponsorContainerName);
+}
+
+async function sponsorArtifactResponse(
+  env: Env,
+  pathname: '/prepare' | '/release' | '/submit',
+  headers: Record<string, string>,
+): Promise<Response> {
+  const container = sponsorContainer(env);
+  return container.fetch(new Request(`http://sponsor-wallet${pathname}`, {
+    method: 'GET',
+    headers,
+  }));
 }
 
 async function restoreSponsorWallet(env: Env): Promise<void> {
@@ -253,10 +341,13 @@ async function restoreSponsorWallet(env: Env): Promise<void> {
   throw new Error(`Sponsor Wallet restore failed: ${detail.slice(0, 240)}`);
 }
 
-async function fetchSponsorWalletHealth(env: Env): Promise<SponsorWalletHealth> {
+export async function probeSponsorWalletHealth(
+  env: Env,
+  timeoutMs = 5_000,
+): Promise<SponsorWalletHealth> {
   const response = await sponsorContainer(env).fetch(new Request(
     'http://sponsor-wallet/health',
-    { signal: AbortSignal.timeout(30_000) },
+    { signal: AbortSignal.timeout(timeoutMs) },
   ));
   const health = await readSmallJson<SponsorWalletHealth>(response);
   if (!['starting', 'syncing', 'waiting-for-funding', 'registering-dust', 'ready', 'error']
@@ -267,10 +358,10 @@ async function fetchSponsorWalletHealth(env: Env): Promise<SponsorWalletHealth> 
 }
 
 export async function sponsorWalletHealth(env: Env): Promise<SponsorWalletHealth> {
-  let health = await fetchSponsorWalletHealth(env);
+  let health = await probeSponsorWalletHealth(env, 30_000);
   if (!health.initialization || health.initialization.status === 'not-started') {
     await restoreSponsorWallet(env);
-    health = await fetchSponsorWalletHealth(env);
+    health = await probeSponsorWalletHealth(env, 30_000);
   }
   if (health.initialization?.status === 'failed') {
     throw new Error(`Sponsor Wallet initialization failed: ${health.initialization.error ?? 'unknown error'}`);
@@ -279,49 +370,53 @@ export async function sponsorWalletHealth(env: Env): Promise<SponsorWalletHealth
 }
 
 async function persistSponsorCheckpoint(env: Env): Promise<void> {
-  const response = await sponsorContainer(env).fetch(new Request(
-    'http://sponsor-wallet/checkpoint',
-    { signal: AbortSignal.timeout(5 * 60_000) },
-  ));
-  if (!response.ok || !response.body) {
-    const detail = await response.text();
-    throw new Error(`Sponsor Wallet checkpoint failed with HTTP ${response.status}: ${detail.slice(0, 240)}`);
-  }
-  const contentLength = Number(response.headers.get('Content-Length'));
-  if (
-    !Number.isSafeInteger(contentLength)
-    || contentLength <= 0
-    || contentLength > maxSponsorCheckpointBytes
-  ) {
-    await response.body.cancel();
-    throw new Error('Sponsor Wallet checkpoint has an invalid Content-Length');
-  }
-  const digits = /^\d+$/u;
-  const bootId = response.headers.get('X-Sponsor-Checkpoint-Boot-Id')?.trim() ?? '';
-  const phase = response.headers.get('X-Sponsor-Checkpoint-Phase')?.trim() ?? '';
-  const shieldedApplied = response.headers
-    .get('X-Sponsor-Checkpoint-Shielded-Applied')?.trim() ?? '';
-  const unshieldedApplied = response.headers
-    .get('X-Sponsor-Checkpoint-Unshielded-Applied')?.trim() ?? '';
-  const dustApplied = response.headers.get('X-Sponsor-Checkpoint-Dust-Applied')?.trim() ?? '';
-  const checkpointSource = response.headers.get('X-Sponsor-Checkpoint-Source')?.trim();
-  const progress = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
-    .test(bootId)
-    && /^(?:starting|syncing|waiting-for-funding|registering-dust|ready|error)$/u.test(phase)
-    && digits.test(shieldedApplied)
-    && digits.test(unshieldedApplied)
-    && digits.test(dustApplied)
-    ? { bootId, phase, shieldedApplied, unshieldedApplied, dustApplied }
-    : undefined;
-  await storeSponsorCheckpoint(env, response.body, contentLength, {
-    source: checkpointSource === 'local-cache' ? 'periodic-cache-pull' : 'periodic-pull',
-    progress,
+  await withSponsorCheckpointTimeout(async (signal) => {
+    const response = await sponsorContainer(env).fetch(new Request(
+      'http://sponsor-wallet/checkpoint',
+      { signal },
+    ));
+    if (!response.ok || !response.body) {
+      const detail = await response.text();
+      throw new Error(
+        `Sponsor Wallet checkpoint failed with HTTP ${response.status}: ${detail.slice(0, 240)}`,
+      );
+    }
+    const contentLength = Number(response.headers.get('Content-Length'));
+    if (
+      !Number.isSafeInteger(contentLength)
+      || contentLength <= 0
+      || contentLength > maxSponsorCheckpointBytes
+    ) {
+      await response.body.cancel();
+      throw new Error('Sponsor Wallet checkpoint has an invalid Content-Length');
+    }
+    const digits = /^\d+$/u;
+    const bootId = response.headers.get('X-Sponsor-Checkpoint-Boot-Id')?.trim() ?? '';
+    const phase = response.headers.get('X-Sponsor-Checkpoint-Phase')?.trim() ?? '';
+    const shieldedApplied = response.headers
+      .get('X-Sponsor-Checkpoint-Shielded-Applied')?.trim() ?? '';
+    const unshieldedApplied = response.headers
+      .get('X-Sponsor-Checkpoint-Unshielded-Applied')?.trim() ?? '';
+    const dustApplied = response.headers.get('X-Sponsor-Checkpoint-Dust-Applied')?.trim() ?? '';
+    const checkpointSource = response.headers.get('X-Sponsor-Checkpoint-Source')?.trim();
+    const progress = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+      .test(bootId)
+      && /^(?:starting|syncing|waiting-for-funding|registering-dust|ready|error)$/u.test(phase)
+      && digits.test(shieldedApplied)
+      && digits.test(unshieldedApplied)
+      && digits.test(dustApplied)
+      ? { bootId, phase, shieldedApplied, unshieldedApplied, dustApplied }
+      : undefined;
+    await storeSponsorCheckpoint(env, response.body, contentLength, {
+      source: checkpointSource === 'local-cache' ? 'periodic-cache-pull' : 'periodic-pull',
+      progress,
+    }, signal);
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_checkpoint_persisted',
+      bytes: contentLength,
+      progress: progress ?? null,
+    }));
   });
-  console.log(JSON.stringify({
-    message: 'sponsor_wallet_checkpoint_persisted',
-    bytes: contentLength,
-    progress: progress ?? null,
-  }));
 }
 
 async function persistSponsorDustReplayCheckpoint(env: Env): Promise<void> {
@@ -383,8 +478,7 @@ async function replayInconsistentSponsorDustState(
 ): Promise<boolean> {
   const active = await createSqlDatabase(env).first<{ active_count: number }>(
     `SELECT COUNT(*) AS active_count FROM daily_proof_jobs
-     WHERE status IN ('sponsoring', 'sponsored')
-       AND sponsor_transaction_object_key IS NOT NULL`,
+     WHERE status IN ('sponsoring', 'sponsored')`,
   );
   const activeReservations = Number(active?.active_count ?? 0);
   let recoveryCheckpoint = await env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey);
@@ -473,6 +567,10 @@ function sponsorshipView(
       : formatDust(BigInt(job.sponsor_fee_specks)),
     deviceTransactionBytes: job.device_transaction_bytes,
     transactionBytes: job.sponsor_transaction_bytes,
+    sponsorStage: job.sponsor_stage ?? null,
+    sponsorReasonCode: job.sponsor_reason_code ?? null,
+    sponsorStageUpdatedAt: job.sponsor_stage_updated_at ?? null,
+    sponsorNextRetryAt: job.status === 'sponsor_retryable' ? job.sponsor_available_after : null,
     sponsorshipStartedAt: job.sponsorship_started_at,
     sponsorshipCompletedAt: job.sponsorship_completed_at,
     ...(sponsorQuota ? { sponsorQuota } : {}),
@@ -500,79 +598,158 @@ async function prepareSponsoredTransaction(
   contractAddress: string,
   deviceTransaction: Uint8Array,
   deviceTransactionHash: string,
+  queueOperationId: string,
 ): Promise<ProofJobRow> {
   const database = createSqlDatabase(env);
   const sponsorshipStartedAt = new Date().toISOString();
   const sponsorLeaseExpiresAt = new Date(Date.now() + sponsorLeaseMs).toISOString();
+  console.log(JSON.stringify({
+    message: 'sponsor_job_claim_started',
+    proofJobId: job.id,
+    queueOperationId,
+    expectedStatus: job.status,
+    expectedUpdatedAt: job.updated_at,
+  }));
   const claimed = await database.execute(
     `UPDATE daily_proof_jobs
      SET status = 'sponsoring', sponsor_attempt_count = sponsor_attempt_count + 1,
-         sponsorship_started_at = COALESCE(sponsorship_started_at, ?1),
-         sponsor_lease_expires_at = ?2, last_error_code = NULL, updated_at = ?1
-     WHERE id = ?3 AND status IN ('awaiting_sponsor', 'sponsor_retryable')`,
-    [sponsorshipStartedAt, sponsorLeaseExpiresAt, job.id],
+         sponsorship_started_at = ?1,
+         sponsor_lease_expires_at = ?2, sponsor_stage = 'transaction_preparing',
+         sponsor_reason_code = 'sponsor_dust_balancing_and_proving',
+         sponsor_stage_updated_at = ?1, last_error_code = NULL, updated_at = ?1
+     WHERE id = ?3 AND status = ?4 AND updated_at = ?5
+       AND device_transaction_hash = ?6`,
+    [
+      sponsorshipStartedAt,
+      sponsorLeaseExpiresAt,
+      job.id,
+      job.status,
+      job.updated_at,
+      deviceTransactionHash,
+    ],
   );
-  if (claimed !== 1) {
+  if (!sponsorClaimWasApplied(claimed)) {
     const changed = await currentJob(env, job.id);
+    console.warn(JSON.stringify({
+      message: 'sponsor_job_claim_rejected',
+      proofJobId: job.id,
+      queueOperationId,
+      expectedStatus: job.status,
+      expectedUpdatedAt: job.updated_at,
+      actualStatus: changed.status,
+      actualUpdatedAt: changed.updated_at,
+      actualStage: changed.sponsor_stage ?? null,
+    }));
     if (changed.status === 'sponsoring') {
       throw new Error('Sponsorship is already in progress');
     }
     return changed;
   }
+  console.log(JSON.stringify({
+    message: 'sponsor_job_claim_completed',
+    proofJobId: job.id,
+    queueOperationId,
+    sponsorshipStartedAt,
+    sponsorLeaseExpiresAt,
+  }));
 
+  let failureStage = 'transaction_preparing';
   try {
-    // Preserve a chain-synchronized state from immediately before the Wallet
-    // reserves DUST. If preparation is interrupted, replay can resume from
-    // this point instead of rescanning the entire chain.
-    await persistSponsorCheckpoint(env);
-    await preserveSponsorRecoveryCheckpoint(env);
-    const prepared = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/prepare', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-Proof-Job-Id': job.id,
-        'X-Sponsor-Contract-Address': contractAddress,
-        'X-Device-Transaction-Hash': deviceTransactionHash,
-      },
-      body: deviceTransaction,
-      signal: AbortSignal.timeout(15 * 60_000),
+    const deviceTransactionObjectKey = job.device_transaction_object_key;
+    if (!deviceTransactionObjectKey) {
+      throw new Error('Device transaction artifact key is missing');
+    }
+    // Pass only the immutable R2 reference across the Worker-to-Container DO
+    // boundary. The DO loads and verifies the artifact before forwarding one
+    // local body to the Container, avoiding a chained request-body stream.
+    const prepareStartedAt = performance.now();
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_prepare_started',
+      proofJobId: job.id,
+      queueOperationId,
+      deviceTransactionBytes: deviceTransaction.byteLength,
+      timeoutMs: sponsorPrepareTimeoutMs,
     }));
-    if (!prepared.ok || !prepared.body) {
-      const detail = await prepared.text();
-      throw new Error(`Sponsor Wallet prepare failed with HTTP ${prepared.status}: ${detail.slice(0, 240)}`);
-    }
-    const contractTransactionId = requiredResponseHeader(
-      prepared,
-      'X-Contract-Transaction-Id',
-      /^.{1,256}$/u,
+    const preparedResult = await withSponsorOperationTimeout(
+      sponsorPrepareTimeoutMs,
+      'sponsor_prepare_timeout',
+      async (signal) => {
+        if (signal.aborted) throw new Error('sponsor_prepare_timeout');
+        const prepared = await sponsorArtifactResponse(env, '/prepare', {
+          'X-Proof-Job-Id': job.id,
+          'X-Sponsor-Contract-Address': contractAddress,
+          'X-Device-Transaction-Hash': deviceTransactionHash,
+          'X-Sponsor-Artifact-Key': deviceTransactionObjectKey,
+          'X-Sponsor-Artifact-Sha256': deviceTransactionHash,
+          'X-Sponsor-Artifact-Bytes': String(deviceTransaction.byteLength),
+        });
+        if (!prepared.ok || !prepared.body) {
+          const detail = await prepared.text();
+          throw new Error(
+            `Sponsor Wallet prepare failed with HTTP ${prepared.status}: ${detail.slice(0, 240)}`,
+          );
+        }
+        const contractTransactionId = requiredResponseHeader(
+          prepared,
+          'X-Contract-Transaction-Id',
+          /^.{1,256}$/u,
+        );
+        const transactionHash = requiredResponseHeader(
+          prepared,
+          'X-Sponsor-Transaction-Hash',
+          /^.{1,256}$/u,
+        );
+        const serializedSha256 = requiredResponseHeader(
+          prepared,
+          'X-Sponsor-Serialized-Sha256',
+          /^(?:[0-9a-f]{2}){32}$/u,
+        );
+        const feeSpecks = requiredResponseHeader(
+          prepared,
+          'X-Sponsor-Fee-Specks',
+          /^\d{1,80}$/u,
+        );
+        const transactionBytes = Number(requiredResponseHeader(
+          prepared,
+          'X-Sponsor-Transaction-Bytes',
+          /^\d{1,10}$/u,
+        ));
+        if (!Number.isSafeInteger(transactionBytes) || transactionBytes <= 0
+          || transactionBytes > maxTransactionBytes) {
+          throw new Error('Sponsor Wallet returned an invalid transaction size');
+        }
+        const preparedBytes = new Uint8Array(await prepared.arrayBuffer());
+        if (preparedBytes.byteLength !== transactionBytes) {
+          throw new Error('Sponsor Wallet transaction size does not match its body');
+        }
+        if (await sha256Hex(preparedBytes) !== serializedSha256) {
+          throw new Error('Sponsor Wallet transaction hash does not match its body');
+        }
+        return {
+          contractTransactionId,
+          transactionHash,
+          serializedSha256,
+          feeSpecks,
+          transactionBytes,
+          preparedBytes,
+        };
+      },
     );
-    const transactionHash = requiredResponseHeader(
-      prepared,
-      'X-Sponsor-Transaction-Hash',
-      /^.{1,256}$/u,
-    );
-    const serializedSha256 = requiredResponseHeader(
-      prepared,
-      'X-Sponsor-Serialized-Sha256',
-      /^(?:[0-9a-f]{2}){32}$/u,
-    );
-    const feeSpecks = requiredResponseHeader(prepared, 'X-Sponsor-Fee-Specks', /^\d{1,80}$/u);
-    const transactionBytes = Number(requiredResponseHeader(
-      prepared,
-      'X-Sponsor-Transaction-Bytes',
-      /^\d{1,10}$/u,
-    ));
-    if (!Number.isSafeInteger(transactionBytes) || transactionBytes <= 0
-      || transactionBytes > maxTransactionBytes) {
-      throw new Error('Sponsor Wallet returned an invalid transaction size');
-    }
-    const preparedBytes = new Uint8Array(await prepared.arrayBuffer());
-    if (preparedBytes.byteLength !== transactionBytes) {
-      throw new Error('Sponsor Wallet transaction size does not match its body');
-    }
-    if (await sha256Hex(preparedBytes) !== serializedSha256) {
-      throw new Error('Sponsor Wallet transaction hash does not match its body');
-    }
+    const {
+      contractTransactionId,
+      transactionHash,
+      serializedSha256,
+      feeSpecks,
+      transactionBytes,
+      preparedBytes,
+    } = preparedResult;
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_prepare_completed',
+      proofJobId: job.id,
+      queueOperationId,
+      durationMs: Math.round(performance.now() - prepareStartedAt),
+      transactionBytes,
+    }));
     const objectKey = `sponsor-transactions/${job.id}/${serializedSha256}.tx`;
     await env.SPONSOR_STATE.put(objectKey, preparedBytes, {
       httpMetadata: { contentType: 'application/octet-stream' },
@@ -589,30 +766,43 @@ async function prepareSponsoredTransaction(
            sponsor_serialized_sha256 = ?2, sponsor_fee_specks = ?3,
            sponsor_transaction_bytes = ?4, attest_tx_id = ?5, attest_tx_hash = ?6,
            sponsor_lease_expires_at = NULL, sponsor_available_after = ?7,
-           last_error_code = NULL, updated_at = ?7
+           sponsor_stage = 'transaction_ready',
+           sponsor_reason_code = 'sponsor_transaction_ready_for_submission',
+           sponsor_stage_updated_at = ?7, last_error_code = NULL, updated_at = ?7
        WHERE id = ?8 AND status = 'sponsoring' AND device_transaction_hash = ?9`,
       [
         objectKey, serializedSha256, feeSpecks, transactionBytes,
         contractTransactionId, transactionHash, updatedAt, job.id, deviceTransactionHash,
       ],
     );
-    if (updated !== 1) throw new Error('Proof Job changed while the sponsored transaction was prepared');
-    await persistSponsorCheckpoint(env).catch((error) => {
-      console.error(JSON.stringify({
-        message: 'sponsor_checkpoint_after_prepare_failed',
-        proofJobId: job.id,
-        errorName: error instanceof Error ? error.name : 'UnknownError',
-      }));
-    });
+    if (!sponsorClaimWasApplied(updated)) {
+      throw new Error('Proof Job changed while the sponsored transaction was prepared');
+    }
     return currentJob(env, job.id);
   } catch (error) {
+    if (errorMessage(error) === 'sponsor_prepare_timeout') {
+      await logSponsorRuntimeDiagnostics(env, queueOperationId);
+    }
+    const timedOut = error instanceof Error && error.message === 'sponsor_checkpoint_timeout';
+    const failureReason = failureStage === 'checkpoint_persisting'
+      ? timedOut ? 'sponsor_checkpoint_timed_out' : 'sponsor_checkpoint_failed'
+      : failureStage === 'checkpoint_preserving'
+        ? timedOut ? 'sponsor_recovery_checkpoint_timed_out' : 'sponsor_recovery_checkpoint_failed'
+        : errorMessage(error) === 'sponsor_prepare_timeout'
+          ? 'sponsor_prepare_timed_out'
+          : 'sponsor_prepare_failed';
+    const retryStatus = job.status === 'device_bound' ? 'device_bound' : 'sponsor_retryable';
     await database.execute(
       `UPDATE daily_proof_jobs
-       SET status = 'sponsor_retryable', sponsor_lease_expires_at = NULL,
-           sponsor_available_after = ?1, last_error_code = 'sponsor_prepare_failed', updated_at = ?2
-       WHERE id = ?3 AND status = 'sponsoring'`,
+       SET status = ?1, sponsor_lease_expires_at = NULL,
+           sponsor_available_after = ?2, sponsor_stage = 'retry_wait',
+           sponsor_reason_code = ?3, sponsor_stage_updated_at = ?4,
+           last_error_code = ?3, updated_at = ?4
+       WHERE id = ?5 AND status = 'sponsoring'`,
       [
+        retryStatus,
         new Date(Date.now() + sponsorRetryDelayMs).toISOString(),
+        failureReason,
         new Date().toISOString(),
         job.id,
       ],
@@ -625,6 +815,7 @@ export async function submitSponsoredTransaction(
   env: Env,
   job: ProofJobRow,
   contractAddress: string,
+  queueOperationId = crypto.randomUUID(),
 ): Promise<ProofJobRow> {
   if (
     !job.sponsor_transaction_object_key
@@ -633,28 +824,77 @@ export async function submitSponsoredTransaction(
   ) {
     throw new Error('Sponsored transaction artifact is missing');
   }
-  const object = await env.SPONSOR_STATE.get(job.sponsor_transaction_object_key);
-  if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
-    throw new Error('Sponsored transaction artifact was not found');
-  }
-  const bytes = new Uint8Array(await object.arrayBuffer());
+  const sponsorTransactionObjectKey = job.sponsor_transaction_object_key;
+  const sponsorSerializedSha256 = job.sponsor_serialized_sha256;
+  const attestTransactionId = job.attest_tx_id;
+  const artifactStartedAt = performance.now();
+  console.log(JSON.stringify({
+    message: 'sponsor_transaction_artifact_read_started',
+    proofJobId: job.id,
+    queueOperationId,
+    timeoutMs: sponsorArtifactTimeoutMs,
+  }));
+  const bytes = await withSponsorOperationTimeout(
+    sponsorArtifactTimeoutMs,
+    'sponsor_transaction_artifact_timeout',
+    async () => {
+      const object = await env.SPONSOR_STATE.get(sponsorTransactionObjectKey);
+      if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
+        throw new Error('Sponsored transaction artifact was not found');
+      }
+      return new Uint8Array(await object.arrayBuffer());
+    },
+  );
+  console.log(JSON.stringify({
+    message: 'sponsor_transaction_artifact_read_completed',
+    proofJobId: job.id,
+    queueOperationId,
+    durationMs: Math.round(performance.now() - artifactStartedAt),
+    bytes: bytes.byteLength,
+  }));
   if (
     bytes.byteLength !== job.sponsor_transaction_bytes
     || await sha256Hex(bytes) !== job.sponsor_serialized_sha256
   ) throw new Error('Sponsored transaction artifact failed its integrity check');
-  const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/submit', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'X-Proof-Job-Id': job.id,
-      'X-Sponsor-Contract-Address': contractAddress,
-      'X-Contract-Transaction-Id': job.attest_tx_id,
-      'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
-    },
-    body: bytes,
-    signal: AbortSignal.timeout(15 * 60_000),
+  if (!await recordSponsorProgress(
+    env,
+    job.id,
+    'transaction_submitting',
+    'sponsor_submitting_to_midnight',
+    'sponsored',
+  )) throw new Error('Proof Job changed before Sponsor Wallet submission');
+  const submitStartedAt = performance.now();
+  console.log(JSON.stringify({
+    message: 'sponsor_wallet_submit_started',
+    proofJobId: job.id,
+    queueOperationId,
+    timeoutMs: sponsorSubmitTimeoutMs,
+    transactionBytes: bytes.byteLength,
   }));
-  const result = await readSmallJson<SponsorSubmission>(response);
+  const result = await withSponsorOperationTimeout(
+    sponsorSubmitTimeoutMs,
+    'sponsor_submit_timeout',
+    async (signal) => {
+      if (signal.aborted) throw new Error('sponsor_submit_timeout');
+      const response = await sponsorArtifactResponse(env, '/submit', {
+        'X-Proof-Job-Id': job.id,
+        'X-Sponsor-Contract-Address': contractAddress,
+        'X-Contract-Transaction-Id': attestTransactionId,
+        'X-Sponsor-Serialized-Sha256': sponsorSerializedSha256,
+        'X-Sponsor-Artifact-Key': sponsorTransactionObjectKey,
+        'X-Sponsor-Artifact-Sha256': sponsorSerializedSha256,
+        'X-Sponsor-Artifact-Bytes': String(bytes.byteLength),
+      });
+      return readSmallJson<SponsorSubmission>(response);
+    },
+  );
+  console.log(JSON.stringify({
+    message: 'sponsor_wallet_submit_completed',
+    proofJobId: job.id,
+    queueOperationId,
+    durationMs: Math.round(performance.now() - submitStartedAt),
+    replayRecovered: result.replayRecovered ?? false,
+  }));
   if (
     result.contractTransactionId !== job.attest_tx_id
     || result.transactionHash !== job.attest_tx_hash
@@ -676,18 +916,23 @@ export async function submitSponsoredTransaction(
     `UPDATE daily_proof_jobs
      SET status = ?1, sponsor_transaction_id = ?2, block_height = ?3,
          sponsorship_completed_at = ?4, sponsor_lease_expires_at = NULL,
+         sponsor_stage = ?5, sponsor_reason_code = ?6, sponsor_stage_updated_at = ?4,
          last_error_code = NULL, updated_at = ?4
-     WHERE id = ?5 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?6`,
+     WHERE id = ?7 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?8`,
     [
       completedStatus,
       result.sponsorTransactionId,
       confirmedBlockHeight,
       completedAt,
+      completedStatus === 'confirmed' ? 'completed' : 'confirmation_waiting',
+      completedStatus === 'confirmed'
+        ? 'sponsor_transaction_confirmed'
+        : 'sponsor_transaction_submitted_waiting_for_confirmation',
       job.id,
       job.sponsor_serialized_sha256,
     ],
   );
-  if (updated !== 1) {
+  if (!sponsorClaimWasApplied(updated)) {
     const changed = await currentJob(env, job.id);
     if (!['submitted', 'confirmed'].includes(changed.status)) {
       throw new Error('Proof Job changed while the sponsored transaction was submitted');
@@ -757,7 +1002,7 @@ async function confirmReplayProtectedSponsorTransaction(
       evidence.transactionHash,
     ],
   );
-  if (updated !== 1) {
+  if (!sponsorClaimWasApplied(updated)) {
     const changed = await currentJob(env, job.id);
     if (
       changed.status !== 'confirmed'
@@ -816,16 +1061,14 @@ export async function releaseAlreadyAttestedSponsorReservation(
     bytes.byteLength !== job.sponsor_transaction_bytes
     || await sha256Hex(bytes) !== job.sponsor_serialized_sha256
   ) throw new Error('Already-attested Sponsor transaction artifact failed its integrity check');
-  const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/release', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'X-Sponsor-Contract-Address': contractAddress,
-      'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
-    },
-    body: bytes,
-    signal: AbortSignal.timeout(15 * 60_000),
-  }));
+  const response = await sponsorArtifactResponse(env, '/release', {
+    'X-Proof-Job-Id': job.id,
+    'X-Sponsor-Contract-Address': contractAddress,
+    'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
+    'X-Sponsor-Artifact-Key': objectKey,
+    'X-Sponsor-Artifact-Sha256': job.sponsor_serialized_sha256,
+    'X-Sponsor-Artifact-Bytes': String(bytes.byteLength),
+  });
   const released = await readSmallJson<SponsorRelease>(response);
   if (!released.released || released.serializedSha256 !== job.sponsor_serialized_sha256) {
     throw new Error('Sponsor Wallet returned an invalid already-attested release result');
@@ -839,11 +1082,16 @@ export async function releaseAlreadyAttestedSponsorReservation(
          sponsor_serialized_sha256 = NULL, sponsor_fee_specks = NULL,
          sponsor_transaction_bytes = NULL, sponsor_lease_expires_at = NULL,
          attest_tx_id = NULL, attest_tx_hash = NULL,
+         sponsor_stage = 'failed',
+         sponsor_reason_code = 'measurement_group_already_attested',
+         sponsor_stage_updated_at = ?1,
          last_error_code = 'measurement_group_already_attested', updated_at = ?1
      WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
     [updatedAt, job.id, job.sponsor_serialized_sha256],
   );
-  if (updated !== 1) throw new Error('Already-attested Sponsor reservation changed during release');
+  if (!sponsorClaimWasApplied(updated)) {
+    throw new Error('Already-attested Sponsor reservation changed during release');
+  }
   await env.SPONSOR_STATE.delete(objectKey);
   console.log(JSON.stringify({
     message: 'sponsor_wallet_already_attested_reservation_released',
@@ -874,16 +1122,14 @@ export async function releaseStaleSponsorReservationForReproof(
     bytes.byteLength !== job.sponsor_transaction_bytes
     || await sha256Hex(bytes) !== job.sponsor_serialized_sha256
   ) throw new Error('Stale Sponsor transaction artifact failed its integrity check');
-  const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/release', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'X-Sponsor-Contract-Address': contractAddress,
-      'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
-    },
-    body: bytes,
-    signal: AbortSignal.timeout(15 * 60_000),
-  }));
+  const response = await sponsorArtifactResponse(env, '/release', {
+    'X-Proof-Job-Id': job.id,
+    'X-Sponsor-Contract-Address': contractAddress,
+    'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
+    'X-Sponsor-Artifact-Key': sponsorObjectKey,
+    'X-Sponsor-Artifact-Sha256': job.sponsor_serialized_sha256,
+    'X-Sponsor-Artifact-Bytes': String(bytes.byteLength),
+  });
   const released = await readSmallJson<SponsorRelease>(response);
   if (!released.released || released.serializedSha256 !== job.sponsor_serialized_sha256) {
     throw new Error('Sponsor Wallet returned an invalid stale-transaction release result');
@@ -900,11 +1146,16 @@ export async function releaseStaleSponsorReservationForReproof(
          sponsor_transaction_bytes = NULL, sponsor_lease_expires_at = NULL,
          sponsorship_started_at = NULL, sponsorship_completed_at = NULL,
          attest_tx_id = NULL, attest_tx_hash = NULL,
+         sponsor_stage = 'reproof_required',
+         sponsor_reason_code = 'contract_state_changed_reproof_required',
+         sponsor_stage_updated_at = ?1,
          last_error_code = 'contract_state_changed_reproof_required', updated_at = ?1
      WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
     [updatedAt, job.id, job.sponsor_serialized_sha256],
   );
-  if (updated !== 1) throw new Error('Stale Sponsor reservation changed during release');
+  if (!sponsorClaimWasApplied(updated)) {
+    throw new Error('Stale Sponsor reservation changed during release');
+  }
   await env.SPONSOR_STATE.delete(sponsorObjectKey);
   if (deviceObjectKey) await env.SPONSOR_STATE.delete(deviceObjectKey);
   console.warn(JSON.stringify({
@@ -938,16 +1189,14 @@ export async function releaseExpiredSponsorReservation(
   let releasedAt: string | null = null;
   let releaseError: unknown;
   try {
-    const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/release', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-Sponsor-Contract-Address': contractAddress,
-        'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
-      },
-      body: bytes,
-      signal: AbortSignal.timeout(15 * 60_000),
-    }));
+    const response = await sponsorArtifactResponse(env, '/release', {
+      'X-Proof-Job-Id': job.id,
+      'X-Sponsor-Contract-Address': contractAddress,
+      'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
+      'X-Sponsor-Artifact-Key': objectKey,
+      'X-Sponsor-Artifact-Sha256': job.sponsor_serialized_sha256,
+      'X-Sponsor-Artifact-Bytes': String(bytes.byteLength),
+    });
     const released = await readSmallJson<SponsorRelease>(response);
     if (!released.released || released.serializedSha256 !== job.sponsor_serialized_sha256) {
       throw new Error('Sponsor Wallet returned an invalid expired-transaction release result');
@@ -971,11 +1220,16 @@ export async function releaseExpiredSponsorReservation(
          sponsor_lease_expires_at = NULL, sponsor_available_after = ?1,
          sponsorship_started_at = NULL, sponsorship_completed_at = NULL,
          attest_tx_id = NULL, attest_tx_hash = NULL,
+         sponsor_stage = 'queued',
+         sponsor_reason_code = 'sponsor_transaction_expired_reprepare',
+         sponsor_stage_updated_at = ?1,
          last_error_code = 'sponsor_transaction_expired_reprepare', updated_at = ?1
      WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
     [updatedAt, job.id, job.sponsor_serialized_sha256],
   );
-  if (updated !== 1) throw new Error('Expired Sponsor reservation changed during release');
+  if (!sponsorClaimWasApplied(updated)) {
+    throw new Error('Expired Sponsor reservation changed during release');
+  }
   await env.SPONSOR_STATE.delete(objectKey);
   const recoveryLog = JSON.stringify({
     message: releaseError
@@ -1014,16 +1268,14 @@ async function releaseContractUpgradeReservations(
     if (await sha256Hex(bytes) !== job.sponsor_serialized_sha256) {
       throw new Error(`Legacy Sponsor reservation artifact is corrupt for ${job.id}`);
     }
-    const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/release', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-Sponsor-Contract-Address': contractAddress,
-        'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
-      },
-      body: bytes,
-      signal: AbortSignal.timeout(15 * 60_000),
-    }));
+    const response = await sponsorArtifactResponse(env, '/release', {
+      'X-Proof-Job-Id': job.id,
+      'X-Sponsor-Contract-Address': contractAddress,
+      'X-Sponsor-Serialized-Sha256': job.sponsor_serialized_sha256,
+      'X-Sponsor-Artifact-Key': job.sponsor_transaction_object_key,
+      'X-Sponsor-Artifact-Sha256': job.sponsor_serialized_sha256,
+      'X-Sponsor-Artifact-Bytes': String(bytes.byteLength),
+    });
     const released = await readSmallJson<SponsorRelease>(response);
     if (!released.released || released.serializedSha256 !== job.sponsor_serialized_sha256) {
       throw new Error(`Sponsor Wallet returned an invalid release result for ${job.id}`);
@@ -1042,7 +1294,9 @@ async function releaseContractUpgradeReservations(
          AND sponsor_serialized_sha256 = ?3`,
       [updatedAt, job.id, job.sponsor_serialized_sha256],
     );
-    if (updated !== 1) throw new Error(`Legacy Sponsor reservation changed for ${job.id}`);
+    if (!sponsorClaimWasApplied(updated)) {
+      throw new Error(`Legacy Sponsor reservation changed for ${job.id}`);
+    }
     await env.SPONSOR_STATE.delete(job.sponsor_transaction_object_key);
     console.log(JSON.stringify({
       message: 'sponsor_wallet_legacy_reservation_released',
@@ -1124,7 +1378,9 @@ export async function sponsorProofTransaction(
       `UPDATE daily_proof_jobs
        SET status = 'awaiting_sponsor', device_transaction_object_key = ?1,
            device_transaction_hash = ?2, device_transaction_bytes = ?3,
-           sponsor_available_after = ?4, last_error_code = NULL, updated_at = ?4
+           sponsor_available_after = ?4, sponsor_stage = 'queued',
+           sponsor_reason_code = 'sponsor_queue_waiting', sponsor_stage_updated_at = ?4,
+           last_error_code = NULL, updated_at = ?4
        WHERE id = ?5 AND status IN ('proof_ready', 'reproof_required')
          AND device_transaction_hash IS NULL`,
       [objectKey, deviceTransactionHash, bytes.byteLength, acceptedAt, job.id],
@@ -1177,10 +1433,20 @@ async function deferSponsorJob(
   await createSqlDatabase(env).execute(
     `UPDATE daily_proof_jobs
      SET sponsor_available_after = ?1, sponsor_lease_expires_at = NULL,
-         last_error_code = ?2, updated_at = ?3
+         sponsor_stage = 'retry_wait', sponsor_reason_code = ?2,
+         sponsor_stage_updated_at = ?3, last_error_code = ?2, updated_at = ?3
      WHERE id = ?4 AND status = ?5`,
     [retryAt, errorCode, now, job.id, job.status],
   );
+}
+
+function sponsorQueueCanProcess(job: ProofJobRow): boolean {
+  return ['awaiting_sponsor', 'sponsor_retryable', 'sponsored'].includes(job.status)
+    || (
+      job.status === 'device_bound'
+      && job.device_transaction_object_key !== null
+      && job.device_transaction_hash !== null
+    );
 }
 
 async function processSponsorQueueMessage(message: Message<unknown>, env: Env): Promise<void> {
@@ -1194,6 +1460,14 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
     message.ack();
     return;
   }
+  const queueOperationId = crypto.randomUUID();
+  const queueStartedAt = performance.now();
+  console.log(JSON.stringify({
+    message: 'sponsor_queue_job_started',
+    proofJobId: message.body.proofJobId,
+    queueOperationId,
+    deliveryAttempt: message.attempts,
+  }));
   const database = createSqlDatabase(env);
   let job = await database.first<ProofJobRow>(
     'SELECT * FROM daily_proof_jobs WHERE id = ?1',
@@ -1208,14 +1482,15 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
     await database.execute(
       `UPDATE daily_proof_jobs
        SET status = 'sponsor_retryable', sponsor_lease_expires_at = NULL,
-           sponsor_available_after = ?1, last_error_code = 'sponsor_prepare_interrupted',
-           updated_at = ?1
+           sponsor_available_after = ?1, sponsor_stage = 'retry_wait',
+           sponsor_reason_code = 'sponsor_worker_interrupted', sponsor_stage_updated_at = ?1,
+           last_error_code = 'sponsor_prepare_interrupted', updated_at = ?1
        WHERE id = ?2 AND status = 'sponsoring' AND updated_at = ?3`,
       [recoveredAt, job.id, job.updated_at],
     );
     job = await currentJob(env, job.id);
   }
-  if (!['awaiting_sponsor', 'sponsor_retryable', 'sponsored'].includes(job.status)) {
+  if (!sponsorQueueCanProcess(job)) {
     message.ack();
     return;
   }
@@ -1243,7 +1518,6 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
         return;
       }
     }
-    const health = await sponsorWalletHealth(env);
     const contractAddress = normalizedContractAddress(env.PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS);
     if (!contractAddress) throw new Error('Sponsor contract policy is not configured');
     if (job.status === 'sponsored' && job.sponsor_transaction_object_key) {
@@ -1251,22 +1525,46 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
       if (!sponsoredObject) throw new Error('Sponsored transaction artifact was not found');
       if (sponsorTransactionNeedsRefresh(sponsoredObject.uploaded)) {
         job = await releaseExpiredSponsorReservation(env, job, contractAddress);
+        await enqueueSponsorJob(env, job.id);
+        console.log(JSON.stringify({
+          message: 'sponsor_queue_expired_reservation_requeued',
+          proofJobId: job.id,
+          queueOperationId,
+        }));
+        message.ack();
+        return;
       }
-    }
-    if (!sponsorJobCanProceed(job.status, health)) {
-      await deferSponsorJob(env, job, 'sponsor_wallet_not_ready');
-      message.ack();
-      return;
     }
     if (job.status !== 'sponsored') {
       if (!job.device_transaction_object_key || !job.device_transaction_hash) {
         throw new Error('Accepted Device transaction artifact is missing');
       }
-      const object = await env.SPONSOR_STATE.get(job.device_transaction_object_key);
-      if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
-        throw new Error('Accepted Device transaction artifact was not found');
-      }
-      const bytes = new Uint8Array(await object.arrayBuffer());
+      const artifactStartedAt = performance.now();
+      console.log(JSON.stringify({
+        message: 'sponsor_device_artifact_read_started',
+        proofJobId: job.id,
+        queueOperationId,
+        timeoutMs: sponsorArtifactTimeoutMs,
+      }));
+      const deviceTransactionObjectKey = job.device_transaction_object_key;
+      const bytes = await withSponsorOperationTimeout(
+        sponsorArtifactTimeoutMs,
+        'sponsor_device_artifact_timeout',
+        async () => {
+          const object = await env.SPONSOR_STATE.get(deviceTransactionObjectKey);
+          if (!object || object.size <= 0 || object.size > maxTransactionBytes) {
+            throw new Error('Accepted Device transaction artifact was not found');
+          }
+          return new Uint8Array(await object.arrayBuffer());
+        },
+      );
+      console.log(JSON.stringify({
+        message: 'sponsor_device_artifact_read_completed',
+        proofJobId: job.id,
+        queueOperationId,
+        durationMs: Math.round(performance.now() - artifactStartedAt),
+        bytes: bytes.byteLength,
+      }));
       if (
         bytes.byteLength !== job.device_transaction_bytes
         || await sha256Hex(bytes) !== job.device_transaction_hash
@@ -1277,13 +1575,29 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
         contractAddress,
         bytes,
         job.device_transaction_hash,
+        queueOperationId,
       );
+      if (job.status === 'sponsored') {
+        // A Queue invocation performs at most one state-changing Container DO
+        // call. A fresh delivery submits the immutable prepared transaction.
+        await enqueueSponsorJob(env, job.id);
+        console.log(JSON.stringify({
+          message: 'sponsor_queue_prepared_transaction_requeued',
+          proofJobId: job.id,
+          queueOperationId,
+          sponsorAttemptCount: job.sponsor_attempt_count,
+          durationMs: Math.round(performance.now() - queueStartedAt),
+        }));
+        message.ack();
+        return;
+      }
     }
     if (job.status === 'sponsored') {
       try {
-        job = await submitSponsoredTransaction(env, job, contractAddress);
+        job = await submitSponsoredTransaction(env, job, contractAddress, queueOperationId);
       } catch (error) {
         const submissionError = errorMessage(error);
+        await logSponsorRuntimeDiagnostics(env, queueOperationId);
         if (sponsorSubmissionIsReplayProtectionViolation(submissionError)) {
           const reconciled = await confirmReplayProtectedSponsorTransaction(env, job);
           if (!reconciled) throw error;
@@ -1311,7 +1625,9 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
     console.log(JSON.stringify({
       message: 'sponsor_queue_job_submitted',
       proofJobId: job.id,
+      queueOperationId,
       sponsorAttemptCount: job.sponsor_attempt_count,
+      durationMs: Math.round(performance.now() - queueStartedAt),
     }));
     message.ack();
   } catch (error) {
@@ -1319,6 +1635,8 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
       console.log(JSON.stringify({
         message: 'sponsor_queue_duplicate_ignored',
         proofJobId: job.id,
+        queueOperationId,
+        durationMs: Math.round(performance.now() - queueStartedAt),
       }));
       message.ack();
       return;
@@ -1328,19 +1646,23 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
       await deferSponsorJob(env, changed, 'sponsor_submit_failed');
     } else if (changed.status === 'sponsoring') {
       const retryAt = new Date(Date.now() + sponsorRetryDelayMs).toISOString();
+      const retryStatus = job.status === 'device_bound' ? 'device_bound' : 'sponsor_retryable';
       await database.execute(
         `UPDATE daily_proof_jobs
-         SET status = 'sponsor_retryable', sponsor_available_after = ?1,
-             sponsor_lease_expires_at = NULL, last_error_code = 'sponsor_processing_failed',
-             updated_at = ?2
-         WHERE id = ?3 AND status = 'sponsoring'`,
-        [retryAt, new Date().toISOString(), changed.id],
+         SET status = ?1, sponsor_available_after = ?2,
+             sponsor_lease_expires_at = NULL, sponsor_stage = 'retry_wait',
+             sponsor_reason_code = 'sponsor_processing_failed', sponsor_stage_updated_at = ?3,
+             last_error_code = 'sponsor_processing_failed', updated_at = ?3
+         WHERE id = ?4 AND status = 'sponsoring'`,
+        [retryStatus, retryAt, new Date().toISOString(), changed.id],
       );
     }
     console.error(JSON.stringify({
       message: 'sponsor_queue_job_failed',
       proofJobId: job.id,
+      queueOperationId,
       attempt: message.attempts,
+      durationMs: Math.round(performance.now() - queueStartedAt),
       errorName: error instanceof Error ? error.name : 'UnknownError',
       errorMessage: errorMessage(error),
     }));
@@ -1351,9 +1673,64 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
 export async function dispatchSponsorJobs(env: Env, scheduledTime: number): Promise<void> {
   const database = createSqlDatabase(env);
   const nowIso = new Date(scheduledTime).toISOString();
+  const checkpointWatchdogCutoff = new Date(
+    scheduledTime - sponsorCheckpointWatchdogMs,
+  ).toISOString();
+  const queueLimitLeaseCutoff = new Date(
+    scheduledTime + sponsorLeaseMs - sponsorQueueWallTimeMs,
+  ).toISOString();
+  const safeRecoveryLeaseCutoff = new Date(
+    scheduledTime - (sponsorSafeRecoveryMs - sponsorLeaseMs),
+  ).toISOString();
+  await database.execute(
+    `UPDATE daily_proof_jobs
+     SET status = 'sponsor_retryable', sponsor_lease_expires_at = NULL,
+         sponsor_available_after = ?1, sponsor_stage = 'retry_wait',
+         sponsor_reason_code = 'sponsor_pre_dust_worker_interrupted',
+         sponsor_stage_updated_at = ?1,
+         last_error_code = 'sponsor_pre_dust_worker_interrupted', updated_at = ?1
+     WHERE status = 'sponsoring'
+       AND sponsor_stage IN ('wallet_checking', 'checkpoint_persisting', 'checkpoint_preserving')
+       AND sponsor_stage_updated_at <= ?2
+       AND sponsor_transaction_object_key IS NULL
+       AND sponsor_serialized_sha256 IS NULL AND sponsor_transaction_id IS NULL
+       AND sponsor_fee_specks IS NULL AND sponsor_transaction_bytes IS NULL
+       AND sponsorship_completed_at IS NULL AND attest_tx_id IS NULL AND attest_tx_hash IS NULL`,
+    [nowIso, checkpointWatchdogCutoff],
+  );
+  await database.execute(
+    `UPDATE daily_proof_jobs
+     SET sponsor_stage = 'interrupted',
+         sponsor_reason_code = 'sponsor_queue_wall_time_exceeded_waiting_for_safe_retry',
+         sponsor_stage_updated_at = ?1, updated_at = ?1
+     WHERE status = 'sponsoring' AND sponsor_lease_expires_at <= ?2
+       AND (sponsor_stage IS NULL OR sponsor_stage != 'interrupted')
+       AND sponsor_transaction_object_key IS NULL`,
+    [nowIso, queueLimitLeaseCutoff],
+  );
+  await database.execute(
+    `UPDATE daily_proof_jobs
+     SET status = 'sponsor_retryable', sponsor_lease_expires_at = NULL,
+         sponsor_available_after = ?1, sponsor_stage = 'retry_wait',
+         sponsor_reason_code = 'sponsor_worker_interrupted', sponsor_stage_updated_at = ?1,
+         last_error_code = 'sponsor_prepare_interrupted', updated_at = ?1
+     WHERE status = 'sponsoring' AND sponsor_lease_expires_at <= ?2
+       AND sponsor_transaction_object_key IS NULL
+       AND sponsor_serialized_sha256 IS NULL AND sponsor_transaction_id IS NULL
+       AND sponsor_fee_specks IS NULL AND sponsor_transaction_bytes IS NULL
+       AND sponsorship_completed_at IS NULL AND attest_tx_id IS NULL AND attest_tx_hash IS NULL`,
+    [nowIso, safeRecoveryLeaseCutoff],
+  );
   const jobs = await database.all<{ id: string }>(
     `SELECT id FROM daily_proof_jobs
-     WHERE status IN ('awaiting_sponsor', 'sponsor_retryable', 'sponsored')
+     WHERE (
+         status IN ('awaiting_sponsor', 'sponsor_retryable', 'sponsored')
+         OR (
+           status = 'device_bound'
+           AND device_transaction_object_key IS NOT NULL
+           AND device_transaction_hash IS NOT NULL
+         )
+       )
        AND sponsor_available_after <= ?1
      ORDER BY sponsor_available_after ASC, created_at ASC LIMIT 16`,
     [nowIso],
@@ -1379,11 +1756,63 @@ export async function handleSponsorQueue(
     batch.retryAll({ delaySeconds: 60 });
     return;
   }
+  if (typeof env.SPONSOR_WALLET.getByName === 'function') {
+    for (const message of batch.messages) {
+      if (isSponsorQueueMessage(message.body)) {
+        console.log(JSON.stringify({
+          message: 'sponsor_queue_job_admitted',
+          proofJobId: message.body.proofJobId,
+          deliveryAttempt: message.attempts,
+        }));
+      }
+      message.ack();
+    }
+    return;
+  }
   for (const message of batch.messages) await processSponsorQueueMessage(message, env);
 }
 
-export async function warmSponsorWallet(env: Env): Promise<void> {
-  if (!env.SPONSOR_WALLET_SEED?.trim()) return;
+export async function processNextSponsorJob(env: Env, scheduledTime: number): Promise<void> {
+  const nowIso = new Date(scheduledTime).toISOString();
+  const job = await createSqlDatabase(env).first<{ id: string }>(
+    `SELECT id FROM daily_proof_jobs
+     WHERE (
+         status IN ('awaiting_sponsor', 'sponsor_retryable', 'sponsored')
+         OR (
+           status = 'device_bound'
+           AND device_transaction_object_key IS NOT NULL
+           AND device_transaction_hash IS NOT NULL
+         )
+       )
+       AND sponsor_available_after <= ?1
+     ORDER BY sponsor_available_after ASC, created_at ASC LIMIT 1`,
+    [nowIso],
+  );
+  if (!job) return;
+  let acknowledged = false;
+  const message = {
+    body: { kind: 'sponsor-transaction', proofJobId: job.id },
+    attempts: 1,
+    ack() { acknowledged = true; },
+    retry() {},
+  } as unknown as Message<unknown>;
+  console.log(JSON.stringify({
+    message: 'sponsor_scheduled_job_started',
+    proofJobId: job.id,
+    scheduledTime,
+  }));
+  await processSponsorQueueMessage(message, env);
+  console.log(JSON.stringify({
+    message: 'sponsor_scheduled_job_completed',
+    proofJobId: job.id,
+    acknowledged,
+  }));
+}
+
+export async function warmSponsorWallet(env: Env): Promise<SponsorWalletWarmupResult> {
+  if (!env.SPONSOR_WALLET_SEED?.trim()) {
+    return { health: null, errorCode: 'sponsor_wallet_not_configured' };
+  }
   const warmupId = crypto.randomUUID();
   const startedAt = performance.now();
   console.log(JSON.stringify({
@@ -1394,7 +1823,9 @@ export async function warmSponsorWallet(env: Env): Promise<void> {
     const status = await sponsorWalletHealth(env);
     const contractAddress = normalizedContractAddress(env.PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS);
     if (contractAddress) await releaseContractUpgradeReservations(env, contractAddress);
-    if (await replayInconsistentSponsorDustState(env, status)) return;
+    if (await replayInconsistentSponsorDustState(env, status)) {
+      return { health: status, errorCode: null };
+    }
     console.log(JSON.stringify({
       message: 'sponsor_wallet_warmup',
       warmupId,
@@ -1423,11 +1854,10 @@ export async function warmSponsorWallet(env: Env): Promise<void> {
     if (status.progress !== null) {
       const active = await createSqlDatabase(env).first<{ active_count: number }>(
         `SELECT COUNT(*) AS active_count FROM daily_proof_jobs
-         WHERE status IN ('sponsoring', 'sponsored')
-           AND sponsor_transaction_object_key IS NOT NULL`,
+         WHERE status IN ('sponsor_retryable', 'sponsoring', 'sponsored')`,
       );
       const activeReservations = Number(active?.active_count ?? 0);
-      if (status.phase === 'ready' || activeReservations === 0) {
+      if (activeReservations === 0) {
         await persistSponsorCheckpointIfStale(env, status);
       } else {
         console.log(JSON.stringify({
@@ -1435,8 +1865,23 @@ export async function warmSponsorWallet(env: Env): Promise<void> {
           activeReservations,
           phase: status.phase,
         }));
+        const preparing = await createSqlDatabase(env).first<{
+          oldest_stage_updated_at: string | null;
+        }>(
+          `SELECT MIN(sponsor_stage_updated_at) AS oldest_stage_updated_at
+           FROM daily_proof_jobs
+           WHERE status = 'sponsoring' AND sponsor_stage = 'transaction_preparing'`,
+        );
+        const oldestStageUpdatedAt = preparing?.oldest_stage_updated_at ?? null;
+        if (
+          oldestStageUpdatedAt
+          && Date.now() - Date.parse(oldestStageUpdatedAt) >= 30_000
+        ) {
+          await logSponsorRuntimeDiagnostics(env, warmupId);
+        }
       }
     }
+    return { health: status, errorCode: null };
   } catch (error) {
     const message = errorMessage(error);
     const errorCode = message.includes('Maximum number of running container instances exceeded')
@@ -1455,5 +1900,6 @@ export async function warmSponsorWallet(env: Env): Promise<void> {
     if (message.toLowerCase().includes('timeout')) {
       await logSponsorRuntimeDiagnostics(env, warmupId);
     }
+    return { health: null, errorCode };
   }
 }

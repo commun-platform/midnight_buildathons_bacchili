@@ -479,18 +479,12 @@ export class SponsorWalletRuntime {
       totalDustCoins: before.totalDustCoins,
       pendingDustCoins: before.pendingDustCoins,
     });
+    // WalletFacade.revert() is the SDK's authoritative rollback operation. It
+    // resolves only after every sub-wallet has reverted the transaction and
+    // the pending-transaction entry has been cleared. The number of available
+    // DUST coins is not a valid completion signal: a balanced transaction can
+    // keep the same visible coin count before and after rollback.
     await this.wallet.revert(transaction);
-    await Rx.firstValueFrom(
-      this.wallet.state().pipe(
-        Rx.filter((state) => state.dust.availableCoins.length > before.spendableDustCoins),
-        Rx.timeout({
-          first: 30_000,
-          with: () => Rx.throwError(() => new Error(
-            'Sponsor Wallet DUST reservation was not released into spendable state',
-          )),
-        }),
-      ),
-    );
     const after = this.status();
     diagnosticLog('sponsor_wallet_prepared_release_completed', {
       phase: this.#phase,

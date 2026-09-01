@@ -2,6 +2,7 @@ const allowedMethods = ['GET', 'HEAD', 'POST', 'OPTIONS'] as const;
 const allowedRequestHeaders = new Set([
   'authorization',
   'content-type',
+  'x-client-operation-id',
   'x-proof-job-id',
   'x-provisioning-token',
 ]);

@@ -449,6 +449,13 @@ function anomalyEventView(row: AnomalyEventRow) {
 }
 
 export function proofJobView(row: ProofJobRow) {
+  const sponsorStageUpdatedAt = row.sponsor_stage_updated_at ?? null;
+  const sponsorStageAgeSeconds = sponsorStageUpdatedAt === null
+    ? null
+    : Math.max(0, Math.floor((Date.now() - Date.parse(sponsorStageUpdatedAt)) / 1_000));
+  const interruptedRetryAt = row.sponsor_stage === 'interrupted' && row.sponsor_lease_expires_at
+    ? new Date(Date.parse(row.sponsor_lease_expires_at) - 4 * 60_000).toISOString()
+    : null;
   return {
     proofJobId: row.id,
     projectId: row.project_id,
@@ -479,6 +486,17 @@ export function proofJobView(row: ProofJobRow) {
     sponsorFeeSpecks: row.sponsor_fee_specks,
     sponsorTransactionBytes: row.sponsor_transaction_bytes,
     sponsorAttemptCount: row.sponsor_attempt_count,
+    sponsorStage: row.sponsor_stage ?? null,
+    sponsorReasonCode: row.sponsor_reason_code ?? null,
+    sponsorStageUpdatedAt,
+    sponsorStageAgeSeconds,
+    sponsorNextRetryAt: row.status === 'sponsor_retryable'
+      ? row.sponsor_available_after
+      : interruptedRetryAt,
+    sponsorLeaseExpiresAt: row.sponsor_lease_expires_at,
+    sponsorStalled: row.sponsor_stage === 'interrupted'
+      || (row.status === 'sponsoring' && sponsorStageAgeSeconds !== null
+        && sponsorStageAgeSeconds >= 15 * 60),
     sponsorshipStartedAt: row.sponsorship_started_at,
     sponsorshipCompletedAt: row.sponsorship_completed_at,
     attestTxId: row.attest_tx_id,
@@ -811,7 +829,7 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     ) {
       return json(409, { error: 'proofJobId conflicts with another Proof Job' });
     }
-    return json(changes === 1 ? 202 : 200, {
+    return json(changes > 0 ? 202 : 200, {
       accepted: true,
       idempotent: changes === 0,
       job: proofJobView(job),
