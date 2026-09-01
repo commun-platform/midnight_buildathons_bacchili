@@ -35,6 +35,10 @@ import {
   type BrowserDailyCapture,
   type DailyGenerationMode,
 } from './daily-captures.js';
+import {
+  isWalletConnectionLost,
+  walletConnectionFailureStage,
+} from './wallet-compatibility.js';
 
 export interface DevicePolicy extends ThresholdPolicyDescriptor {
   name: string;
@@ -402,6 +406,10 @@ function requireCaptured(): BrowserDailyCapture {
   return captured;
 }
 
+function clientOperationId(action: string): string {
+  return `${action}-${crypto.randomUUID()}`;
+}
+
 export async function loadConfiguration(
   projectId?: string,
   accessToken?: string,
@@ -437,27 +445,34 @@ export async function connectWallet(walletId?: string): Promise<Omit<
   configuration: ProvisioningConfiguration;
 }> {
   const bootstrap = requireConfiguration();
-  const challenge = await jsonResponse<{
+  const operationId = clientOperationId('wallet-connect');
+  const timestamp = new Date().toISOString();
+  const challengePromise = fetch(endpoint(bootstrap.serviceUrl, '/api/v1/projects/challenge'), {
+    method: 'POST',
+    headers: { 'X-Client-Operation-Id': operationId },
+    signal: AbortSignal.timeout(15_000),
+  }).then((response) => jsonResponse<{
     network: 'preprod';
     challengeId: string;
     nonce: string;
     expiresAt: string;
-  }>(await fetch(endpoint(bootstrap.serviceUrl, '/api/v1/projects/challenge'), {
-    method: 'POST',
-    signal: AbortSignal.timeout(15_000),
-  }), 'Wallet Project challenge');
-  const timestamp = new Date().toISOString();
-  const canonical = browserProjectCanonicalMessage({
+  }>(response, 'Wallet Project challenge'));
+  const canonicalPromise = challengePromise.then((challenge) => browserProjectCanonicalMessage({
     challengeId: challenge.challengeId,
     nonce: challenge.nonce,
     timestamp,
-  });
-  wallet = await connectBrowserWallet(challenge.network, walletId, canonical);
+  }));
+  const walletPromise = connectBrowserWallet(bootstrap.network, walletId, canonicalPromise);
+  const [challenge, connectedWallet] = await Promise.all([challengePromise, walletPromise]);
+  wallet = connectedWallet;
   const session = await jsonResponse<BrowserProjectSession>(await fetch(
     endpoint(bootstrap.serviceUrl, '/api/v1/projects/session'),
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-Operation-Id': operationId,
+      },
       body: JSON.stringify({
         challengeId: challenge.challengeId,
         nonce: challenge.nonce,
@@ -493,6 +508,15 @@ export async function connectWallet(walletId?: string): Promise<Omit<
   };
 }
 
+export function resetWalletConnection(): void {
+  wallet = null;
+  projectSessionToken = '';
+  projects = [];
+  identity = null;
+  provisioned = null;
+  captured = null;
+}
+
 export async function selectProject(projectId: string): Promise<{
   deviceId: string;
   configuration: ProvisioningConfiguration;
@@ -521,6 +545,7 @@ export async function createProject(name: string): Promise<{
   configuration: ProvisioningConfiguration;
 }> {
   const config = requireConfiguration();
+  const operationId = clientOperationId('project-create');
   if (!projectSessionToken) throw new Error('Connect a Midnight Wallet first');
   const created = await jsonResponse<{
     project: BrowserProject;
@@ -531,6 +556,7 @@ export async function createProject(name: string): Promise<{
     headers: {
       Authorization: `Bearer ${projectSessionToken}`,
       'Content-Type': 'application/json',
+      'X-Client-Operation-Id': operationId,
     },
     body: JSON.stringify({ name }),
     signal: AbortSignal.timeout(15_000),
@@ -577,6 +603,7 @@ export async function createPolicy(input: {
   maximum: number | null;
 }): Promise<BrowserPolicyOperation> {
   const config = requireConfiguration();
+  const operationId = clientOperationId('policy-create');
   const currentWallet = requireWallet();
   if (!projectSessionToken) throw new Error('Connect a Midnight Wallet first');
   const challenge = await jsonResponse<{
@@ -590,6 +617,7 @@ export async function createPolicy(input: {
     headers: {
       Authorization: `Bearer ${projectSessionToken}`,
       'Content-Type': 'application/json',
+      'X-Client-Operation-Id': operationId,
     },
     body: JSON.stringify({ projectId: config.projectId }),
     signal: AbortSignal.timeout(15_000),
@@ -611,9 +639,6 @@ export async function createPolicy(input: {
       `Connected Wallet ${currentWallet.walletName} API ${currentWallet.walletApiVersion} does not support signData`,
     );
   }
-  if (typeof currentWallet.api.hintUsage === 'function') {
-    await currentWallet.api.hintUsage(['signData']);
-  }
   const walletSignature = await currentWallet.api.signData(canonical, {
     encoding: 'text',
     keyType: 'unshielded',
@@ -625,6 +650,7 @@ export async function createPolicy(input: {
       headers: {
         Authorization: `Bearer ${projectSessionToken}`,
         'Content-Type': 'application/json',
+        'X-Client-Operation-Id': operationId,
       },
       body: JSON.stringify({ ...authorization, walletSignature }),
       signal: AbortSignal.timeout(15_000),
@@ -737,6 +763,7 @@ export async function registerDevice(input: {
   policyId: string;
 }, onProgress?: (progress: ProvisioningProgress) => void): Promise<ProvisionedDevice | null> {
   const config = requireConfiguration();
+  const operationId = clientOperationId('device-register');
   const currentIdentity = requireIdentity();
   const currentWallet = requireWallet();
   const policy = selectedPolicy(input.policyId);
@@ -752,6 +779,7 @@ export async function registerDevice(input: {
     headers: {
       Authorization: `Bearer ${projectSessionToken}`,
       'Content-Type': 'application/json',
+      'X-Client-Operation-Id': operationId,
     },
     body: JSON.stringify({
       deviceId: currentIdentity.deviceId,
@@ -778,9 +806,6 @@ export async function registerDevice(input: {
       `Connected Wallet ${currentWallet.walletName} API ${currentWallet.walletApiVersion} does not support signData`,
     );
   }
-  if (typeof currentWallet.api.hintUsage === 'function') {
-    await currentWallet.api.hintUsage(['signData']);
-  }
   onProgress?.({ stage: 'wallet_signature_requested', status: 'running' });
   const walletSignature = await currentWallet.api.signData(canonical, {
     encoding: 'text',
@@ -794,6 +819,7 @@ export async function registerDevice(input: {
       headers: {
         Authorization: `Bearer ${projectSessionToken}`,
         'Content-Type': 'application/json',
+        'X-Client-Operation-Id': operationId,
       },
       body: JSON.stringify({
         enrollment,
@@ -902,17 +928,23 @@ export async function resumePendingDeviceRegistration(
   return provisioned;
 }
 
-async function authenticatedHeaders(scope: Parameters<typeof deviceSession>[2]): Promise<Record<string, string>> {
+async function authenticatedHeaders(
+  scope: Parameters<typeof deviceSession>[2],
+  operationId?: string,
+): Promise<Record<string, string>> {
   const config = requireConfiguration();
-  const session = await deviceSession(config.serviceUrl, requireIdentity(), scope);
-  return { Authorization: `Bearer ${session.accessToken}` };
+  const session = await deviceSession(config.serviceUrl, requireIdentity(), scope, operationId);
+  return {
+    Authorization: `Bearer ${session.accessToken}`,
+    ...(operationId ? { 'X-Client-Operation-Id': operationId } : {}),
+  };
 }
 
-async function uploadDailyCapture(capture: BrowserDailyCapture): Promise<void> {
+async function uploadDailyCapture(capture: BrowserDailyCapture, operationId: string): Promise<void> {
   const config = requireConfiguration();
   const device = requireProvisioned();
   const policy = selectedPolicy(device.policyId);
-  const headers = await authenticatedHeaders('measurement:write');
+  const headers = await authenticatedHeaders('measurement:write', operationId);
   for (const window of capture.windows) {
     await jsonResponse(await fetch(endpoint(config.serviceUrl, '/api/v1/measurement-windows'), {
       method: 'POST',
@@ -935,7 +967,7 @@ async function uploadDailyCapture(capture: BrowserDailyCapture): Promise<void> {
       signal: AbortSignal.timeout(15_000),
     }), `Measurement upload (${window.hourIndex}:00 JST)`);
   }
-  const anomalyHeaders = await authenticatedHeaders('anomaly:write');
+  const anomalyHeaders = await authenticatedHeaders('anomaly:write', operationId);
   let anomalyOpen = false;
   for (const window of [...capture.windows].sort((left, right) => left.hourIndex - right.hourIndex)) {
     const outside = (
@@ -972,6 +1004,7 @@ export async function generateDailyMeasurements(input: {
   mode: DailyGenerationMode;
 }): Promise<BrowserDailyCapture> {
   const config = requireConfiguration();
+  const operationId = clientOperationId('measurement-day');
   const device = requireProvisioned();
   const policy = selectedPolicy(device.policyId);
   validateDailyGenerationDate(input.periodDate);
@@ -986,7 +1019,7 @@ export async function generateDailyMeasurements(input: {
     mode: input.mode,
   });
   if (existing !== captured) await storeDailyCapture(captured);
-  await uploadDailyCapture(captured);
+  await uploadDailyCapture(captured, operationId);
   return captured;
 }
 
@@ -1062,12 +1095,13 @@ export async function requestProof(input: {
   periodDate?: string;
 } = {}): Promise<ProofJob> {
   const config = requireConfiguration();
+  const operationId = clientOperationId('proof-request');
   const device = requireProvisioned();
   if (input.periodDate) await selectDailyCapture(input.periodDate);
   const measurement = requireCaptured();
   if (!measurement.completeDay) throw new Error('The selected JST day is still in progress');
   const publicData = measurement.attestation.publicData;
-  const headers = await authenticatedHeaders('proof:request');
+  const headers = await authenticatedHeaders('proof:request', operationId);
   let job = (await jsonResponse<{ job: ProofJob }>(await fetch(
     endpoint(config.serviceUrl, '/api/v1/proof-jobs'),
     {
@@ -1122,12 +1156,13 @@ export async function proveAndSubmit(
   periodDate?: string,
 ): Promise<BrowserSubmissionResult> {
   const config = requireConfiguration();
+  const operationId = clientOperationId('proof-submit');
   const device = requireProvisioned();
   if (periodDate) await selectDailyCapture(periodDate);
   const measurement = requireCaptured();
   if (!measurement.completeDay) throw new Error('The selected JST day is still in progress');
   const currentWallet = requireWallet();
-  const proofHeaders = await authenticatedHeaders('proof:generate');
+  const proofHeaders = await authenticatedHeaders('proof:generate', operationId);
   const accessToken = proofHeaders.Authorization?.replace(/^Bearer\s+/u, '');
   if (!accessToken) throw new Error('Device proof session was not issued');
   let result: Awaited<ReturnType<typeof submitBrowserAttestation>> | undefined;
@@ -1139,6 +1174,7 @@ export async function proveAndSubmit(
         zkArtifactsUrl: window.location.origin,
         contractAddress: config.contractAddress,
         accessToken,
+        clientOperationId: operationId,
         proofJobId: measurement.proofJobId,
         deviceSecretHex: requireIdentity().deviceSecretHex,
         attestation: measurement.attestation,
@@ -1153,7 +1189,7 @@ export async function proveAndSubmit(
         continue;
       }
       if (!detail.includes('measurement group already attested')) throw error;
-      const headers = await authenticatedHeaders('transaction:submit');
+      const headers = await authenticatedHeaders('transaction:submit', operationId);
       await jsonResponse(await fetch(
         endpoint(config.serviceUrl, `/api/v1/proof-jobs/${encodeURIComponent(measurement.proofJobId)}/result`),
         {
@@ -1170,7 +1206,7 @@ export async function proveAndSubmit(
     }
   }
   if (!result) throw new Error('Device transaction retry did not return a result');
-  const headers = await authenticatedHeaders('transaction:submit');
+  const headers = await authenticatedHeaders('transaction:submit', operationId);
   await jsonResponse(await fetch(
     endpoint(config.serviceUrl, `/api/v1/proof-jobs/${encodeURIComponent(measurement.proofJobId)}/result`),
     {
@@ -1191,6 +1227,9 @@ export async function proveAndSubmit(
 
 export const browserDeviceFlow = {
   availableWallets,
+  isWalletConnectionLost,
+  walletConnectionFailureStage,
+  resetWalletConnection,
   loadConfiguration,
   connectWallet,
   selectProject,

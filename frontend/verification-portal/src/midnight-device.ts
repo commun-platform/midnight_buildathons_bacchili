@@ -66,6 +66,15 @@ export type SubmissionProgress =
   | 'proof-generated'
   | 'wallet-approval'
   | 'requesting-sponsorship'
+  | 'sponsor-queued'
+  | 'sponsor-wallet-checking'
+  | 'sponsor-wallet-syncing'
+  | 'sponsor-wallet-funding-required'
+  | 'sponsor-checkpointing'
+  | 'sponsor-pre-dust-retry'
+  | 'sponsor-preparing'
+  | 'sponsor-retry-wait'
+  | 'sponsor-interrupted'
   | 'transaction-sponsored'
   | 'submitting-transaction'
   | 'transaction-submitted'
@@ -131,42 +140,89 @@ export function availableWallets(): Array<{ id: string; name: string; apiVersion
   }));
 }
 
+export type WalletConnectionStage =
+  | 'authorization'
+  | 'connection-status'
+  | 'configuration'
+  | 'shielded-addresses'
+  | 'project-challenge'
+  | 'identity-signature';
+
+async function walletConnectionStep<T>(
+  stage: WalletConnectionStage,
+  wallet: { name: string; apiVersion: string },
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    throw Object.assign(
+      new Error(
+        `Midnight Wallet ${wallet.name} API ${wallet.apiVersion} failed during ${stage}: ${errorDetail(error)}`,
+        { cause: error },
+      ),
+      { walletConnectionStage: stage },
+    );
+  }
+}
+
 export async function connectBrowserWallet(
   networkId = 'preprod',
   walletId?: string,
-  identityMessage?: string,
+  identityMessage?: string | Promise<string>,
 ): Promise<BrowserWalletConnection> {
   const discovered = browserWallets();
   const selected = walletId
     ? discovered.find(({ key }) => key === walletId)
     : discovered.find(({ wallet }) => /^4\./u.test(wallet.apiVersion));
   if (!selected) throw new Error('DApp Connector API 4.x compatible Midnight Wallet was not found');
-  const api = await selected.wallet.connect(networkId);
-  const status = await api.getConnectionStatus();
-  if (status.status !== 'connected') throw new Error('Midnight Wallet connection was not authorized');
-  const [configuration, shieldedResponse] = await Promise.all([
-    api.getConfiguration(),
-    api.getShieldedAddresses(),
-  ]);
-  const shielded = requireWalletShieldedAddresses(shieldedResponse);
-  if (configuration.networkId.toLowerCase() !== networkId.toLowerCase()) {
-    throw new Error(`Wallet is connected to ${configuration.networkId}, expected ${networkId}`);
-  }
+  const api = await walletConnectionStep(
+    'authorization',
+    selected.wallet,
+    () => selected.wallet.connect(networkId),
+  );
+  await walletConnectionStep('connection-status', selected.wallet, async () => {
+    const status = await api.getConnectionStatus();
+    if (status.status !== 'connected') throw new Error('Midnight Wallet connection was not authorized');
+  });
+  const configuration = await walletConnectionStep(
+    'configuration',
+    selected.wallet,
+    async () => {
+      const value = await api.getConfiguration();
+      if (value.networkId.toLowerCase() !== networkId.toLowerCase()) {
+        throw new Error(`Wallet is connected to ${value.networkId}, expected ${networkId}`);
+      }
+      return value;
+    },
+  );
+  const shielded = await walletConnectionStep(
+    'shielded-addresses',
+    selected.wallet,
+    async () => requireWalletShieldedAddresses(await api.getShieldedAddresses()),
+  );
   if (typeof api.signData !== 'function') {
     throw new Error(
       `Connected Wallet ${selected.wallet.name} API ${selected.wallet.apiVersion} does not support signData`,
     );
   }
-  if (typeof api.hintUsage === 'function') await api.hintUsage(['signData']);
-  const walletIdentityMessage = identityMessage ?? [
-    'VSP-BROWSER-WALLET-IDENTITY-V1',
-    networkId.toLowerCase(),
-    configuration.networkId.toLowerCase(),
-  ].join('\n');
-  const walletIdentity = await api.signData(walletIdentityMessage, {
-    encoding: 'text',
-    keyType: 'unshielded',
-  });
+  const walletIdentityMessage = await walletConnectionStep(
+    'project-challenge',
+    selected.wallet,
+    async () => identityMessage ?? [
+      'VSP-BROWSER-WALLET-IDENTITY-V1',
+      networkId.toLowerCase(),
+      configuration.networkId.toLowerCase(),
+    ].join('\n'),
+  );
+  const walletIdentity = await walletConnectionStep(
+    'identity-signature',
+    selected.wallet,
+    () => api.signData(walletIdentityMessage, {
+      encoding: 'text',
+      keyType: 'unshielded',
+    }),
+  );
   if (
     walletIdentity.data !== walletIdentityMessage
     || typeof walletIdentity.verifyingKey !== 'string'
@@ -225,6 +281,13 @@ interface SponsorProofJobResponse {
     sponsorTransactionId: string | null;
     sponsorFeeSpecks: string | null;
     sponsorTransactionBytes: number | null;
+    sponsorStage: string | null;
+    sponsorReasonCode: string | null;
+    sponsorStageUpdatedAt: string | null;
+    sponsorStageAgeSeconds: number | null;
+    sponsorNextRetryAt: string | null;
+    sponsorLeaseExpiresAt: string | null;
+    sponsorStalled: boolean;
     sponsorshipStartedAt: string | null;
     sponsorshipCompletedAt: string | null;
     attestTxId: string | null;
@@ -261,18 +324,56 @@ async function waitForSponsoredTransaction(
   proofJobId: string,
   accessToken: string,
   deviceTransactionHash: string,
+  clientOperationId: string,
+  onProgress?: (progress: SubmissionProgress) => void,
 ): Promise<SponsoredTransactionResponse> {
-  const deadline = Date.now() + 30 * 60_000;
+  // A platform-interrupted Queue invocation is recovered after its safety lease.
+  // Keep the browser observer alive long enough to see that server-owned retry.
+  const deadline = Date.now() + 45 * 60_000;
   while (Date.now() < deadline) {
     const { job } = await sponsorResponse<SponsorProofJobResponse>(await fetch(serviceEndpoint(
       serviceUrl,
       `/api/v1/proof-jobs/${encodeURIComponent(proofJobId)}`,
     ), {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'X-Client-Operation-Id': clientOperationId,
+      },
       signal: AbortSignal.timeout(15_000),
     }));
     if (job.deviceTransactionHash && job.deviceTransactionHash !== deviceTransactionHash) {
       throw new Error('Proof Job is bound to another Device transaction');
+    }
+    if (job.sponsorStalled || job.sponsorStage === 'interrupted') {
+      onProgress?.('sponsor-interrupted');
+    } else if (job.sponsorReasonCode === 'sponsor_wallet_syncing') {
+      onProgress?.('sponsor-wallet-syncing');
+    } else if (job.sponsorReasonCode === 'sponsor_pre_dust_worker_interrupted') {
+      onProgress?.('sponsor-pre-dust-retry');
+    } else if (
+      job.sponsorReasonCode === 'sponsor_wallet_waiting_for_funding'
+      || job.sponsorReasonCode === 'sponsor_wallet_no_spendable_dust'
+    ) {
+      onProgress?.('sponsor-wallet-funding-required');
+    } else if (job.sponsorStage === 'queued') {
+      onProgress?.('sponsor-queued');
+    } else if (job.sponsorStage === 'wallet_checking') {
+      onProgress?.('sponsor-wallet-checking');
+    } else if (
+      job.sponsorStage === 'checkpoint_persisting'
+      || job.sponsorStage === 'checkpoint_preserving'
+    ) {
+      onProgress?.('sponsor-checkpointing');
+    } else if (job.sponsorStage === 'transaction_preparing') {
+      onProgress?.('sponsor-preparing');
+    } else if (job.sponsorStage === 'retry_wait') {
+      onProgress?.('sponsor-retry-wait');
+    } else if (job.sponsorStage === 'transaction_ready') {
+      onProgress?.('transaction-sponsored');
+    } else if (job.sponsorStage === 'transaction_submitting') {
+      onProgress?.('submitting-transaction');
+    } else if (job.sponsorStage === 'confirmation_waiting') {
+      onProgress?.('transaction-submitted');
     }
     if (
       job.status === 'reproof_required'
@@ -360,6 +461,7 @@ export async function submitBrowserAttestation(input: {
   zkArtifactsUrl: string;
   contractAddress: string;
   accessToken: string;
+  clientOperationId: string;
   proofJobId: string;
   deviceSecretHex: string;
   attestation: PreparedDailyExtremaAttestation;
@@ -393,6 +495,7 @@ export async function submitBrowserAttestation(input: {
       headers: {
         Authorization: `Bearer ${input.accessToken}`,
         'X-Proof-Job-Id': input.proofJobId,
+        'X-Client-Operation-Id': input.clientOperationId,
       },
     },
   );
@@ -458,6 +561,7 @@ export async function submitBrowserAttestation(input: {
         headers: {
           Authorization: `Bearer ${input.accessToken}`,
           'Content-Type': 'application/octet-stream',
+          'X-Client-Operation-Id': input.clientOperationId,
         },
         body: Uint8Array.from(serialized).buffer,
         signal: AbortSignal.timeout(60_000),
@@ -471,6 +575,8 @@ export async function submitBrowserAttestation(input: {
         input.proofJobId,
         input.accessToken,
         deviceTransactionHash,
+        input.clientOperationId,
+        notify,
       );
       notify('transaction-sponsored');
       notify('submitting-transaction');

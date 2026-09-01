@@ -98,6 +98,19 @@ describe('Midnight Wallet shell', () => {
     expect(deviceFlow).toContain("localStorage.getItem(`vsp-selected-project:${wallet.walletKeySha256}`)");
   });
 
+  it('starts Wallet authorization from the click task and recovers a closed connector channel', () => {
+    expect(script).toContain('const connectionPromise = loadedFlow?.connectWallet();');
+    expect(script).toContain('flow?.isWalletConnectionLost?.(error)');
+    expect(script).toContain('flow.resetWalletConnection();');
+    expect(script).toContain('walletConnectionFailureStage?.(error)');
+    expect(deviceFlow).toContain('const challengePromise = fetch(');
+    expect(deviceFlow).toContain('const walletPromise = connectBrowserWallet(');
+    expect(deviceFlow).toMatch(/const walletPromise = connectBrowserWallet[\s\S]*await Promise\.all/u);
+    expect(deviceFlow).toContain('resetWalletConnection');
+    expect(midnightDevice).toContain("'authorization'");
+    expect(midnightDevice).toContain("'identity-signature'");
+  });
+
   it('shows current normal/anomaly state without requiring an anomaly event', () => {
     expect(script).toContain("anomaly: '現在状態を取得（正常／異常）'");
     expect(script).toContain("anomalyStateNormal: '正常 — 発生中の異常なし'");
@@ -148,7 +161,8 @@ describe('Midnight Wallet shell', () => {
     expect(sponsorContainer).toContain('SponsorWalletContainer.outboundByHost =');
     expect(sponsorContainer).not.toContain('static outboundByHost');
     expect(sponsorContainer).toContain('async onActivityExpired(): Promise<void>');
-    expect(sponsorContainer).toContain('this.renewActivityTimeout()');
+    expect(sponsorContainer).toContain('await super.onActivityExpired()');
+    expect(sponsorContainer).not.toContain('this.renewActivityTimeout()');
     expect(sponsorContainer).not.toContain('await this.stop()');
     expect(sponsorContainer).not.toContain('await this.destroy()');
     expect(sponsorDockerfile).not.toContain('NODE_EXTRA_CA_CERTS');
@@ -177,8 +191,14 @@ describe('Midnight Wallet shell', () => {
     expect(deviceFlow).toContain('proofJobId: measurement.proofJobId');
     expect(script).toContain("'contract-state-changed-retrying': 'proofProgressRetrying'");
     expect(script).toContain("proofProgressGenerating: '日次Attestation用のZKPを生成中'");
-    expect(script).toContain("proofProgressSponsoring: 'Sponsor WalletがDUST手数料を付与中'");
+    expect(script).toContain("proofProgressSponsoring: 'スポンサー処理要求をサーバーが受け付けました'");
+    expect(script).toContain("proofProgressSponsorPreparing: 'DUSTを付与したトランザクションと手数料用ZK証明を作成しています'");
+    expect(script).toContain("'sponsor-interrupted': 'proofProgressSponsorInterrupted'");
     expect(script).toContain('submissionProgressText(progress)');
+    expect(script).toContain('function sponsorJobProgressText(job)');
+    expect(script).toContain("job.sponsorReasonCode === 'sponsor_wallet_syncing'");
+    expect(script).toContain('sponsorJobProgressText(deviceState.proofJob)');
+    expect(midnightDevice).toContain('const deadline = Date.now() + 45 * 60_000');
     expect(script).toContain("'reproof_required'");
   });
 
@@ -187,7 +207,8 @@ describe('Midnight Wallet shell', () => {
     expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/provisioning/challenge')");
     expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/provisioning/devices')");
     expect(deviceFlow).toContain("typeof currentWallet.api.signData !== 'function'");
-    expect(deviceFlow).toContain("typeof currentWallet.api.hintUsage === 'function'");
+    expect(deviceFlow).not.toContain('hintUsage');
+    expect(midnightDevice).not.toContain('hintUsage');
     expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/device/dashboard')");
     expect(deviceFlow).toContain("/api/v1/proof-jobs/${encodeURIComponent(job.proofJobId)}/admit");
     expect(script).not.toContain('127.0.0.1:8790');
@@ -309,8 +330,17 @@ describe('Midnight Wallet shell', () => {
   it('re-localizes persisted Device status when the language changes', () => {
     expect(script).toContain('function refreshDeviceMessageForLocale()');
     expect(script).toContain('refreshDeviceMessageForLocale();');
+    expect(script).toContain('if (completed && deviceState.message === message) refreshDeviceMessageForLocale();');
     expect(script).toContain("deviceState.message = t('registrationRestored')");
     expect(script).toContain('statusText(deviceState.proofJob.status)');
+  });
+
+  it('makes a released stale transaction visibly retryable after Wallet restoration', () => {
+    expect(script).toContain("job.status === 'reproof_required'");
+    expect(script).toContain("retrySubmitAction: 'Regenerate proof and record TX'");
+    expect(script).toContain("reproofReady: 'The previous TX was released.");
+    expect(script).toContain("deviceState.proofJob?.status === 'reproof_required'");
+    expect(script).toContain("['ready_for_input', 'proving', 'proof_ready', 'reproof_required']");
   });
 
   it('shows the full hosted Device, authenticated administrator, and verifier workflow', () => {

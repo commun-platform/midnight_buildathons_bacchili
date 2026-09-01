@@ -73,6 +73,8 @@ const copy = {
     deviceIdentity: 'Device Identity', midnightRegistration: 'Midnight registration', deviceRegister: 'Device registration', thresholdSetup: 'Threshold assignment', sensorCapture: 'Sensor value',
     proofCreate: 'ZK proof', chainRecord: 'Midnight record', walletConnect: 'Connect Midnight Wallet',
     walletConnecting: 'Connecting Wallet...', walletConnected: 'Wallet Connected',
+    walletDisconnected: 'Wallet communication was closed. Unlock the Wallet and click Connect Midnight Wallet again. Reload this page if the connection does not reopen.',
+    walletFailureStage: 'Failed stage',
     walletRequiredTitle: 'Midnight Wallet required',
     walletRequiredBody: 'Connect your Midnight Wallet from the button in the upper-right corner. The Device Workflow appears after the connection is authorized.',
     project: 'Project', projectSelect: 'Select Project', projectAdd: '+ New Project',
@@ -111,13 +113,24 @@ const copy = {
     proofProgressChecking: 'Checking the ZKP input',
     proofProgressGenerating: 'Generating the daily attestation ZKP',
     proofProgressWallet: 'Waiting for Wallet approval',
-    proofProgressSponsoring: 'Sponsor Wallet is adding the DUST fee',
+    proofProgressSponsoring: 'Sponsor request accepted by the server',
+    proofProgressSponsorQueued: 'Waiting in the Sponsor processing queue',
+    proofProgressSponsorWalletChecking: 'Checking Sponsor Wallet synchronization and DUST balance',
+    proofProgressSponsorWalletSyncing: 'Waiting for Sponsor Wallet synchronization; the server will continue automatically',
+    proofProgressSponsorFunding: 'Sponsor Wallet has no spendable DUST; waiting for funding',
+    proofProgressSponsorCheckpoint: 'Saving Sponsor Wallet state before using DUST',
+    proofProgressSponsorPreparing: 'Creating the DUST-balanced transaction and its fee proof',
+    proofProgressSponsorRetry: 'Sponsor processing is waiting for an automatic server retry',
+    proofProgressSponsorPreDustRetry: 'The server stopped before DUST was used. The job is safely queued for automatic retry.',
+    proofProgressSponsorInterrupted: 'Sponsor processing stopped at the recorded stage; the server is waiting for a safe retry',
     proofProgressSubmitting: 'Submitting the transaction to Midnight',
     proofProgressRetrying: 'Contract state changed; regenerating ZKP/TX with the same Job ID',
     proofProgressConfirming: 'Waiting for Midnight transaction confirmation',
     proofProgressConfirmed: 'Midnight transaction confirmed',
     registrationJob: 'Registration Job', deviceRegistrationTx: 'Device registration TX', assignmentRegistrationTx: 'Threshold assignment TX',
     captureAction: 'Capture and upload', proofAction: 'Request proof processing', submitAction: 'Generate proof and record TX',
+    retrySubmitAction: 'Regenerate proof and record TX',
+    reproofReady: 'The previous TX was released. Regenerate the ZK proof and TX with the same Proof Job ID.',
     deviceId: 'Device ID (derived from Wallet)', wallet: 'Wallet', temperature: 'Temperature', progress: 'Processing status',
     identityRestored: 'Stored Device Identity restored', registrationRestored: 'Registered Device and policy assignment restored',
     autoGenerate: 'Auto Generate one day', generationDate: 'Sensor date (JST)', previousSensorDay: '◀ Previous day', nextSensorDay: 'Next day ▶',
@@ -140,6 +153,7 @@ const copy = {
     statusActive: 'Active', statusDisabled: 'Disabled', statusRevoked: 'Revoked', statusRegistered: 'Registered',
     statusRetired: 'No longer used', statusUnregistered: 'Not registered', statusDispatched: 'Sent for processing',
     statusProofReady: 'Proof ready', statusReadyForInput: 'Ready to create proof', statusRetryableFailed: 'Waiting to retry',
+    statusSponsorRetryable: 'Waiting for Sponsor Wallet',
     statusReproofRequired: 'Regenerate ZKP/TX',
     statusDeadLettered: 'Closed',
     statusDeviceBound: 'Device approved', statusSponsoring: 'Adding transaction fee', statusSponsored: 'Fee added',
@@ -209,6 +223,8 @@ const copy = {
     deviceIdentity: 'デバイス認証鍵', midnightRegistration: 'Midnightへの登録', deviceRegister: 'デバイス登録', thresholdSetup: 'しきい値設定', sensorCapture: 'センサー値取得',
     proofCreate: 'ZK証明を作成', chainRecord: 'コントラクトに記録', walletConnect: 'Midnight Walletを接続',
     walletConnecting: 'ウォレット接続中...', walletConnected: 'ウォレット接続済み',
+    walletDisconnected: 'Walletとの通信が切断されました。Walletのロックを解除して、もう一度「Midnight Walletを接続」を押してください。再接続できない場合はページを再読み込みしてください。',
+    walletFailureStage: '失敗した段階',
     walletRequiredTitle: 'Midnight Walletの接続が必要です',
     walletRequiredBody: '画面右上のボタンからMidnight Walletを接続してください。接続を承認するとデバイス操作画面が表示されます。',
     project: 'プロジェクト', projectSelect: 'プロジェクトを選択', projectAdd: '＋ 新規追加',
@@ -247,13 +263,24 @@ const copy = {
     proofProgressChecking: 'ZKP入力を検査中',
     proofProgressGenerating: '日次Attestation用のZKPを生成中',
     proofProgressWallet: 'Walletの承認待ち',
-    proofProgressSponsoring: 'Sponsor WalletがDUST手数料を付与中',
+    proofProgressSponsoring: 'スポンサー処理要求をサーバーが受け付けました',
+    proofProgressSponsorQueued: 'スポンサー処理キューで順番を待っています',
+    proofProgressSponsorWalletChecking: 'Sponsor Walletの同期状態とDUST残高を確認しています',
+    proofProgressSponsorWalletSyncing: 'Sponsor Walletの同期完了待ちです。完了後にサーバーが自動継続します',
+    proofProgressSponsorFunding: 'Sponsor Walletに使用可能なDUSTがないため、入金を待っています',
+    proofProgressSponsorCheckpoint: 'DUST使用前のSponsor Wallet状態を保存しています',
+    proofProgressSponsorPreparing: 'DUSTを付与したトランザクションと手数料用ZK証明を作成しています',
+    proofProgressSponsorRetry: '一時的な失敗のため、サーバー側の自動再試行を待っています',
+    proofProgressSponsorPreDustRetry: 'DUST使用前にサーバー処理が中断しました。安全に自動再試行待ちへ戻しています',
+    proofProgressSponsorInterrupted: '記録済みの処理段階で停止しました。安全に再試行できる時刻をサーバーが待っています',
     proofProgressSubmitting: 'Midnightへトランザクションを送信中',
     proofProgressRetrying: 'コントラクト状態が更新されたため、同じJob IDでZKP/TXを再生成中',
     proofProgressConfirming: 'Midnightトランザクションの確定待ち',
     proofProgressConfirmed: 'Midnightトランザクションが確定しました',
     registrationJob: '登録Job', deviceRegistrationTx: 'デバイス登録TX', assignmentRegistrationTx: 'しきい値割当TX',
     captureAction: '取得して送信', proofAction: '証明処理を開始', submitAction: 'ZK証明を生成してトランザクション送信',
+    retrySubmitAction: 'ZK証明とトランザクションを再生成',
+    reproofReady: '前回のTXは解放済みです。同じProof Job IDでZK証明とTXを再生成できます。',
     deviceId: 'デバイスID（ウォレットから自動生成）', wallet: 'ウォレット', temperature: '温度', progress: '処理状況',
     identityRestored: '保存済みのデバイス認証鍵を復元しました', registrationRestored: '登録済みデバイスとしきい値設定を復元しました',
     autoGenerate: '1日分を自動生成', generationDate: 'センサー日付（JST）', previousSensorDay: '◀ 前日', nextSensorDay: '翌日 ▶',
@@ -276,6 +303,7 @@ const copy = {
     statusActive: '利用中', statusDisabled: '無効', statusRevoked: '利用停止', statusRegistered: '登録済み',
     statusRetired: '使用終了', statusUnregistered: '未登録', statusDispatched: '証明処理へ送信済み',
     statusProofReady: '証明作成済み', statusReadyForInput: '証明作成の準備完了', statusRetryableFailed: '再試行待ち',
+    statusSponsorRetryable: 'Sponsor Walletの再開待ち',
     statusReproofRequired: 'ZKP/TXの再生成が必要',
     statusDeadLettered: '処理終了',
     statusDeviceBound: 'デバイス承認済み', statusSponsoring: '手数料を付与中', statusSponsored: '手数料付与済み',
@@ -420,6 +448,7 @@ function statusText(value) {
     revoked: 'statusRevoked', registered: 'statusRegistered', retired: 'statusRetired', unregistered: 'statusUnregistered',
     dispatched: 'statusDispatched', 'proof-ready': 'statusProofReady', 'ready-for-input': 'statusReadyForInput',
     'device-bound': 'statusDeviceBound', sponsoring: 'statusSponsoring', sponsored: 'statusSponsored',
+    'sponsor-retryable': 'statusSponsorRetryable',
     'retryable-failed': 'statusRetryableFailed',
     'reproof-required': 'statusReproofRequired',
     'dead-lettered': 'statusDeadLettered',
@@ -695,6 +724,15 @@ function submissionProgressText(progress) {
     'proof-generated': 'proofProgressGenerating',
     'wallet-approval': 'proofProgressWallet',
     'requesting-sponsorship': 'proofProgressSponsoring',
+    'sponsor-queued': 'proofProgressSponsorQueued',
+    'sponsor-wallet-checking': 'proofProgressSponsorWalletChecking',
+    'sponsor-wallet-syncing': 'proofProgressSponsorWalletSyncing',
+    'sponsor-wallet-funding-required': 'proofProgressSponsorFunding',
+    'sponsor-checkpointing': 'proofProgressSponsorCheckpoint',
+    'sponsor-pre-dust-retry': 'proofProgressSponsorPreDustRetry',
+    'sponsor-preparing': 'proofProgressSponsorPreparing',
+    'sponsor-retry-wait': 'proofProgressSponsorRetry',
+    'sponsor-interrupted': 'proofProgressSponsorInterrupted',
     'transaction-sponsored': 'proofProgressSubmitting',
     'submitting-transaction': 'proofProgressSubmitting',
     'transaction-submitted': 'proofProgressConfirming',
@@ -702,6 +740,42 @@ function submissionProgressText(progress) {
     confirmed: 'proofProgressConfirmed',
   };
   return labels[progress] ? t(labels[progress]) : String(progress || '—');
+}
+
+function sponsorJobProgressText(job) {
+  if (!job) return null;
+  if (job.status === 'reproof_required') return t('reproofReady');
+  if (job.sponsorStalled || job.sponsorStage === 'interrupted') {
+    return submissionProgressText('sponsor-interrupted');
+  }
+  if (job.sponsorReasonCode === 'sponsor_wallet_syncing') {
+    return submissionProgressText('sponsor-wallet-syncing');
+  }
+  if (job.sponsorReasonCode === 'sponsor_pre_dust_worker_interrupted') {
+    return submissionProgressText('sponsor-pre-dust-retry');
+  }
+  if (
+    job.sponsorReasonCode === 'sponsor_wallet_waiting_for_funding'
+    || job.sponsorReasonCode === 'sponsor_wallet_no_spendable_dust'
+  ) {
+    return submissionProgressText('sponsor-wallet-funding-required');
+  }
+  const progressByStage = {
+    queued: 'sponsor-queued',
+    wallet_checking: 'sponsor-wallet-checking',
+    checkpoint_persisting: 'sponsor-checkpointing',
+    checkpoint_preserving: 'sponsor-checkpointing',
+    transaction_preparing: 'sponsor-preparing',
+    wallet_restarting: 'sponsor-retry-wait',
+    retry_wait: 'sponsor-retry-wait',
+    transaction_ready: 'transaction-sponsored',
+    transaction_submitting: 'submitting-transaction',
+    confirmation_waiting: 'transaction-submitted',
+    completed: 'confirmed',
+  };
+  return progressByStage[job.sponsorStage]
+    ? submissionProgressText(progressByStage[job.sponsorStage])
+    : null;
 }
 
 function registrationProgressView() {
@@ -947,6 +1021,9 @@ function deviceView() {
     unit: '°C',
   }) : '—';
   const result = deviceState.transaction;
+  const submitActionLabel = deviceState.proofJob?.status === 'reproof_required'
+    ? t('retrySubmitAction')
+    : t('submitAction');
   const heading = `<div class="project-heading"><div><h2>${escapeHtml(t('device'))}</h2><p>${escapeHtml(t('deviceIntro'))}</p></div>
       <span class="network-label">${escapeHtml(config?.network?.toUpperCase() || 'PREPROD')}</span></div>
     <div id="device-alerts">${deviceState.error ? `<div class="notice device-error"><strong>ERROR</strong><span>${escapeHtml(deviceState.error)}</span></div>` : ''}
@@ -998,7 +1075,7 @@ function deviceView() {
           <dt>${escapeHtml(t('status'))}</dt><dd>${deviceState.proofJob ? status(deviceState.proofJob.status) : '—'}</dd></dl>
       </div></section>
       <section class="window full-width"><div class="window-title">5. ${escapeHtml(t('chainRecord'))}</div><div class="window-body device-form transaction-workflow">
-        ${workflowButton('device-submit', t('submitAction'), Boolean(deviceState.transaction), deviceState.busy || !deviceState.proofJob || Boolean(deviceState.transaction) || !['ready_for_input', 'proving', 'proof_ready', 'reproof_required'].includes(deviceState.proofJob?.status) || !sponsorQuotaAllows(deviceState.proofJob?.proofJobId))}
+        ${workflowButton('device-submit', submitActionLabel, Boolean(deviceState.transaction), deviceState.busy || !deviceState.proofJob || Boolean(deviceState.transaction) || !['ready_for_input', 'proving', 'proof_ready', 'reproof_required'].includes(deviceState.proofJob?.status) || !sponsorQuotaAllows(deviceState.proofJob?.proofJobId))}
         <div id="device-chain-details">
         <div class="transaction-progress"><strong>${escapeHtml(t('progress'))}:</strong> <span id="device-progress">${escapeHtml(deviceState.message || '—')}</span></div>
         <div class="hash transaction-id">TX: ${escapeHtml(result?.transactionId || '—')}</div>
@@ -1103,7 +1180,7 @@ async function refreshProjectPolicies(flow, { showProgress = false } = {}) {
 async function loadDeviceModule() {
   if (!deviceLoadPromise) {
     deviceLoadPromise = (async () => {
-      deviceModule ||= await import('/device-flow.js?v=20260831-2');
+      deviceModule ||= await import('/device-flow.js?v=20260831-4');
       if (!deviceState.configuration) {
         deviceState.configuration = await deviceModule.browserDeviceFlow.loadConfiguration();
       }
@@ -1119,11 +1196,11 @@ async function loadDeviceModule() {
 }
 
 async function verifyPublicProofOnMidnight(data) {
-  deviceModule ||= await import('/device-flow.js?v=20260831-2');
+  deviceModule ||= await import('/device-flow.js?v=20260831-4');
   return deviceModule.verifyPublicAttestation(data);
 }
 
-async function deviceAction(actionId, message, operation) {
+async function deviceAction(actionId, message, operation, preparedFlow = null) {
   const fullRender = [
     'wallet-connect-button',
     'device-project-select',
@@ -1139,13 +1216,30 @@ async function deviceAction(actionId, message, operation) {
     if (fullRender) renderDeviceScreen();
     else refreshDeviceDynamicComponents({ includeHistory: false });
   }
+  let flow = preparedFlow;
+  let completed = false;
   try {
-    await operation(await loadDeviceModule());
+    flow ||= await loadDeviceModule();
+    await operation(flow);
+    completed = true;
   } catch (error) {
-    deviceState.error = error instanceof Error ? error.message : String(error);
+    if (flow?.isWalletConnectionLost?.(error)) {
+      const failureStage = flow.walletConnectionFailureStage?.(error) || 'unknown';
+      console.error('wallet_connection_lost', { failureStage, error });
+      flow.resetWalletConnection();
+      deviceState.wallet = null;
+      deviceState.projects = [];
+      deviceState.projectId = '';
+      deviceState.deviceId = '';
+      resetProjectDeviceState();
+      deviceState.error = `${t('walletDisconnected')} ${t('walletFailureStage')}: ${failureStage}`;
+    } else {
+      deviceState.error = error instanceof Error ? error.message : String(error);
+    }
   } finally {
     deviceState.busy = false;
     deviceState.activeAction = '';
+    if (completed && deviceState.message === message) refreshDeviceMessageForLocale();
     renderWalletControl();
     if (route().name === 'device') {
       if (fullRender) renderDeviceScreen();
@@ -1718,7 +1812,8 @@ function refreshDeviceMessageForLocale() {
   if (deviceState.transaction) {
     deviceState.message = `${t('confirmed')}: ${deviceState.transaction.transactionId}`;
   } else if (deviceState.proofJob) {
-    deviceState.message = `${deviceState.proofJob.proofJobId}: ${statusText(deviceState.proofJob.status)}`;
+    deviceState.message = sponsorJobProgressText(deviceState.proofJob)
+      || `${deviceState.proofJob.proofJobId}: ${statusText(deviceState.proofJob.status)}`;
   } else if (deviceState.measurement) {
     const periodDate = deviceState.selectedDate || deviceState.generationDate;
     deviceState.message = `${periodDate}: ${t('sampleCount')} ${deviceState.measurement.records.length} / ${t('outlierCount')} ${deviceState.measurement.outlierCount}`;
@@ -1861,26 +1956,26 @@ languageSelect.addEventListener('change', () => {
   applyLanguage();
   render();
 });
-walletConnectButton.addEventListener('click', () => deviceAction('wallet-connect-button', t('walletConnect'), async (flow) => {
-  deviceState.wallet = await flow.connectWallet();
-  deviceState.projects = deviceState.wallet.projects;
-  deviceState.maximumProjects = deviceState.wallet.maximumProjects;
-  deviceState.projectId = deviceState.wallet.selectedProjectId;
-  deviceState.configuration = deviceState.wallet.configuration;
-  deviceState.deviceId = deviceState.wallet.deviceId;
-  resetProjectDeviceState();
-  const restored = await restoreActiveProject(flow);
-  if (restored) {
-    deviceState.deviceId = restored.device.deviceId;
-    deviceState.message = deviceState.provisioned
-      ? t('registrationRestored')
-      : deviceState.provisioning
-        ? provisioningProgressText()
-        : t('identityRestored');
-    return;
-  }
-  deviceState.message = `${deviceState.wallet.walletName} / ${deviceState.wallet.networkId} / ${t('feeSponsoredLabel')}`;
-}));
+walletConnectButton.addEventListener('click', () => {
+  const loadedFlow = deviceModule?.browserDeviceFlow || null;
+  const connectionPromise = loadedFlow?.connectWallet();
+  void deviceAction('wallet-connect-button', t('walletConnect'), async (flow) => {
+    deviceState.wallet = await (connectionPromise || flow.connectWallet());
+    deviceState.projects = deviceState.wallet.projects;
+    deviceState.maximumProjects = deviceState.wallet.maximumProjects;
+    deviceState.projectId = deviceState.wallet.selectedProjectId;
+    deviceState.configuration = deviceState.wallet.configuration;
+    deviceState.deviceId = deviceState.wallet.deviceId;
+    resetProjectDeviceState();
+    const restored = await restoreActiveProject(flow);
+    if (restored) {
+      deviceState.deviceId = restored.device.deviceId;
+      refreshDeviceMessageForLocale();
+      return;
+    }
+    deviceState.message = `${deviceState.wallet.walletName} / ${deviceState.wallet.networkId} / ${t('feeSponsoredLabel')}`;
+  }, loadedFlow);
+});
 reloadButton.addEventListener('click', () => {
   if (route().name !== 'device' || !deviceState.wallet || !deviceState.projectId) {
     void render();

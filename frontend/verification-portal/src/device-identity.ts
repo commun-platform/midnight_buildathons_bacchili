@@ -270,6 +270,7 @@ export async function deviceSession(
   baseUrl: string,
   identity: BrowserDeviceIdentity,
   requiredScope: DeviceScope,
+  clientOperationId?: string,
 ): Promise<DeviceSession> {
   const cacheKey = `${baseUrl}\n${identity.keyId}`;
   const cached = sessions.get(cacheKey);
@@ -283,7 +284,10 @@ export async function deviceSession(
     endpoint(baseUrl, '/auth/challenge'),
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clientOperationId ? { 'X-Client-Operation-Id': clientOperationId } : {}),
+      },
       body: JSON.stringify({ deviceId: identity.deviceId, keyId: identity.keyId }),
       signal: AbortSignal.timeout(15_000),
     },
@@ -313,7 +317,10 @@ export async function deviceSession(
     endpoint(baseUrl, '/auth/session'),
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clientOperationId ? { 'X-Client-Operation-Id': clientOperationId } : {}),
+      },
       body: JSON.stringify({
         deviceId: identity.deviceId,
         keyId: identity.keyId,
