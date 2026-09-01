@@ -20,7 +20,7 @@ Local source validation and recorded Preprod transactions are intentionally sepa
 | CLAIM-08 | Browser APIs expose only public or authorized redacted state | Gateway API tests and frontend responsibility design | 111 Gateway and 52 Dashboard tests passed | Public verifier showed policy, result, commitment, and TX | Browser directly compares public Indexer transaction and Contract state but does not rerun the ZK verifier locally |
 | CLAIM-09 | The PoC handles 1,440 readings/day with one fixed 24-slot proof | aggregation utilities and cost benchmark | 24 / 96 / 1,440 fixed-shape tests passed | 1,440-reading OUTSIDE TX confirmed | One simulated source/day is not a fleet load test |
 | CLAIM-10 | The required operational Compact contract compiles | midnight/contracts/sensor-registry | All 6 circuits compiled on 2026-08-31 | Previous deployed schema-3 contract confirmed | Final submission commit SHA remains to be frozen |
-| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 288 tests, typecheck, build, Wrangler dry-run passed | Worker version `d88891bc-17b3-40c1-9771-5fc92fbd9cc0` deployed on 2026-08-31 JST | Initial restricted Docker dry-run could not update buildx state; the host-access dry-run passed |
+| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 333 tests, typecheck, build, Wrangler dry-run passed | Worker version `486db124-ae9f-4bbc-9303-329999538c13` deployed on 2026-09-01 JST | Initial restricted Docker dry-run could not update buildx state; the host-access dry-run passed |
 | CLAIM-12 | The GUI connects the simulated measurement workflow to public verification | dashboard source, routes, and tests | Dashboard build and 52 tests passed | Dated capture record shows the review flow | Combined review UI is not production role separation; English demo pitch produced, public URL pending |
 
 ## Current validation command
@@ -35,14 +35,14 @@ The explicit TMPDIR is required in this WSL environment so tsx creates its IPC s
 | --- | ---: |
 | Shared | 18 |
 | sensor-registry Contract | 13 |
-| Dashboard | 52 |
+| Dashboard | 63 |
 | Development CLI | 4 |
 | Device Auth | 6 |
 | Edge Agent | 13 |
 | Device Wallet Agent | 29 |
-| Proof Gateway | 111 |
+| Proof Gateway | 145 |
 | Sponsor Wallet | 42 |
-| Total | 288 |
+| Total | 333 |
 
 ![Engineering evidence and validation boundary](../assets/review/engineering-evidence-en.png)
 

@@ -33,7 +33,7 @@ The long `architecture/wave1_spec.md` additionally reuses four generated review 
 
 - Title: `FROM SPECIFICATION TO EVIDENCE`.
 - Four-stage chain: requirements, implementation, data boundary, evidence.
-- Evidence is limited to the validated six circuits, 288 tests, and transaction record.
+- Evidence is limited to the validated six circuits, 333 tests, and transaction record.
 
 ### `fixed-24-slot-scaling-en.png`
 

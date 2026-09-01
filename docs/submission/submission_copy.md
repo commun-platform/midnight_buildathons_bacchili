@@ -40,7 +40,7 @@ The repository also contains supporting field-runtime authentication, collection
 The current working source was validated on 2026-08-31 JST:
 
 - all 6 proof circuits compiled;
-- all 288 automated tests passed;
+- all 333 automated tests passed;
 - all workspace type checks and builds passed; and
 - the Cloudflare pre-deployment check passed.
 

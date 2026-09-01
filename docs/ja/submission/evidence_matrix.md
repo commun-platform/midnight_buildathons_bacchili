@@ -20,7 +20,7 @@ Local Source検証と記録済みPreprod Transactionは意図的に分けます�
 | CLAIM-08 | Browser APIはPublic / 認可済みRedacted Stateだけを返す | Gateway API Test、Frontend責任設計 | Gateway 111、Dashboard 52 Test成功 | Public VerifierにPolicy、Result、Commitment、TX | BrowserはPublic IndexerのTX／Contract Stateを直接照合するがZK VerifierをLocal再実行しない |
 | CLAIM-09 | PoCで1,440 Reading / Dayを固定24 Slot Proofとして扱う | Aggregation、Cost Benchmark | 24 / 96 / 1,440 Fixed Shape Test成功 | 1,440 Reading OUTSIDE TX確認 | 1疑似計測元 / DayはFleet Load Testではない |
 | CLAIM-10 | 必須の運用Compact ContractがCompileする | midnight/contracts/sensor-registry | 2026-08-31に6 Circuit全てCompile成功 | 過去のSchema-3 Deploy確認 | 最終提出Commit SHAは未固定 |
-| CLAIM-11 | Repository Verificationが成功する | Root verify、Workspace Script | 288 Test、Typecheck、Build、Wrangler dry-run成功 | 2026-08-31 JSTにWorker Version `d88891bc-17b3-40c1-9771-5fc92fbd9cc0`をDeploy | 制限付きDocker dry-runはbuildx状態更新だけ拒否され、Host Accessでの再実行は成功 |
+| CLAIM-11 | Repository Verificationが成功する | Root verify、Workspace Script | 333 Test、Typecheck、Build、Wrangler dry-run成功 | 2026-09-01 JSTにWorker Version `486db124-ae9f-4bbc-9303-329999538c13`をDeploy | 制限付きDocker dry-runはbuildx状態更新だけ拒否され、Host Accessでの再実行は成功 |
 | CLAIM-12 | GUIが疑似計測WorkflowとPublic Verificationを接続する | Dashboard Source、Route、Test | Dashboard Build、52 Test成功 | 日付付きCaptureが審査Flowを表示 | 統合審査UIは本番Role分離ではない。英語デモ動画を作成済み、公開URL待ち |
 
 ## 現行検証Command
@@ -35,14 +35,14 @@ Local Source検証と記録済みPreprod Transactionは意図的に分けます�
 | --- | ---: |
 | Shared | 18 |
 | sensor-registry Contract | 13 |
-| Dashboard | 52 |
+| Dashboard | 63 |
 | Development CLI | 4 |
 | Device Auth | 6 |
 | Edge Agent | 13 |
 | Device Wallet Agent | 29 |
-| Proof Gateway | 111 |
+| Proof Gateway | 145 |
 | Sponsor Wallet | 42 |
-| 合計 | 288 |
+| 合計 | 333 |
 
 ![Engineering Evidenceと検証境界](../../ja/assets/review/engineering-evidence-ja.png)
 

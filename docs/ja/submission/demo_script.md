@@ -63,7 +63,7 @@
 | GUI-08 | Public Verifier | Policy、Result、Observed / STOPPED、Commitment、TX |
 | GUI-09 | Negative / Boundary | OUTSIDEまたは明示的Tamper Reject |
 | EVD-01 | Compile | 6 Circuit、submitDailyAttestation Rows |
-| EVD-02 | Test | 288成功 |
+| EVD-02 | Test | 333成功 |
 
 ## Fallback Policy
 

@@ -22,6 +22,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 - [Three-wave product and business roadmap](architecture/three_wave_roadmap.md): Core Proof PoC, operational partner pilot, and PMF outcomes.
 - [System architecture](architecture/system_architecture.md): Edge Device, Frontend, Backend, and Midnight responsibilities.
 - [Hourly extrema attestation](architecture/hourly_extrema_attestation_proposal.md): fixed 24-slot circuit and daily proof flow.
+- [Wave 2 system operations console](architecture/wave2_system_operations.md): Access-protected Wallet synchronization, processing, metrics, and audit design.
 
 ## Security
 

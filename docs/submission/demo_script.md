@@ -65,7 +65,7 @@ The burned-in captions reproduce the TTS script exactly and use speech/silence b
 | GUI-08 | Public verifier | Policy, result, observed / STOPPED, commitment, TX |
 | GUI-09 | Negative / boundary | OUTSIDE or one explicit tamper-rejection result |
 | EVD-01 | Compile | Six circuits and submitDailyAttestation rows |
-| EVD-02 | Tests | 288 passed |
+| EVD-02 | Tests | 333 passed |
 
 ## Fallback policy
 

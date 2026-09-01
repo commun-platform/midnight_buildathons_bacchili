@@ -2,16 +2,16 @@
 
 [English](../../submission/technical_gate_checklist.md)
 
-最終Local確認: 2026-08-31 JST
+最終Local確認: 2026-09-01 JST
 
 | Gate | Status | Evidence / Action |
 | --- | --- | --- |
 | 運用Compact Contract | PASS | midnight/contracts/sensor-registry/src/sensor-registry.compact |
 | Compact Compile | PASS | 6 Circuit、submitDailyAttestation 28,699 rows、k=15 |
-| Repository Test | PASS | 9 Workspaceで288 / 288成功 |
+| Repository Test | PASS | 9 Workspaceで333 / 333成功 |
 | Typecheck | PASS | 設定済み全Workspace |
 | Production Build | PASS | Dashboard、CLI、Device Workspace |
-| Cloudflare Package検証 | PASS | Wrangler Deploy dry-run、Worker Version `d88891bc-17b3-40c1-9771-5fc92fbd9cc0`をDeploy済み |
+| Cloudflare Package検証 | PASS | Wrangler Deploy dry-run、Worker Version `486db124-ae9f-4bbc-9303-329999538c13`をDeploy済み |
 | Source Portability | PASS | Machine固有Path / Deploy値なし |
 | Apache License 2.0本文 | PASS | 公式Apache 2.0本文からRoot LICENSEを追加 |
 | Midnight Attribution | PASS | README / 提出資料でCompact、Midnight、Proof境界を明示 |
