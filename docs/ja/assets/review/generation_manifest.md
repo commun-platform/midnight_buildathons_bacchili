@@ -78,7 +78,7 @@ Prompt Set:
 Prompt Set:
 
 - 2 × 2の技術的な実証結果。
-- 6つの証明回路のコンパイル、345件の自動テスト、型検査・ビルド、Cloudflare配備前検査を表示。
+- 過去の図版としてのみ保持し、現行Test数のEvidenceには使用しない。正本は`docs/ja/submission/evidence_matrix.md`のTest内訳とする。
 - 2026-08-29 JSTの現行ソース検証と、2026-08-28のMidnight事前公開ネットワーク記録を分離。
 - 回路行数、関数名、`k`値など、顧客価値の理解に不要な内部指標は載せない。
 

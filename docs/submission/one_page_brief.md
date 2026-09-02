@@ -30,7 +30,7 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 ## Verified in Wave 1
 
 - All 6 proof circuits compile.
-- All 345 automated tests pass across 9 workspaces.
+- All 355 automated tests pass across 9 workspaces.
 - Type checks, builds, and the Cloudflare pre-deployment check pass.
 - Midnight preproduction-network records from 2026-08-28 include both WITHIN and OUTSIDE.
 - A day with 1,440 readings is reduced to one daily proof with 24 hourly slots.

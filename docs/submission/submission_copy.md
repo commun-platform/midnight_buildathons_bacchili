@@ -37,10 +37,10 @@ Wave 1 produced the reviewable core-proof PoC: project-scoped proof-subject and 
 
 The repository also contains supporting field-runtime authentication, collection, transaction, packaging, and rollback code. That code is integration evidence for the next stage; Wave 1 does not claim autonomous long-running field operation or production separation of roles and applications.
 
-The current working source was validated on 2026-08-31 JST:
+The current working source was validated on 2026-09-02 JST:
 
 - all 6 proof circuits compiled;
-- all 345 automated tests passed;
+- all 355 automated tests passed;
 - all workspace type checks and builds passed; and
 - the Cloudflare pre-deployment check passed.
 
@@ -50,7 +50,7 @@ Midnight preproduction-network records from 2026-08-28 JST include both WITHIN a
 - Transaction: 00e12efda5f33b4804f3659a811d2f5e86c9ce838255a63028d41df85cb0762da9
 - Block: 2,302,213
 
-Source validation and dated Midnight preproduction-network records remain separate evidence. The current Worker and GUI were deployed on 2026-08-31 JST; no new daily attestation was manufactured merely to update this document.
+Source validation and dated Midnight preproduction-network records remain separate evidence. The current Worker and GUI were deployed on 2026-09-02 JST; no new daily attestation was manufactured merely to update this document.
 
 ## Exact proof claim
 
@@ -74,7 +74,7 @@ The browser independently checks public Midnight transaction and Contract state 
 
 ## Submission links
 
-- Repository: add the final public GitHub URL
+- Repository: [GitHub](https://github.com/commun-platform/midnight_buildathons_private_sensor2026) (public visibility remains a submission-time external gate)
 - English deck: [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf), synchronized with the 2:18 video pitch
 - Japanese deck: [PPTX](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) / [PDF](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf)
 - Video pitch: `bacchiri-demo-pitch-en.mp4` produced (2:18); add the final public URL

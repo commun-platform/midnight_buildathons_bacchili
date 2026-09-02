@@ -19,11 +19,11 @@ Worker/GUI deployment.
 | CLAIM-05 | Missing hours are represented as NO DATA | Wave 1 specification and daily input utilities | Canonical no-data slot test passed | Public result exposes a NO DATA status for the corresponding UTC hour | Missing data is not fraud detection |
 | CLAIM-06 | User transaction authority, field API identity, and service fee authority are separate | browser authorization and supporting field-agent boundaries | Frontend, identity-agent, and transaction-agent tests passed | Authorized Preprod transaction recorded | Hardware-protected attestation is future work |
 | CLAIM-07 | The proof service cannot authorize as the user | proof flow and transaction-authorization source | Boundary and execution-lock tests passed | Recorded flow authorizes the call after proof generation | Backend remains trusted for proof input |
-| CLAIM-08 | Browser APIs expose only public or authorized redacted state | Gateway API tests and frontend responsibility design | 147 Gateway and 66 Dashboard tests passed | Public verifier accepts a TX hash and shows the operational date/boundary, 24 hourly results, policy/validity, Device Commitment, block, and TX | Browser directly compares public Indexer transaction and Contract state but does not rerun the ZK verifier locally |
+| CLAIM-08 | Browser APIs expose only public or authorized redacted state | Gateway API tests and frontend responsibility design | 151 Gateway and 69 Dashboard tests passed | Public verifier accepts a TX hash and shows the operational date/boundary, 24 hourly results, policy/validity, Device Commitment, block, and TX | Browser directly compares public Indexer transaction and Contract action state but does not rerun the ZK verifier locally |
 | CLAIM-09 | The PoC handles 1,440 readings/day with one fixed 24-slot proof | aggregation utilities and cost benchmark | 24 / 96 / 1,440 fixed-shape tests passed | Device-originated 1,440-reading operational-day WITHIN TX confirmed in block 2,369,094 | One simulated source/day is not a fleet load test |
-| CLAIM-10 | The required operational Compact contract compiles | midnight/contracts/sensor-registry | All 6 circuits compiled on 2026-09-02 | Operational-day contract and attestation confirmed on Preprod | Final submission commit SHA remains to be frozen |
-| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 345 tests, typecheck, build, Wrangler dry-run passed | Worker version `2018890e-bb60-42c7-aba6-8cc16233a3a3` deployed on 2026-09-02 JST | Initial restricted Docker dry-run could not update buildx state; the host-access dry-run passed |
-| CLAIM-12 | The GUI connects the simulated measurement workflow to public verification | dashboard source, routes, and tests | Dashboard build and 66 tests passed | TX-hash-only hosted verification completed without a D1 API request | Combined review UI is not production role separation; English demo pitch produced, public URL pending |
+| CLAIM-10 | The required operational Compact contract compiles | midnight/contracts/sensor-registry | All 6 circuits compiled on 2026-09-02 | Operational-day contract and attestation confirmed on Preprod | The validated change set is frozen on the current `main` branch |
+| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 355 tests, typecheck, build, Wrangler dry-run passed | Worker version `68a511ba-0703-479c-91df-8cdb5c19c4a5` deployed on 2026-09-02 JST | Initial restricted Docker dry-run could not update buildx state; the host-access dry-run passed |
+| CLAIM-12 | The GUI connects the simulated measurement workflow to public verification | dashboard source, routes, and tests | Dashboard build and 69 tests passed | TX-hash-only hosted verification completed without a D1 API request | Combined review UI is not production role separation; English demo pitch produced, public URL pending |
 
 ## Current validation command
 
@@ -37,16 +37,14 @@ The explicit TMPDIR is required in this WSL environment so tsx creates its IPC s
 | --- | ---: |
 | Shared | 20 |
 | sensor-registry Contract | 15 |
-| Dashboard | 66 |
+| Dashboard | 69 |
 | Development CLI | 5 |
 | Device Auth | 6 |
 | Edge Agent | 15 |
-| Device Wallet Agent | 29 |
-| Proof Gateway | 147 |
+| Device Wallet Agent | 32 |
+| Proof Gateway | 151 |
 | Sponsor Wallet | 42 |
-| Total | 345 |
-
-![Engineering evidence and validation boundary](../assets/review/engineering-evidence-en.png)
+| Total | 355 |
 
 ## Recorded Preprod reference
 

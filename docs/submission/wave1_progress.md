@@ -2,7 +2,7 @@
 
 [日本語版](../ja/submission/wave1_progress.md)
 
-Period covered: 2026-08-27 to 2026-08-31 JST
+Period covered: 2026-08-27 to 2026-09-02 JST
 Status: final English demo pitch produced; public submission URL pending
 
 ## How to read this record
@@ -16,11 +16,11 @@ Current source validation and Midnight preproduction-network transactions record
 | Area | Built | Verified |
 | --- | --- | --- |
 | Zero-knowledge proof | Check against a public threshold, determine WITHIN / OUTSIDE, and use a fixed format with 24 hourly slots | All 6 proof circuits compile; 15 contract tests pass |
-| Supporting field integration | Measurement collection, hourly aggregation, API authentication, transaction authorization, update, and rollback code for later field operation | 15 collection, 6 authentication, and 29 transaction-agent tests pass; autonomous production operation is not claimed |
-| Backend | Device authentication, proof-request admission, workflow-state storage, proof generation, and APIs that return public information only | 147 Backend API tests and the Cloudflare pre-deployment check pass |
-| Frontend | Combined review workflow with operator steps, a third-party public view, and English / Japanese display | 66 Frontend tests and the production build pass |
+| Supporting field integration | Measurement collection, hourly aggregation, API authentication, transaction authorization, update, and rollback code for later field operation | 15 collection, 6 authentication, and 32 transaction-agent tests pass; autonomous production operation is not claimed |
+| Backend | Device authentication, proof-request admission, workflow-state storage, proof generation, and APIs that return public information only | 151 Backend API tests and the Cloudflare pre-deployment check pass |
+| Frontend | Combined review workflow with operator steps, a third-party public view, and English / Japanese display | 69 Frontend tests and the production build pass |
 | Midnight integration | Public threshold, target proof subject, and a user-authorized daily transaction | Simulator tests and the 2026-08-28 preproduction-network transactions were confirmed |
-| Safety | Tamper rejection, duplicate prevention, execution locking, configuration-downgrade rejection, and corrupt-state quarantine | These failure cases are included in the 345 automated tests |
+| Safety | Tamper rejection, duplicate prevention, execution locking, configuration-downgrade rejection, and corrupt-state quarantine | These failure cases are included in the 355 automated tests |
 | Judge materials | Architecture, privacy boundary, demo procedure, measured cost, English / Japanese figures, and submission package | Documents are categorized and cross-links are checked |
 
 See the [claim-to-evidence map](evidence_matrix.md) for detailed commits and validation locations.
@@ -34,13 +34,11 @@ See the [claim-to-evidence map](evidence_matrix.md) for detailed commits and val
 5. A static page became a bilingual review flow that combines operator steps and third-party evidence for low-friction judging.
 6. The supporting field-runtime package gained content validation, version management, rollback after a failed update, and credential protection.
 
-## Result verified on 2026-08-31
-
-![Wave 1 evidence summary](../assets/review/engineering-evidence-en.png)
+## Result verified on 2026-09-02
 
 - Repository portability validation passed.
 - All 6 `sensor-registry` proof circuits compiled.
-- All 345 automated tests passed across 9 workspaces.
+- All 355 automated tests passed across 9 workspaces.
 - All workspace type checks and Frontend / TypeScript builds passed.
 - The Cloudflare pre-deployment check passed.
 
@@ -48,7 +46,7 @@ Midnight preproduction-network records from 2026-08-28 include both WITHIN and O
 
 ## Current limitations
 
-- The current Worker and GUI were deployed on 2026-08-31 JST; existing dated attestations remain the chain evidence used by this document.
+- The current Worker and GUI were deployed on 2026-09-02 JST; separately dated attestations remain the chain evidence used by this document.
 - The Backend and Proof Server are trusted while handling private proof input.
 - The third-party view directly queries the public Midnight Indexer and compares transaction and Contract state; it does not rerun the ZK verifier locally.
 - The primary review flow uses a browser-based simulated measurement source; a field measurement system does not yet run the complete daily lifecycle autonomously.

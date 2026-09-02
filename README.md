@@ -10,7 +10,7 @@
 
 ## Judge review
 
-The current review tree compiles all 6 operational proof circuits and passes 345 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
+The current review tree compiles all 6 operational proof circuits and passes 355 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records, the 2026-08-30 Sponsor-funded schema-5 record, and the 2026-09-02 missing-hour, stopped-day, and OUTSIDE conformance records. Source validation and dated network records are kept as separate evidence.
 
 | Review artifact | Link |
 | --- | --- |
@@ -193,7 +193,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-The expected review result is 6 compiled operational proof circuits, 345 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The expected review result is 6 compiled operational proof circuits, 355 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 

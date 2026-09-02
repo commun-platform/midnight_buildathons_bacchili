@@ -47,7 +47,7 @@ Common constraints: hard enterprise-engineering style; no board-specific hardwar
 
 ## engineering-evidence-en.png
 
-- Show only judge-relevant results: 6 proof circuits compile, 345 automated tests pass across 9 workspaces, typecheck and build pass, Cloudflare pre-deployment check passes, and dated Midnight Preprod evidence includes the 2026-08-28 self-funded and 2026-08-30 Sponsor-funded records.
+- Historical asset only; do not use this image as the current test-count evidence. The canonical current result is the test distribution in `docs/submission/evidence_matrix.md`.
 - Footer separates current source validation on 2026-08-29 JST from the Midnight record on 2026-08-28, which was not rerun today.
 - Omit internal function names, circuit row counts, `k` values, and deployment-tool jargon.
 

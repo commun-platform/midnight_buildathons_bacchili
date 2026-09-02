@@ -37,10 +37,10 @@ Wave 1では、審査可能なCore Proof PoCとして、Project単位の証明�
 
 リポジトリには、現場側Runtimeの認証、収集、取引、配布、Rollback実装も含まれます。これは次段階に向けたIntegration Evidenceであり、Wave 1では長期間の自律現場運用や本番Role分離まで完了したとは主張しません。
 
-2026-08-31 JSTに現在の作業中ソースを検証した結果:
+2026-09-02 JSTに現在の作業中ソースを検証した結果:
 
 - 6つの証明回路がすべてコンパイル成功
-- 345件の自動テストがすべて成功
+- 355件の自動テストがすべて成功
 - 全構成領域の型検査とビルドが成功
 - Cloudflare配備前検査が成功
 
@@ -50,7 +50,7 @@ Wave 1では、審査可能なCore Proof PoCとして、Project単位の証明�
 - Transaction: 00e12efda5f33b4804f3659a811d2f5e86c9ce838255a63028d41df85cb0762da9
 - Block: 2,302,213
 
-Source検証と日付付きMidnight事前公開ネットワーク記録は別の証拠です。現行Worker／GUIは2026-08-31 JSTにDeploy済みですが、文書更新だけを目的とした新しいDaily Attestationは作っていません。
+Source検証と日付付きMidnight事前公開ネットワーク記録は別の証拠です。現行Worker／GUIは2026-09-02 JSTにDeploy済みですが、文書更新だけを目的とした新しいDaily Attestationは作っていません。
 
 ## 正確に何を証明するか
 
@@ -74,7 +74,7 @@ Source検証と日付付きMidnight事前公開ネットワーク記録は別の
 
 ## 提出リンク
 
-- リポジトリ: 最終公開GitHub URLを追加
+- リポジトリ: [GitHub](https://github.com/commun-platform/midnight_buildathons_private_sensor2026)（公開設定は提出時の外部Gate）
 - 日本語スライド: [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) / [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf)
 - 英語スライド: [PPTX](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf)
 - 紹介動画: `bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、提出用公開URLを追加
