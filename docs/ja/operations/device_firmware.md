@@ -115,7 +115,17 @@ Remote Proof Server経路へ送信します。`--confirm-synthetic`が必須で�
 
 ```bash
 npm run device:benchmark -- --samples 1440 --period-date YYYY-MM-DD --run-id cost-1440-a --confirm-synthetic
+# 固定24 Slot回路を変えず、指定した運用時間Slotを計測なしにする。
+npm run device:benchmark -- --samples 1440 --missing-hours 2,3,11,19 \
+  --period-date YYYY-MM-DD --run-id missing-hours-a --confirm-synthetic
+# 運用日全体を停止として表す。
+npm run device:benchmark -- --samples 1440 --missing-hours all \
+  --period-date YYYY-MM-DD --run-id stopped-day-a --confirm-synthetic
 ```
+
+`--missing-hours`には重複しない運用Slot番号`0`～`23`、または`all`を指定します。任意の
+`--outlier-value`は欠損除外後の最初の観測値へ適用されるため、計測なしと正しいしきい値外判定を
+同時に試験できます。
 
 各Submissionは運用前に登録済みのPublic Policyを使い、実際の`submitDailyAttestation` Transactionを
 Proof／Bindします。FeeなしのFinalized Transactionを認証済みSponsor Endpointへ送り、Sponsor Walletが

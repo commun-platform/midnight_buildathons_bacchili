@@ -61,6 +61,59 @@ test('uses the registered Device ID and can produce a truthful outside-threshold
   }), 'outside-threshold');
 });
 
+test('removes complete operational hours while retaining the fixed 24-slot proof shape', async () => {
+  const dataset = await prepareSyntheticBenchmarkDataset({
+    sampleCount: 1440,
+    runId: 'partial-missing',
+    missingHours: [2, 3, 11, 19],
+  });
+  assert.equal(dataset.publicData.sampleCount, 1200);
+  assert.equal(dataset.publicData.observedHourCount, 20);
+  assert.equal(dataset.publicData.stoppedHourCount, 4);
+  assert.deepEqual(
+    dataset.publicData.hourPresence
+      .flatMap((present, hour) => present ? [] : [hour]),
+    [2, 3, 11, 19],
+  );
+});
+
+test('represents a fully stopped day as 24 canonical no-data hours', async () => {
+  const dataset = await prepareSyntheticBenchmarkDataset({
+    sampleCount: 1440,
+    runId: 'fully-stopped',
+    missingHours: Array.from({ length: 24 }, (_, hour) => hour),
+  });
+  assert.equal(dataset.publicData.sampleCount, 0);
+  assert.equal(dataset.publicData.observedHourCount, 0);
+  assert.equal(dataset.publicData.stoppedHourCount, 24);
+  assert.deepEqual(dataset.publicData.hourPresence, Array(24).fill(false));
+  assert.equal(dataset.privateData.hours.every((hour) => (
+    !hour.present && hour.sampleCount === 0 && hour.minimum === 0 && hour.maximum === 0
+  )), true);
+});
+
+test('places an outlier in an observed hour after missing-hour filtering', async () => {
+  const dataset = await prepareSyntheticBenchmarkDataset({
+    sampleCount: 1440,
+    runId: 'missing-with-outlier',
+    missingHours: [0, 5, 6],
+    outlierValue: 40,
+  });
+  assert.equal(dataset.publicData.observedHourCount, 21);
+  assert.equal(dataset.privateData.hours[0]?.present, false);
+  assert.equal(dataset.privateData.hours[1]?.maximum, 40);
+  assert.equal(evaluatePreparedDailyExtremaLocally(dataset, {
+    policyId: 'temperature-v1',
+    mode: 'closed-range',
+    minimum: 10,
+    maximum: 35,
+    valueScale: 100,
+    sensorTypeCode: 1,
+    unitCode: 1,
+    version: 1,
+  }), 'outside-threshold');
+});
+
 test('rejects unsupported synthetic sample counts and unsafe run IDs', async () => {
   await assert.rejects(
     prepareSyntheticBenchmarkDataset({ sampleCount: 25, runId: 'run-a' }),
@@ -69,5 +122,13 @@ test('rejects unsupported synthetic sample counts and unsafe run IDs', async () 
   await assert.rejects(
     prepareSyntheticBenchmarkDataset({ sampleCount: 24, runId: '../unsafe' }),
     /safe identifier characters/,
+  );
+  await assert.rejects(
+    prepareSyntheticBenchmarkDataset({ sampleCount: 24, runId: 'bad-hour', missingHours: [24] }),
+    /integers from 0 through 23/,
+  );
+  await assert.rejects(
+    prepareSyntheticBenchmarkDataset({ sampleCount: 24, runId: 'duplicate', missingHours: [2, 2] }),
+    /must not contain duplicates/,
   );
 });

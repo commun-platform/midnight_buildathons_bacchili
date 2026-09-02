@@ -440,6 +440,33 @@ The Device archive build completed in **30.29 seconds wall time** (`7.61 s` user
 deployed English verification capture used the transaction hash directly, completed without a D1
 API request, and produced 99 frames at 5 fps.
 
+#### Missing-hour and stopped-day Preprod conformance measurements
+
+Also on 2026-09-02 JST, Device release `0.1.0-missing-pattern-e2e-20260902.1` generated three
+operational-day patterns from the same standard 1,440 one-minute source profile. A missing operational
+hour removes all 60 readings for that slot before the Device creates its private hourly extrema. These
+runs exercised the deployed Device authentication, Proof Queue, Proof Server, Sponsor Wallet, Midnight
+submission, and public transaction-hash verifier. The Proof Jobs were admitted immediately as explicit
+integration tests because the run was outside the scheduled 02:00-06:00 JST processing window.
+
+| Operational date | Pattern | Source / submitted readings | Observed / no-data hours | Public result | `/prove` | Complete submission | Fee |
+| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |
+| 2026-08-22 | Missing slots 2, 3, 11, 19 | 1,440 / 1,200 | 20 / 4 | WITHIN | 47.913 s | 203.798 s | 0.696820000000001 DUST |
+| 2026-08-23 | All 24 slots missing | 1,440 / 0 | 0 / 24 | STOPPED | 53.665 s | 216.456 s | 1.062820000000001 DUST |
+| 2026-08-24 | Missing slots 0, 5, 6; slot 1 outside | 1,440 / 1,260 | 21 / 3 | OUTSIDE | 39.537 s | 205.498 s | 0.714910000000001 DUST |
+
+| Date | Proof Job | Transaction and block | TX-hash-only public verification |
+| --- | --- | --- | --- |
+| 2026-08-22 | `proof-b8b9b5e58d2ef94ecfceb093e5981f646b8c126d320ea30a` | [`c7271ab651e22bc6a2397347a9e13de82a9975fee4f5bc66f7205c4fd608565e`](https://preprod.midnightexplorer.com/transactions/c7271ab651e22bc6a2397347a9e13de82a9975fee4f5bc66f7205c4fd608565e), block 2,369,823 | Four checks true; no-data slots 2, 3, 11, 19 |
+| 2026-08-23 | `proof-5d5545a28cfbd77815c9f731dcf5c0309c75168dca03ca62` | [`93f38db0925d52c0760ea707e5fc14d246b2efd06010fd1be541190745b9983f`](https://preprod.midnightexplorer.com/transactions/93f38db0925d52c0760ea707e5fc14d246b2efd06010fd1be541190745b9983f), block 2,369,863 | Four checks true; all 24 slots are no data |
+| 2026-08-24 | `proof-f9a23def05fbdee5bd40a03a1a977c4abd6a06961e2dcbbf` | [`749723b6762c9b43001679f5384a3190842b36a21df53ac327452b05c7745efe`](https://preprod.midnightexplorer.com/transactions/749723b6762c9b43001679f5384a3190842b36a21df53ac327452b05c7745efe), block 2,369,903 | Four checks true; no-data slots 0, 5, 6 and outside slot 1 |
+
+“Four checks true” means `dailyAttestationRecorded`, `committedHourlyExtrema`,
+`attestationVerified`, and `midnightConfirmed` all passed against the public Midnight Indexer. The
+all-stopped day intentionally has `thresholdSatisfied=true`: no observed hour violated the Policy,
+while the distinct public result remains STOPPED. No missing slot is treated as an anomaly by itself.
+The relevant software versions are the same as the current operational-day measurement above.
+
 #### Previous Sponsor-funded schema-5 measurement
 
 On 2026-08-30 JST, firmware `0.1.0-wave1.20260830.1` generated one completed WITHIN day from

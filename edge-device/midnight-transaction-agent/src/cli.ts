@@ -77,6 +77,22 @@ function numericFlag(name: string, fallback: number): number {
   return value;
 }
 
+function hourListFlag(name: string): number[] | undefined {
+  const raw = flag(name);
+  if (raw === undefined) return undefined;
+  if (raw.trim().toLowerCase() === 'all') {
+    return Array.from({ length: 24 }, (_, hour) => hour);
+  }
+  if (raw.trim() === '') return [];
+  return raw.split(',').map((part) => {
+    const value = Number(part.trim());
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(`--${name} must be a comma-separated list of hours from 0 through 23, or all`);
+    }
+    return value;
+  });
+}
+
 function networkFromArgs(): NetworkConfig {
   return resolveNetwork(flag('network'));
 }
@@ -153,9 +169,12 @@ async function runSubmit(
     unitCode: numericFlag('unit-code', 1),
     version: numericFlag('threshold-version', 1),
   };
-  const thresholdResult = evaluatePreparedDailyExtremaLocally(dataset, policy);
+  const evaluatedThresholdResult = evaluatePreparedDailyExtremaLocally(dataset, policy);
+  const thresholdResult = dataset.publicData.observedHourCount === 0
+    ? 'stopped'
+    : evaluatedThresholdResult;
   const hourResults = evaluatePreparedDailyExtremaHoursLocally(dataset, policy);
-  const thresholdSatisfied = thresholdResult === 'within-threshold';
+  const thresholdSatisfied = evaluatedThresholdResult === 'within-threshold';
   process.stdout.write(`Daily threshold result: ${thresholdResult}\n`);
   const requested = await requestProofJob(network, dataset, hourResults, thresholdSatisfied);
   if (requested.proofJobId && requested.job) {
@@ -256,6 +275,7 @@ async function runSyntheticBenchmark(
   }
   const sampleCount = numericFlag('samples', 0);
   const runId = flag('run-id') ?? Date.now().toString();
+  const missingHours = hourListFlag('missing-hours');
   const outputPath = benchmarkResultPath(runId, sampleCount);
   if (fs.existsSync(outputPath)) throw new Error(`Synthetic benchmark run ID already exists: ${runId}`);
   const preparationStarted = performance.now();
@@ -268,6 +288,7 @@ async function runSyntheticBenchmark(
     outlierValue: flag('outlier-value') === undefined
       ? undefined
       : numericFlag('outlier-value', 40),
+    missingHours,
     policyId: flag('policy') ?? process.env.THRESHOLD_POLICY_VERSION?.trim(),
     assignmentId: flag('assignment') ?? process.env.POLICY_ASSIGNMENT_ID?.trim(),
     timeZoneOffsetMinutes: configuration?.assignment.timeZoneOffsetMinutes,
@@ -276,7 +297,7 @@ async function runSyntheticBenchmark(
   const datasetPreparationMs = Math.round(performance.now() - preparationStarted);
   const submissionStarted = performance.now();
   try {
-    const thresholdResult = evaluatePreparedDailyExtremaLocally(dataset, configuration ? {
+    const evaluatedThresholdResult = evaluatePreparedDailyExtremaLocally(dataset, configuration ? {
       policyId: configuration.policy.id,
       mode: configuration.policy.mode,
       minimum: configuration.policy.minimum ?? 0,
@@ -295,6 +316,9 @@ async function runSyntheticBenchmark(
       unitCode: 1,
       version: 1,
     });
+    const thresholdResult = dataset.publicData.observedHourCount === 0
+      ? 'stopped'
+      : evaluatedThresholdResult;
     const transactions = await runSubmit(network, dataset, configuration);
     const result = {
       measuredAt: new Date().toISOString(),
@@ -304,9 +328,11 @@ async function runSyntheticBenchmark(
       proofServerHost: new URL(network.proofServer).host,
       contractAddress: deviceContractAddress(flag('contract')),
       runId,
-      sampleCount,
-      samplesPerDay: sampleCount,
+      sourceSampleCount: sampleCount,
+      sampleCount: dataset.publicData.sampleCount,
+      samplesPerDay: dataset.publicData.sampleCount,
       intervalSeconds: 86_400 / sampleCount,
+      missingHours: missingHours ?? [],
       attestationCommitment: dataset.publicData.attestationCommitment,
       observedHourCount: dataset.publicData.observedHourCount,
       stoppedHourCount: dataset.publicData.stoppedHourCount,
@@ -331,7 +357,8 @@ async function runSyntheticBenchmark(
       proofServerHost: new URL(network.proofServer).host,
       contractAddress: deviceContractAddress(flag('contract')),
       runId,
-      sampleCount,
+      sourceSampleCount: sampleCount,
+      missingHours: missingHours ?? [],
       timing: {
         datasetPreparationMs,
         submissionMs: Math.round(performance.now() - submissionStarted),

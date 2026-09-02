@@ -415,6 +415,31 @@ Device Archive Buildは**30.29秒 wall time**（user `7.61 s`、system `4.62 s`�
 `/usr/bin/time`がないためInstall時の最大RSSは取得していません。Deploy済み英語版GUIの検証Captureは
 TX Hashを直接使い、D1 API Requestなしで完了し、5 fps・99 framesを生成しました。
 
+#### 欠損時間・全停止日のPreprod適合実測
+
+同じ2026-09-02 JSTに、Device Release `0.1.0-missing-pattern-e2e-20260902.1`で、標準の1分間隔
+1,440件を入力起点とした運用日3パターンを生成しました。欠損する運用時間は、そのSlotのReading 60件を
+除外してからDevice内でPrivateな時間別Extremaを作成します。Deploy済みのDevice認証、Proof Queue、Proof
+Server、Sponsor Wallet、Midnight送信、TX Hashによる公開検証を一連で使用しました。処理時間帯の
+02:00～06:00 JST外だったため、明示的な結合試験としてProof Jobを即時許可しています。
+
+| 運用日 | パターン | 入力起点／提出Reading | 計測あり／なし時間 | 公開結果 | `/prove` | Submit全体 | Fee |
+| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |
+| 2026-08-22 | Slot 2、3、11、19が欠損 | 1,440 / 1,200 | 20 / 4 | WITHIN | 47.913 s | 203.798 s | 0.696820000000001 DUST |
+| 2026-08-23 | 24 Slotすべて欠損 | 1,440 / 0 | 0 / 24 | STOPPED | 53.665 s | 216.456 s | 1.062820000000001 DUST |
+| 2026-08-24 | Slot 0、5、6が欠損、Slot 1が範囲外 | 1,440 / 1,260 | 21 / 3 | OUTSIDE | 39.537 s | 205.498 s | 0.714910000000001 DUST |
+
+| 運用日 | Proof Job | Transaction／Block | TX Hash単独の公開検証 |
+| --- | --- | --- | --- |
+| 2026-08-22 | `proof-b8b9b5e58d2ef94ecfceb093e5981f646b8c126d320ea30a` | [`c7271ab651e22bc6a2397347a9e13de82a9975fee4f5bc66f7205c4fd608565e`](https://preprod.midnightexplorer.com/transactions/c7271ab651e22bc6a2397347a9e13de82a9975fee4f5bc66f7205c4fd608565e)、Block 2,369,823 | 4検査すべて成功。計測なしSlot 2、3、11、19 |
+| 2026-08-23 | `proof-5d5545a28cfbd77815c9f731dcf5c0309c75168dca03ca62` | [`93f38db0925d52c0760ea707e5fc14d246b2efd06010fd1be541190745b9983f`](https://preprod.midnightexplorer.com/transactions/93f38db0925d52c0760ea707e5fc14d246b2efd06010fd1be541190745b9983f)、Block 2,369,863 | 4検査すべて成功。24 Slotすべて計測なし |
+| 2026-08-24 | `proof-f9a23def05fbdee5bd40a03a1a977c4abd6a06961e2dcbbf` | [`749723b6762c9b43001679f5384a3190842b36a21df53ac327452b05c7745efe`](https://preprod.midnightexplorer.com/transactions/749723b6762c9b43001679f5384a3190842b36a21df53ac327452b05c7745efe)、Block 2,369,903 | 4検査すべて成功。計測なしSlot 0、5、6、範囲外Slot 1 |
+
+4検査は`dailyAttestationRecorded`、`committedHourlyExtrema`、`attestationVerified`、
+`midnightConfirmed`で、すべてPublic Midnight Indexerに対して成功しました。全停止日は、観測した時間に
+Policy違反がないため`thresholdSatisfied=true`ですが、公開結果は別途STOPPEDと表示します。欠損Slotだけを
+異常とは扱いません。関連Software Versionは、直前の現行運用日起点実測と同一です。
+
 #### 以前のSponsor負担Schema-5実測
 
 2026-08-30 JST、導入済みEdge DeviceのFirmware `0.1.0-wave1.20260830.1`で、1分ごとのPrivate

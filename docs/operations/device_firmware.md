@@ -118,7 +118,17 @@ equivalence checks; they are not separate Cost profiles.
 
 ```bash
 npm run device:benchmark -- --samples 1440 --period-date YYYY-MM-DD --run-id cost-1440-a --confirm-synthetic
+# Omit complete operational-hour slots while preserving the fixed 24-slot circuit.
+npm run device:benchmark -- --samples 1440 --missing-hours 2,3,11,19 \
+  --period-date YYYY-MM-DD --run-id missing-hours-a --confirm-synthetic
+# Represent a fully stopped operational day.
+npm run device:benchmark -- --samples 1440 --missing-hours all \
+  --period-date YYYY-MM-DD --run-id stopped-day-a --confirm-synthetic
 ```
+
+`--missing-hours` accepts unique operational-slot numbers from `0` through `23`, or `all`. An
+optional `--outlier-value` is applied to the first remaining observation, so missing data and an
+honest outside-threshold result can be tested together.
 
 Each submission proves and binds one real `submitDailyAttestation` transaction using the public
 policy registered before operation. It sends the finalized fee-free transaction to the authenticated

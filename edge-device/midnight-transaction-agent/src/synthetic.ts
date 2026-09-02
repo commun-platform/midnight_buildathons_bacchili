@@ -14,6 +14,7 @@ export interface SyntheticBenchmarkOptions {
   deviceId?: string;
   periodDate?: string;
   outlierValue?: number;
+  missingHours?: readonly number[];
   policyId?: string;
   assignmentId?: string;
   timeZoneOffsetMinutes?: number;
@@ -47,6 +48,17 @@ export async function prepareSyntheticBenchmarkDataset(
   if (options.outlierValue !== undefined && !Number.isFinite(options.outlierValue)) {
     throw new Error('Synthetic benchmark outlier value must be finite');
   }
+  const missingHours = options.missingHours ?? [];
+  const missingHourSet = new Set<number>();
+  for (const hour of missingHours) {
+    if (!Number.isSafeInteger(hour) || hour < 0 || hour > 23) {
+      throw new Error('Synthetic benchmark missing hours must be integers from 0 through 23');
+    }
+    if (missingHourSet.has(hour)) {
+      throw new Error('Synthetic benchmark missing hours must not contain duplicates');
+    }
+    missingHourSet.add(hour);
+  }
   const intervalSeconds = 86_400 / options.sampleCount;
   const records = generateSensorRecords({
     deviceId,
@@ -54,6 +66,11 @@ export async function prepareSyntheticBenchmarkDataset(
     samples: options.sampleCount,
     intervalSeconds,
     seed,
+  }).filter((record) => {
+    const hour = Math.floor(
+      (Date.parse(record.timestamp) - periodStart.valueOf()) / 3_600_000,
+    );
+    return !missingHourSet.has(hour);
   });
   if (options.outlierValue !== undefined && records[0]) {
     records[0] = { ...records[0], temperature: options.outlierValue };
