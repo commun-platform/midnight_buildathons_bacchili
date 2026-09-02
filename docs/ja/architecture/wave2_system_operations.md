@@ -139,7 +139,9 @@ Event、Health Snapshot、配送完了済み通知のオンライン保持期間
 
 Wallet取得不能と同期異常には5分間の通知保護期間を設けます。Scheduled Workerが初回検出時刻をD1へ記録し、異常が5分間連続した場合にだけOpen通知を発行します。5分以内に復旧した場合はOpen通知もResolved通知も発行しません。その他のAlertは即時通知です。通知済みの異常は、継続中に間隔を制限したReminder、復旧時にResolved通知を発行します。Workerは通知予定をD1 Outboxへ先に記録し、復旧時には未配送のOpen／Reminderを無効化します。このため、復旧後に古い異常通知が届きません。顧客Requestを待たせず、失敗時はBackoff付きで再送し、配送中にWorkerが中断した場合は10分後に配送Leaseを回収します。
 
-Proof Jobが初めて`submitted`または`confirmed`になった時は、Sponsor Wallet利用Receiptを1件だけ発行します。Discord Embedには、取得可能な場合の仮名Wallet Fingerprint、Project、Device、対象日、Proof Job、TX証跡、DUSTとspecksの両方で表した実手数料、配送時点のWallet Phase、同期Lag、実DUST残高、推定残り送信回数、診断用の使用可能DUST UTXO数を含めます。Wallet Address、Authorization、署名済みTransaction Byte、Private測定値、秘密値は含めません。
+Discord通知は日本語で配信し、冒頭に管理者判断として`対応不要`、`要監視`、`対応必要`のいずれかを表示します。各通知には原因、推奨対応、該当するCloudflare Containers、Queues、Observability画面への直接リンクを含めます。復旧通知は`対応不要`です。
+
+Proof Jobが初めて`submitted`または`confirmed`になった時は、Sponsor Wallet利用Receiptを1件だけ発行します。Discord Embedには、取得可能な場合の仮名Wallet Fingerprint、Project、Device、対象日、Proof Job、Transaction HashとBlock、実DUST手数料、配送時点のWallet Phase、同期Lag、実DUST残高、推定残り送信回数を含めます。有効なPreprod Transaction HashはMidnight Explorerへ直接リンクします。Wallet Address、Authorization、署名済みTransaction Byte、Private測定値、秘密値は含めません。
 
 `DISCORD_WEBHOOK_URL`は、設定CommandだけがGit管理外のRoot `.env`から読み、Cloudflare Worker Secretとして登録します。
 

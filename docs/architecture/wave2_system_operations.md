@@ -192,13 +192,17 @@ are cancelled when the condition recovers, so stale incidents are not delivered 
 delivery is therefore outside customer request latency, retries with backoff, and reclaims a
 delivery lease left behind by an interrupted Worker.
 
+Discord messages are delivered in Japanese and lead with one operator decision: `対応不要`, `要監視`,
+or `対応必要`. Each message contains a concise cause, a recommended next action, and a direct link to
+the relevant Cloudflare Containers, Queues, or Observability page. Recovery notices are always
+`対応不要`.
+
 The first transition of a Proof Job to `submitted` or `confirmed` also creates one idempotent Sponsor
 receipt. Its Discord embed contains the pseudonymous Wallet fingerprint when available, Project,
-Device, measurement day, Proof Job, transaction evidence, the fee in both DUST and specks, current
-Sponsor Wallet phase and synchronization lag, the remaining DUST amount, estimated transaction
-capacity, and diagnostic spendable DUST UTXO count observed at delivery time. It does
-not contain a Wallet address, authorization value, signed transaction bytes, private measurement,
-or secret.
+Device, measurement day, Proof Job, transaction hash and block, actual DUST fee, current Sponsor
+Wallet phase and synchronization lag, remaining DUST, and estimated transaction capacity. A valid
+Preprod transaction hash links directly to Midnight Explorer. It does not contain a Wallet address,
+authorization value, signed transaction bytes, private measurement, or secret.
 
 `DISCORD_WEBHOOK_URL` is read only by the configuration command from the ignored root `.env`, then
 written to Cloudflare as a Worker Secret:

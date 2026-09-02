@@ -81,11 +81,28 @@ interface SponsorReceiptRow {
 interface DiscordEmbed {
   title: string;
   description: string;
+  url?: string;
   color: number;
   timestamp: string;
   fields: Array<{ name: string; value: string; inline?: boolean }>;
   footer: { text: string };
 }
+
+type AdministratorDecision = '対応不要' | '要監視' | '対応必要';
+
+interface JapaneseAlertPresentation {
+  decision: AdministratorDecision;
+  description: string;
+  recommendation: string;
+  detailLabel: string;
+  detailUrl: string;
+}
+
+const cloudflareWorkersUrl = 'https://dash.cloudflare.com/?to=/:account/workers-and-pages';
+const cloudflareObservabilityUrl = 'https://dash.cloudflare.com/?to=/:account/workers-and-pages/observability';
+const cloudflareQueuesUrl = 'https://dash.cloudflare.com/?to=/:account/workers/queues';
+const cloudflareContainersUrl = 'https://dash.cloudflare.com/?to=/:account/workers/containers';
+const midnightExplorerTransactionUrl = 'https://preprod.midnightexplorer.com/transactions/';
 
 function integerSetting(value: string | undefined, fallback: number, minimum: number): number {
   const parsed = Number(value);
@@ -425,7 +442,177 @@ function discordField(name: string, value: unknown, inline = true) {
   return { name, value: text || '—', inline };
 }
 
-async function notificationEmbed(
+function captured(summary: string, pattern: RegExp, fallback = '不明'): string {
+  return pattern.exec(summary)?.[1] ?? fallback;
+}
+
+function localizedStatus(status: string): string {
+  return ({
+    confirmed: '確定済み',
+    submitted: '送信済み',
+    failed: '失敗',
+  } as Record<string, string>)[status] ?? status;
+}
+
+function localizedWalletPhase(phase: string | undefined): string {
+  if (!phase) return '取得不可';
+  return ({
+    ready: '準備完了',
+    syncing: '同期中',
+    'waiting-for-funding': '入金待ち',
+    unavailable: '取得不可',
+  } as Record<string, string>)[phase] ?? phase;
+}
+
+function resolvedAlertDetail(alertKey: string): Pick<
+  JapaneseAlertPresentation,
+  'description' | 'detailLabel' | 'detailUrl'
+> {
+  switch (alertKey) {
+    case 'sponsor-wallet-unavailable':
+      return {
+        description: 'Sponsor Walletの状態取得は復旧しました。',
+        detailLabel: 'Cloudflare Containersで現在の状態を確認',
+        detailUrl: cloudflareContainersUrl,
+      };
+    case 'sponsor-wallet-sync-stalled':
+      return {
+        description: 'Sponsor Walletの同期停滞は解消しました。',
+        detailLabel: 'Cloudflare Containersで現在の状態を確認',
+        detailUrl: cloudflareContainersUrl,
+      };
+    case 'sponsor-wallet-low-dust':
+      return {
+        description: 'Sponsor WalletのDUST残高不足は解消しました。',
+        detailLabel: 'CloudflareでWallet運用状態を確認',
+        detailUrl: cloudflareContainersUrl,
+      };
+    case 'proof-backlog-high':
+      return {
+        description: 'ZKP生成ジョブの滞留は解消しました。',
+        detailLabel: 'Cloudflare Queuesで現在の状態を確認',
+        detailUrl: cloudflareQueuesUrl,
+      };
+    case 'sponsor-backlog-high':
+      return {
+        description: 'Sponsor送信ジョブの滞留は解消しました。',
+        detailLabel: 'Cloudflare Queuesで現在の状態を確認',
+        detailUrl: cloudflareQueuesUrl,
+      };
+    case 'proof-api-rate-limited':
+      return {
+        description: 'Proof APIのレート制限多発は解消しました。',
+        detailLabel: 'Cloudflare Observabilityで現在の状態を確認',
+        detailUrl: cloudflareObservabilityUrl,
+      };
+    default:
+      return {
+        description: `「${alertKey}」は解消しました。`,
+        detailLabel: 'Cloudflareで現在の状態を確認',
+        detailUrl: cloudflareWorkersUrl,
+      };
+  }
+}
+
+export function japaneseAlertPresentation(
+  alertKey: string,
+  summary: string,
+  resolved: boolean,
+  severity: 'warning' | 'error',
+): JapaneseAlertPresentation {
+  if (resolved) {
+    const detail = resolvedAlertDetail(alertKey);
+    return {
+      decision: '対応不要',
+      description: detail.description,
+      recommendation: '自動復旧を確認済みです。再発した場合のみ詳細を確認してください。',
+      detailLabel: detail.detailLabel,
+      detailUrl: detail.detailUrl,
+    };
+  }
+
+  switch (alertKey) {
+    case 'sponsor-wallet-unavailable':
+      return {
+        decision: '対応必要',
+        description: 'Sponsor Walletの稼働状態を取得できません。',
+        recommendation: 'コンテナの稼働状態と直近ログを確認し、Sponsor待ちジョブが滞留していないか確認してください。',
+        detailLabel: 'Cloudflare Containersを確認',
+        detailUrl: cloudflareContainersUrl,
+      };
+    case 'sponsor-wallet-sync-stalled': {
+      const lag = captured(summary, /lag is ([0-9]+) blocks/u);
+      const channels = captured(summary, /channels are ([^;]+);/u, 'なし');
+      const age = captured(summary, /state age is ([^ ]+) minutes/u);
+      return {
+        decision: '対応必要',
+        description: `Sponsor Walletの同期が停滞しています（最大遅延: ${lag}ブロック、未接続チャネル: ${channels}、最終更新: ${age}分前）。`,
+        recommendation: 'コンテナのCPU・メモリ・再起動履歴とWallet同期ログを確認してください。',
+        detailLabel: 'Cloudflare Containersを確認',
+        detailUrl: cloudflareContainersUrl,
+      };
+    }
+    case 'sponsor-wallet-low-dust': {
+      const balance = captured(summary, /(?:balance is|has) ([0-9.]+) DUST/u);
+      const capacity = captured(summary, /capacity is ([0-9]+) transactions/u);
+      return {
+        decision: '対応必要',
+        description: `Sponsor WalletのDUST残高が運用しきい値以下です（残高: ${balance} DUST、推定残り送信: ${capacity}件）。`,
+        recommendation: 'Sponsor Walletの残高を確認し、必要なDUSTを補充してください。',
+        detailLabel: 'CloudflareのWallet運用状態を確認',
+        detailUrl: cloudflareContainersUrl,
+      };
+    }
+    case 'proof-backlog-high': {
+      const count = captured(summary, /backlog is ([0-9]+)/u);
+      const age = captured(summary, /oldest wait is ([0-9]+) minutes/u);
+      return {
+        decision: '要監視',
+        description: `ZKP生成待ちが増えています（${count}ジョブ、最長待機: ${age}分）。`,
+        recommendation: 'Queueの消化数とProof Serverの処理状態を監視し、増加が続く場合は処理能力を見直してください。',
+        detailLabel: 'Cloudflare Queuesを確認',
+        detailUrl: cloudflareQueuesUrl,
+      };
+    }
+    case 'sponsor-backlog-high': {
+      const count = captured(summary, /backlog is ([0-9]+)/u);
+      const age = captured(summary, /oldest wait is ([0-9]+) minutes/u);
+      return {
+        decision: '要監視',
+        description: `Sponsor送信待ちが増えています（${count}ジョブ、最長待機: ${age}分）。`,
+        recommendation: 'QueueとSponsor Walletの同期状態を確認し、滞留が続く場合はWallet側の原因を調査してください。',
+        detailLabel: 'Cloudflare Queuesを確認',
+        detailUrl: cloudflareQueuesUrl,
+      };
+    }
+    case 'proof-api-rate-limited': {
+      const count = captured(summary, /HTTP 429 ([0-9]+) times/u);
+      return {
+        decision: '要監視',
+        description: `直近5分間にProof APIでレート制限が${count}回発生しました。`,
+        recommendation: 'リクエスト元と発生頻度を確認し、継続する場合は制限値または送信間隔を見直してください。',
+        detailLabel: 'Cloudflare Observabilityを確認',
+        detailUrl: cloudflareObservabilityUrl,
+      };
+    }
+    default:
+      return {
+        decision: severity === 'error' ? '対応必要' : '要監視',
+        description: `運用監視で「${alertKey}」を検出しました。`,
+        recommendation: '運用ログと関連コンポーネントの状態を確認してください。',
+        detailLabel: 'Cloudflare Observabilityを確認',
+        detailUrl: cloudflareObservabilityUrl,
+      };
+  }
+}
+
+function explorerUrl(transactionHash: string | null): string | null {
+  return transactionHash && /^[0-9a-f]{64}$/u.test(transactionHash)
+    ? `${midnightExplorerTransactionUrl}${transactionHash}`
+    : null;
+}
+
+export async function notificationEmbed(
   database: SqlDatabase,
   notification: NotificationRow,
   health: SponsorWalletHealth | null,
@@ -452,29 +639,36 @@ async function notificationEmbed(
           recordedAt: receipt.sponsorship_completed_at ?? timestamp,
         }
       : null);
+    const transactionUrl = explorerUrl(receipt.attest_tx_hash);
     return {
-      title: 'Sponsored transaction receipt',
-      description: 'The Sponsor Wallet added DUST and submitted an authorized Device transaction.',
+      title: 'Sponsor Wallet 利用レシート',
+      description: '認可済みのデバイス取引にDUST手数料を付与し、Midnightへ送信しました。',
+      ...(transactionUrl ? { url: transactionUrl } : {}),
       color: 0x2e8b57,
       timestamp: receipt.sponsorship_completed_at ?? timestamp,
       fields: [
+        discordField('判断', '対応不要'),
+        discordField('推奨対応', '通常の送信完了通知です。必要な場合のみExplorerでTransactionを照合してください。', false),
+        discordField('プロジェクト', short(receipt.project_id, 28)),
+        discordField('デバイス', short(receipt.device_id, 28)),
+        discordField('Wallet識別子', short(receipt.wallet_key_sha256, 20)),
+        discordField('対象日', receipt.period_date),
+        discordField('状態', localizedStatus(receipt.status)),
         discordField('Proof Job', short(receipt.id, 28), false),
-        discordField('Project', short(receipt.project_id, 28)),
-        discordField('Device', short(receipt.device_id, 28)),
-        discordField('Wallet fingerprint', short(receipt.wallet_key_sha256, 20)),
-        discordField('Measurement day', receipt.period_date),
-        discordField('Status', receipt.status),
-        discordField('Fee (DUST)', funds.latestFee ? `${funds.latestFee.dust} DUST` : 'unavailable'),
-        discordField('Fee (specks)', funds.latestFee?.specks ?? 'unavailable'),
-        discordField('Remaining DUST', funds.remainingDust ? `${funds.remainingDust} DUST` : 'unavailable'),
-        discordField('Estimated TX capacity', funds.estimatedTransactionsRemaining ?? 'unavailable'),
-        discordField('Spendable DUST UTXOs', wallet?.balances.spendableDustCoins ?? 'unavailable'),
-        discordField('Wallet phase', wallet?.phase ?? 'unavailable'),
-        discordField('Synchronization lag', wallet ? maxLag(wallet).toString() : 'unavailable'),
-        discordField('Midnight TX', short(receipt.attest_tx_id, 32), false),
-        discordField('Block', receipt.block_height),
+        discordField('手数料', funds.latestFee ? `${funds.latestFee.dust} DUST` : '取得不可'),
+        discordField('残DUST', funds.remainingDust ? `${funds.remainingDust} DUST` : '取得不可'),
+        discordField('推定残り送信', funds.estimatedTransactionsRemaining === null
+          ? '取得不可'
+          : `${funds.estimatedTransactionsRemaining}件`),
+        discordField('Wallet状態', localizedWalletPhase(wallet?.phase)),
+        discordField('同期遅延', wallet ? `${maxLag(wallet).toString()} Block` : '取得不可'),
+        discordField('Midnight TX', short(receipt.attest_tx_hash ?? receipt.attest_tx_id, 32), false),
+        discordField('ブロック', receipt.block_height),
+        discordField('詳細', transactionUrl
+          ? `[Midnight Explorerで確認](${transactionUrl})`
+          : 'Transaction Hashの確定後にExplorerリンクを表示します。', false),
       ],
-      footer: { text: `BACCHIRI operations · ${notification.id}` },
+      footer: { text: `BACCHIRI システム運用 · ${notification.id}` },
     };
   }
 
@@ -484,20 +678,33 @@ async function notificationEmbed(
   );
   if (!alert) throw new Error('Notification alert state was not found');
   const resolved = notification.kind === 'alert-resolved';
+  const presentation = japaneseAlertPresentation(
+    alert.alert_key,
+    alert.summary,
+    resolved,
+    alert.severity,
+  );
   return {
-    title: resolved ? 'Operational alert resolved' : 'Operational alert',
-    description: alert.summary,
+    title: resolved
+      ? '運用アラート解消'
+      : notification.kind === 'alert-reminder'
+        ? '運用アラート（継続中）'
+        : '運用アラート',
+    description: presentation.description,
+    url: presentation.detailUrl,
     color: resolved ? 0x2e8b57 : alert.severity === 'error' ? 0xc0392b : 0xf39c12,
     timestamp,
     fields: [
-      discordField('Alert', alert.alert_key, false),
-      discordField('State', resolved ? 'resolved' : 'open'),
-      discordField('Severity', alert.severity),
-      discordField('First observed', alert.first_observed_at, false),
-      discordField('Last observed', alert.last_observed_at, false),
-      discordField('Occurrences', alert.occurrence_count),
+      discordField('判断', presentation.decision),
+      discordField('重要度', resolved ? '解消' : alert.severity === 'error' ? '障害' : '警告'),
+      discordField('アラート識別子', alert.alert_key, false),
+      discordField('推奨対応', presentation.recommendation, false),
+      discordField('初回検知', alert.first_observed_at, false),
+      discordField('最終検知', alert.last_observed_at, false),
+      discordField('検知回数', `${alert.occurrence_count}回`),
+      discordField('詳細', `[${presentation.detailLabel}](${presentation.detailUrl})`, false),
     ],
-    footer: { text: `BACCHIRI operations · ${notification.id}` },
+    footer: { text: `BACCHIRI システム運用 · ${notification.id}` },
   };
 }
 
@@ -508,7 +715,7 @@ async function sendDiscord(env: Env, embed: DiscordEmbed): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      username: 'BACCHIRI Operations',
+      username: 'BACCHIRI 運用通知',
       allowed_mentions: { parse: [] },
       embeds: [embed],
     }),
