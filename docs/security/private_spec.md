@@ -49,18 +49,19 @@ included in the public third-party API.
 
 The public Proof view may expose:
 
-- period and sample count;
+- UTC measurement date (`YYYY-MM-DD`, exactly 00:00–24:00) and sample count;
 - daily attestation commitment and pseudonymous Proof Job ID;
-- threshold-policy mode, public bounds, ID/version, and assignment;
+- `deviceCommitment` as the pseudonymous proof subject;
+- threshold-policy mode, lower/upper bounds, unit, scale, version, and assignment validity interval;
 - observed/STOPPED hour count and presence bitmap;
-- proven WITHIN/OUTSIDE result (or STOPPED derived from zero observed hours) and confirmation status;
+- 24 proven hourly WITHIN/OUTSIDE/NO DATA results, a daily summary, and confirmation status;
 - attestation transaction ID or hash, block height, network, and contract address.
 
 The operational contract stores threshold mode, minimum/maximum, scale, sensor/unit codes, policy
-assignment, and `thresholdSatisfied` in public ledger state. The product must therefore describe the
-threshold policy and WITHIN/OUTSIDE result as public. The zero-knowledge property protects the
-submitted hourly extrema and commitment nonce; an OUTSIDE result does not reveal which hour or value
-caused it.
+assignment, UTC measurement day, hourly result vector, and `thresholdSatisfied` daily summary in
+public ledger state. The product must therefore describe the threshold policy and each hour's status
+as public. The zero-knowledge property protects the submitted hourly extrema and commitment nonce;
+an OUTSIDE result reveals the hour but not the value or which bound was exceeded.
 
 ## Trusted Wave 1 components
 
@@ -81,4 +82,9 @@ prover/verifier artifacts are build artifacts rather than secret key material. F
 ignored `.dev.vars` values may replace Cloudflare Secret bindings, but they must not be committed or
 copied into the image.
 
-The browser does not independently execute the ZK verifier. It renders the redacted D1 record, then directly queries the public Midnight Indexer and independently compares the successful transaction and Contract state at that block. Local proof-verifier execution and multi-source Indexer hardening remain later extensions.
+The browser does not independently execute the ZK verifier. From a pasted transaction hash, it asks
+the public Midnight Indexer for the successful transaction, block, and Contract actions. It decodes
+the Contract state at that block and the preceding block, identifies the attestation added by that
+transaction, and renders its UTC day, hourly results, policy/validity, and Device Commitment. D1 is
+not used in this hash-verification path. Local proof-verifier execution and multi-source Indexer
+hardening remain later extensions.

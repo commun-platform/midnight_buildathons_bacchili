@@ -240,6 +240,8 @@ describe('Midnight Wallet shell', () => {
 
   it('independently checks the public transaction and Contract state on Midnight', () => {
     expect(script).toContain('verifyPublicProofOnMidnight(data)');
+    expect(script).toContain('loadPublicProofFromMidnight(current.txHash)');
+    expect(script).toContain("parts[0] === 'verify-tx'");
     expect(script).toContain("{ state: 'checking', error: '' }");
     expect(script).toContain("chainCheckInProgress: 'Midnightを直接確認中'");
     expect(script).toContain('progress-shell dashboard-sync-progress');
@@ -252,6 +254,10 @@ describe('Midnight Wallet shell', () => {
     expect(publicVerifier).toContain('state.attestations.member(attestationId)');
     expect(publicVerifier).toContain('state.policyAssignments.member(assignmentKey)');
     expect(publicVerifier).toContain('transaction.status === SucceedEntirely');
+    expect(publicVerifier).toContain('transactions(offset: $offset)');
+    expect(publicVerifier).toContain('variables: { offset: { hash: transactionHash } }');
+    expect(publicVerifier).toContain('previousState.attestations.member(key)');
+    expect(publicVerifier).toContain('publicAttestationFromLedgerTransition(');
   });
 
   it('presents internal threshold and sensor values with approachable labels', () => {

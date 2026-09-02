@@ -29,6 +29,7 @@ describe('Proof Job Sponsor progress response', () => {
       device_id: 'device-001',
       period_date: '2026-08-31',
       hour_presence: '1'.repeat(24),
+      hour_results: '1'.repeat(24),
       observed_hour_count: 24,
       threshold_satisfied: 1,
       status: 'sponsoring',

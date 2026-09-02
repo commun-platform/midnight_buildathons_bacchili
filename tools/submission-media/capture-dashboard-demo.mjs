@@ -91,9 +91,20 @@ class CdpClient {
 }
 
 const proofJobId = flag('proof-job-id')?.trim() ?? '';
-if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(proofJobId)) {
+const transactionHash = flag('transaction-hash')?.trim().replace(/^0x/iu, '').toLowerCase() ?? '';
+if (proofJobId && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(proofJobId)) {
   throw new Error('--proof-job-id must be a valid Proof Job ID');
 }
+if (transactionHash && !/^[a-f\d]{64}$/u.test(transactionHash)) {
+  throw new Error('--transaction-hash must be 64 hexadecimal characters');
+}
+if ((proofJobId ? 1 : 0) + (transactionHash ? 1 : 0) !== 1) {
+  throw new Error('Pass exactly one of --proof-job-id or --transaction-hash');
+}
+
+const language = flag('language')?.trim() || 'en';
+if (!['en', 'ja'].includes(language)) throw new Error('--language must be en or ja');
+const verificationIdentifier = transactionHash || proofJobId;
 
 const baseUrl = new URL(
   flag('base-url')?.trim() || 'http://127.0.0.1:8787',
@@ -108,7 +119,7 @@ if (
 
 const outputDirectory = path.resolve(
   repoRoot,
-  flag('output-dir') || path.join('.demo-output', `dashboard-${proofJobId}`),
+  flag('output-dir') || path.join('.demo-output', `dashboard-${verificationIdentifier}`),
 );
 if (fs.existsSync(outputDirectory) && !hasFlag('overwrite')) {
   throw new Error(`Output already exists: ${outputDirectory}; pass --overwrite to replace it`);
@@ -164,7 +175,7 @@ try {
     mobile: false,
   });
   await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: "localStorage.setItem('vsp-language', 'en');",
+    source: `localStorage.setItem('vsp-language', ${JSON.stringify(language)});`,
   });
 
   const evaluate = async (expression) => {
@@ -238,23 +249,46 @@ try {
     }
   };
 
-  const verificationUrl = new URL(`/#/verify/${encodeURIComponent(proofJobId)}`, baseUrl).toString();
+  const verificationRoute = transactionHash
+    ? `/#/verify-tx/${encodeURIComponent(transactionHash)}`
+    : `/#/verify/${encodeURIComponent(proofJobId)}`;
+  const verificationUrl = new URL(verificationRoute, baseUrl).toString();
   await navigate(verificationUrl);
-  await waitFor(`location.hash.includes(${JSON.stringify(encodeURIComponent(proofJobId))}) && document.querySelector('.check-list') && document.querySelector('.public-proof-pipeline') && document.querySelector('.raw-values-redacted')`, 90_000);
+  await waitFor(`location.hash.includes(${JSON.stringify(encodeURIComponent(verificationIdentifier))}) && document.querySelector('.check-list') && document.querySelector('.public-proof-pipeline') && document.querySelector('.raw-values-redacted')`, 90_000);
   await waitFor(`(document.querySelectorAll('.check-list .check-code:not(.waiting)').length === 4 && document.querySelectorAll('.public-proof-pipeline li.complete').length === 5) || document.querySelector('.dashboard-sync-state.failed')`, 90_000);
   await evaluate('window.scrollTo(0, 0)');
   await evaluate(`document.querySelector('#vsp-demo-caption')?.remove()`);
   await capture(path.join(outputDirectory, 'third-party-verification.png'));
   const verificationFailure = await evaluate(`document.querySelector('.dashboard-sync-state.failed')?.innerText || ''`);
   if (verificationFailure) throw new Error(`Third-party verification failed: ${verificationFailure}`);
-  await caption('1. Verify the threshold result and Midnight record without revealing sensor values');
+  await caption(language === 'ja'
+    ? '1. センサー値を開示せず、時間帯別結果とMidnight記録を検証'
+    : '1. Verify the threshold result and Midnight record without revealing sensor values');
   await hold(5);
 
-  await caption('2. Review public evidence and the sensor values hidden from third parties');
+  await caption(language === 'ja'
+    ? '2. 公開証拠と、第三者には非公開のセンサー値を確認'
+    : '2. Review public evidence and the sensor values hidden from third parties');
+  await smoothScroll(`Math.max(0, document.querySelector('.hourly-results-scroll').getBoundingClientRect().top + window.scrollY - 110)`);
+  await hold(5);
+  await evaluate(`document.querySelector('#vsp-demo-caption')?.remove()`);
+  await capture(path.join(outputDirectory, 'third-party-hourly-results.png'));
   await smoothScroll(`Math.max(0, document.documentElement.scrollHeight - window.innerHeight)`);
   await hold(5);
 
-  const video = path.join(outputDirectory, 'vsp-midnight-proof-verification-en.mp4');
+  const resources = await evaluate(`performance.getEntriesByType('resource').map((entry) => entry.name)`);
+  const d1BackedApiRequests = resources.filter((resource) => (
+    new URL(resource).origin === baseUrl.origin
+    && new URL(resource).pathname.startsWith('/api/')
+  ));
+  if (transactionHash && d1BackedApiRequests.length > 0) {
+    throw new Error(`TX-hash verification unexpectedly used Worker API: ${d1BackedApiRequests.join(', ')}`);
+  }
+  if (transactionHash && !resources.some((resource) => (
+    new URL(resource).hostname === 'indexer.preprod.midnight.network'
+  ))) throw new Error('TX-hash verification did not contact the Midnight Preprod Indexer');
+
+  const video = path.join(outputDirectory, `vsp-midnight-proof-verification-${language}.mp4`);
   const ffmpegResult = spawnSync(ffmpeg, [
     '-y',
     '-framerate', '5',
@@ -273,9 +307,13 @@ try {
   const videoSha256 = crypto.createHash('sha256').update(fs.readFileSync(video)).digest('hex');
   const metadata = {
     createdAt: new Date().toISOString(),
-    proofJobId,
+    proofJobId: proofJobId || null,
+    transactionHash: transactionHash || null,
     baseUrl: baseUrl.toString(),
-    language: 'en',
+    verificationUrl,
+    language,
+    resourceOrigins: [...new Set(resources.map((resource) => new URL(resource).origin))].sort(),
+    d1BackedApiRequests,
     chromeVersion,
     ffmpegVersion,
     frameRate: 5,

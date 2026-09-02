@@ -7,6 +7,7 @@ import {
 } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import {
   encodeTemperature,
+  evaluatePreparedDailyExtremaHoursLocally,
   generateSensorRecords,
   hexToBytes,
   prepareDailyExtremaAttestation,
@@ -16,6 +17,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   Contract,
+  HourThresholdResult,
   ledger,
   pureCircuits,
   type Ledger,
@@ -103,6 +105,9 @@ class SensorRegistrySimulator {
   submit(
     presence = this.attestation.publicData.hourPresence,
     thresholdSatisfied = true,
+    hourResults: HourThresholdResult[] = presence.map((present) => present
+      ? HourThresholdResult.withinThreshold
+      : HourThresholdResult.noData),
   ): Ledger {
     const publicData = this.attestation.publicData;
     this.context = this.contract.impureCircuits.submitDailyAttestation(
@@ -111,9 +116,11 @@ class SensorRegistrySimulator {
       hexToBytes(publicData.deviceCommitment),
       hexToBytes(publicData.measurementGroupId),
       hexToBytes(publicData.assignmentKey),
+      BigInt(publicData.measurementDay),
       BigInt(publicData.periodStartEpoch),
       BigInt(publicData.periodEndEpoch),
       presence,
+      hourResults,
       BigInt(publicData.sampleCount),
       thresholdSatisfied,
       BigInt(publicData.schemaVersion),
@@ -133,7 +140,7 @@ function attestationId(attestation: PreparedDailyExtremaAttestation): Uint8Array
 async function preparedDaily(sampleCount = 24, maximumTemperature = 28) {
   const records = generateSensorRecords({
     deviceId: 'edge-temp-001',
-    start: new Date('2026-08-27T15:00:00.000Z'),
+    start: new Date('2026-08-28T00:00:00.000Z'),
     samples: sampleCount,
     intervalSeconds: 86_400 / sampleCount,
     seed: 101,
@@ -168,6 +175,7 @@ describe('SensorRegistry hourly-extrema contract', () => {
     expect(attestation.observedHourCount).toBe(24n);
     expect(attestation.sampleCount).toBe(24n);
     expect(attestation.thresholdSatisfied).toBe(true);
+    expect(attestation.hourResults).toEqual(Array(24).fill(HourThresholdResult.withinThreshold));
     expect(attestation.policyId).toEqual(hexToBytes(valid.publicData.policyKey));
     expect(attestation.attestationCommitment).toEqual(
       hexToBytes(valid.publicData.attestationCommitment),
@@ -178,7 +186,7 @@ describe('SensorRegistry hourly-extrema contract', () => {
   it('accepts missing hours as canonical STOPPED slots', async () => {
     const records = generateSensorRecords({
       deviceId: 'edge-temp-001',
-      start: new Date('2026-08-27T15:00:00.000Z'),
+      start: new Date('2026-08-28T00:00:00.000Z'),
       samples: 12,
       intervalSeconds: 7_200,
       seed: 102,
@@ -193,7 +201,7 @@ describe('SensorRegistry hourly-extrema contract', () => {
     const state = simulator.submit();
     expect(state.attestations.lookup(
       attestationId(canonical),
-    ).observedHourCount).toBe(12n);
+    ).hourResults.filter((result) => result === HourThresholdResult.noData)).toHaveLength(12);
   });
 
   it('accepts a fully STOPPED day without treating it as fraud', async () => {
@@ -211,6 +219,7 @@ describe('SensorRegistry hourly-extrema contract', () => {
     expect(attestation.observedHourCount).toBe(0n);
     expect(attestation.sampleCount).toBe(0n);
     expect(attestation.thresholdSatisfied).toBe(true);
+    expect(attestation.hourResults).toEqual(Array(24).fill(HourThresholdResult.noData));
     expect(attestation.verified).toBe(true);
   });
 
@@ -229,10 +238,25 @@ describe('SensorRegistry hourly-extrema contract', () => {
     outside.privateData.hours[5]!.maximum = 40;
     const simulator = new SensorRegistrySimulator(outside);
     simulator.registerPolicy(35);
-    const state = simulator.submit(outside.publicData.hourPresence, false);
+    const hourResults = evaluatePreparedDailyExtremaHoursLocally(outside, {
+      policyId: 'temperature-v1',
+      mode: 'closed-range',
+      minimum: 10,
+      maximum: 35,
+      valueScale: 100,
+      sensorTypeCode: 1,
+      unitCode: 1,
+      version: 1,
+    }).map((result) => result === 'outside-threshold'
+      ? HourThresholdResult.outsideThreshold
+      : result === 'within-threshold'
+        ? HourThresholdResult.withinThreshold
+        : HourThresholdResult.noData);
+    const state = simulator.submit(outside.publicData.hourPresence, false, hourResults);
     const attestation = state.attestations.lookup(attestationId(outside));
     expect(attestation.verified).toBe(true);
     expect(attestation.thresholdSatisfied).toBe(false);
+    expect(attestation.hourResults[5]).toBe(HourThresholdResult.outsideThreshold);
     expect(state.lastAttestationThresholdSatisfied).toBe(false);
   });
 
@@ -249,13 +273,23 @@ describe('SensorRegistry hourly-extrema contract', () => {
       withinSimulator.attestation.publicData.hourPresence,
       false,
     )).toThrow('threshold result mismatch');
+
+    const hourlyTamper = new SensorRegistrySimulator(await preparedDaily());
+    hourlyTamper.registerPolicy(35);
+    const falseHourlyResults = Array(24).fill(HourThresholdResult.withinThreshold);
+    falseHourlyResults[7] = HourThresholdResult.outsideThreshold;
+    expect(() => hourlyTamper.submit(
+      hourlyTamper.attestation.publicData.hourPresence,
+      true,
+      falseHourlyResults,
+    )).toThrow('hour threshold result mismatch');
   });
 
   it('rejects the same Device measurement group even when its commitment changes', async () => {
     const first = await preparedDaily();
     const repeated = await prepareDailyExtremaAttestation(generateSensorRecords({
       deviceId: 'edge-temp-001',
-      start: new Date('2026-08-27T15:00:00.000Z'),
+      start: new Date('2026-08-28T00:00:00.000Z'),
       samples: 24,
       intervalSeconds: 3_600,
       seed: 909,
@@ -281,9 +315,13 @@ describe('SensorRegistry hourly-extrema contract', () => {
       hexToBytes(publicData.deviceCommitment),
       hexToBytes(publicData.measurementGroupId),
       hexToBytes(publicData.assignmentKey),
+      BigInt(publicData.measurementDay),
       BigInt(publicData.periodStartEpoch),
       BigInt(publicData.periodEndEpoch),
       publicData.hourPresence,
+      publicData.hourPresence.map((present) => present
+        ? HourThresholdResult.withinThreshold
+        : HourThresholdResult.noData),
       BigInt(publicData.sampleCount),
       true,
       BigInt(publicData.schemaVersion),
@@ -326,7 +364,7 @@ describe('SensorRegistry hourly-extrema contract', () => {
   it('binds each policy assignment to exactly one registered device', async () => {
     const second = await prepareDailyExtremaAttestation(generateSensorRecords({
       deviceId: 'edge-temp-002',
-      start: new Date('2026-08-27T15:00:00.000Z'),
+      start: new Date('2026-08-28T00:00:00.000Z'),
       samples: 24,
       intervalSeconds: 3_600,
       seed: 202,
@@ -403,7 +441,7 @@ describe('SensorRegistry hourly-extrema contract', () => {
   it('rejects Device Authority reuse across registration and rotation', async () => {
     const second = await prepareDailyExtremaAttestation(generateSensorRecords({
       deviceId: 'edge-temp-002',
-      start: new Date('2026-08-27T15:00:00.000Z'),
+      start: new Date('2026-08-28T00:00:00.000Z'),
       samples: 24,
       intervalSeconds: 3_600,
       seed: 203,

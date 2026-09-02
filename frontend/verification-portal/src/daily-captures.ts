@@ -3,10 +3,12 @@ import {
   DAILY_EXTREMA_SCHEMA_VERSION,
   bytesToHex,
   evaluatePreparedDailyExtremaLocally,
+  evaluatePreparedDailyExtremaHoursLocally,
   generateSensorRecords,
   prepareDailyExtremaAttestation,
   sha256,
   type PreparedDailyExtremaAttestation,
+  type HourThresholdResult,
   type SensorRecord,
   type ThresholdPolicyDescriptor,
 } from '@midnight-demo/shared';
@@ -26,7 +28,7 @@ export interface DailyHourlyWindow {
 }
 
 export interface BrowserDailyCapture {
-  schemaVersion: 1;
+  schemaVersion: 2;
   storageKey: string;
   projectId: string;
   deviceId: string;
@@ -36,6 +38,7 @@ export interface BrowserDailyCapture {
   requestedSampleCount: DailySampleCount;
   seed: number;
   completeDay: boolean;
+  hourResults: HourThresholdResult[];
   thresholdSatisfied: boolean;
   outlierCount: number;
   records: SensorRecord[];
@@ -58,7 +61,6 @@ export interface GenerateDailyCaptureInput {
 
 const databaseName = 'vsp-device-private-data-v1';
 const captureStoreName = 'daily-captures';
-const jstOffsetMilliseconds = 9 * 60 * 60 * 1000;
 const dayMilliseconds = 24 * 60 * 60 * 1000;
 const browserGenerationDayLimit = 30;
 const supportedSampleCounts = new Set<DailySampleCount>([24, 96, 1440]);
@@ -67,12 +69,14 @@ function isCurrentDailyCapture(value: unknown): value is BrowserDailyCapture {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const capture = value as Partial<BrowserDailyCapture>;
   const attestation = capture.attestation;
-  return capture.schemaVersion === 1
+  return capture.schemaVersion === 2
     && capture.requestedSampleCount === 1440
     && Array.isArray(capture.records)
     && capture.records.length === 1440
     && Array.isArray(capture.windows)
     && capture.windows.length === 24
+    && Array.isArray(capture.hourResults)
+    && capture.hourResults.length === 24
     && attestation?.publicData.schemaVersion === DAILY_EXTREMA_SCHEMA_VERSION
     && attestation.publicData.circuitVersion === DAILY_EXTREMA_CIRCUIT_VERSION
     && attestation.publicData.sampleCount === 1440
@@ -90,22 +94,21 @@ function periodStart(periodDate: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(periodDate)) {
     throw new Error('periodDate must be YYYY-MM-DD');
   }
-  const start = new Date(`${periodDate}T00:00:00+09:00`);
+  const start = new Date(`${periodDate}T00:00:00.000Z`);
   if (
     Number.isNaN(start.valueOf())
-    || new Date(start.valueOf() + jstOffsetMilliseconds).toISOString().slice(0, 10) !== periodDate
+    || start.toISOString().slice(0, 10) !== periodDate
   ) throw new Error('periodDate is not a valid calendar date');
   return start;
 }
 
 export function dailyGenerationDateBounds(now = new Date()): { minimum: string; maximum: string } {
   if (!Number.isFinite(now.valueOf())) throw new Error('Current time is invalid');
-  const today = new Date(now.valueOf() + jstOffsetMilliseconds).toISOString().slice(0, 10);
+  const today = now.toISOString().slice(0, 10);
   const todayStart = periodStart(today).valueOf();
   return {
-    minimum: new Date(todayStart - browserGenerationDayLimit * dayMilliseconds + jstOffsetMilliseconds)
-      .toISOString().slice(0, 10),
-    maximum: new Date(todayStart - dayMilliseconds + jstOffsetMilliseconds).toISOString().slice(0, 10),
+    minimum: new Date(todayStart - browserGenerationDayLimit * dayMilliseconds).toISOString().slice(0, 10),
+    maximum: new Date(todayStart - dayMilliseconds).toISOString().slice(0, 10),
   };
 }
 
@@ -113,7 +116,7 @@ export function validateDailyGenerationDate(periodDate: string, now = new Date()
   periodStart(periodDate);
   const bounds = dailyGenerationDateBounds(now);
   if (periodDate < bounds.minimum || periodDate > bounds.maximum) {
-    throw new Error(`periodDate must be between ${bounds.minimum} and ${bounds.maximum} (JST)`);
+    throw new Error(`periodDate must be between ${bounds.minimum} and ${bounds.maximum} (UTC)`);
   }
 }
 
@@ -260,8 +263,9 @@ export async function generateDailyCapture(
   });
   const outlierCount = records.filter((record) => !policyAllowsValue(input.policy, record.temperature)).length;
   const thresholdResult = evaluatePreparedDailyExtremaLocally(attestation, input.policy);
+  const hourResults = evaluatePreparedDailyExtremaHoursLocally(attestation, input.policy);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     storageKey: storageKey(input.projectId, input.deviceId, input.periodDate),
     projectId: input.projectId,
     deviceId: input.deviceId,
@@ -271,6 +275,7 @@ export async function generateDailyCapture(
     requestedSampleCount: input.sampleCount,
     seed,
     completeDay,
+    hourResults,
     thresholdSatisfied: thresholdResult === 'within-threshold',
     outlierCount,
     records,

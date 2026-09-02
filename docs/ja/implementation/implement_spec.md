@@ -20,8 +20,8 @@
 | Device登録 | OperatorがActivation前に`registerDevice`を呼びます。 | Device Commitment、導出Authority、Status、VersionはPublic Ledger Stateです。 |
 | Policy登録 | 開発OperatorがOperator Authorityで`registerThresholdPolicy`を呼びます。 | Mode、Bound、Scale、Sensor／Unit Code、VersionはPublic Ledger Stateです。 |
 | Assignment | 運用開始前に`registerPolicyAssignment`を呼びます。 | Policy Key、Device Commitment、Assignment Key、有効期間、Versionは公開です。 |
-| 準備 | Wallet Agentが安定した`measurementGroupId`を割り当て、Local Recordを順序固定の24時間Slotへ集計し、`DailyExtremaInput`全体を1つのNonceでCommitします。 | 時間別ExtremaとNonceは非公開、Group ID、Commitment、期間、Presence、Countは公開です。 |
-| Attest | `submitDailyAttestation`がAssignment済みLedger Policyを読み、全Private Observed Slotから`allWithin`を計算し、Public `thresholdSatisfied`との一致を証明します。 | 検証済みWITHIN／OUTSIDE Result、Policy／Assignment、STOPPED時間、TX Evidenceは公開です。 |
+| 準備 | Wallet Agentが安定した`measurementGroupId`を割り当て、UTCの1日を順序固定の24時間Slotへ集計し、`DailyExtremaInput`全体を1つのNonceでCommitします。 | 時間別ExtremaとNonceは非公開、Group ID、Commitment、UTC日／期間、Presence、Countは公開です。 |
+| Attest | `submitDailyAttestation`がAssignment済みLedger Policyを読み、Private Slotから24個の時間帯別結果を再計算し、Public `hourResults`と日次の`thresholdSatisfied`に一致することを証明します。 | 検証済みのしきい値以内／範囲外／計測なし、Policy／Assignment、TX Evidenceは公開です。 |
 
 日次Attestationは運用Transaction 1回です。DeviceはProof Job APIにもAttestation Circuit CallにもThreshold Boundを渡しません。Policy登録は低頻度のOperator Lifecycle操作です。
 
@@ -34,15 +34,17 @@
 | `policies` | 32-byte Policy KeyからMode、Encode済みBound、Scale、Type／Unit Code、Versionを引くImmutable Mapです。 | Policy値は意図的に公開します。 |
 | `policyAssignments` | Assignment KeyからPolicy Key、Device Commitment、有効期間、Versionを引くImmutable Mapです。 | 別Deviceでの流用は回路が拒否し、Overlap Governanceは将来対象です。 |
 | `attestations` | `persistentHash(domain, deviceCommitment, measurementGroupId)`から`DailyAttestationPublicState`を引くMapです。 | 同じGroupを拒否し、値にはCommitmentを含みますが時間別Minimum、Maximum、Nonceは含みません。 |
+| `measurementDay` | `periodStart`と`periodEnd`にBindingしたUTC Epoch Dayです。 | UTCの00:00～24:00を回路で強制します。 |
 | `hourPresence[24]` | PublicなObserved／STOPPED Bitmapです。 | `true`はPrivate Slotが提出され検査されたことを示しますが、物理Readingの実在は証明しません。 |
+| `hourResults[24]` | UTCの各時間のPublic `withinThreshold`／`outsideThreshold`／`noData`です。 | 範囲外の時間は分かりますが、Extremaと超えたBoundは分かりません。 |
 | `observedHourCount` | 回路がPresenceから再計算したObserved Slot数です。 | 予定稼働時間ではありません。 |
 | `sampleCount` | 回路がPrivate Hourly Countから再計算した合計です。 | Device申告値であり物理的完全性の証明ではありません。 |
-| `schemaVersion`／`circuitVersion` | Private InputへBindingした互換性Identifierです。 | 現行運用Pairは`5`／`3`です。 |
+| `schemaVersion`／`circuitVersion` | Private InputへBindingした互換性Identifierです。 | 現行運用Pairは`6`／`4`です。 |
 | `thresholdSatisfied` | Attestationごとに保存する回路計算済みPublic Outcomeです。 | `true`は全Observed Slotが範囲内、`false`は少なくとも1 Slotが範囲外であることを証明し、Extremaは開示しません。 |
 | `verified` | 提出Resultが証明され記録されたことを示します。Malformedまたは虚偽ClaimはRevertします。 | Proof成功とThreshold Outcomeを区別します。 |
 | `policyCount`、`assignmentCount`、`attestationCount` | 成功したImmutable登録／Attestationの累計です。 | Contract全体のCounterでありDevice稼働率ではありません。 |
 
-成功時の正確なClaimはPublic Outcomeで決まります。WITHINは全Observed Slotが範囲内、OUTSIDEは少なくとも1 Observed Slotが範囲外であることを証明します。Readingがない時間はSTOPPEDとして除外し、全時間STOPPEDはZero Observed CountからSTOPPED表示します。
+成功時の正確なClaimはUTCの時間帯ごとのPublic Outcomeで決まります。日次BooleanはObserved HourのANDによる総合結果です。全時間AbsentはZero Observed Countから計測なしと表示します。
 
 ## 実装Path
 
@@ -52,16 +54,16 @@
 | Device登録 | Operator CLIでMidnightへDevice／Device-bound Assignmentを登録し、D1 Mirror同期後だけ`register-device-key.mjs`でP-256を有効化します。 |
 | Device Session | `backend/cloudflare/proof-gateway-worker/src/device-auth.ts`が5分のOne-time Challengeと24時間Opaque Sessionを実装し、D1にはToken Hashだけを保存します。 |
 | Collection | `edge-device/sensor-collector/`がRaw SampleをLocal保持し、1時間AggregateとDebounce済みAnomaly Transitionを送信します。審査GUIのBrowser Deviceは完了済みの過去30日間から日付を選び、1分間隔のPrivate Sampleを1,440件生成して最大24件のWindowだけを送信します。 |
-| 日次準備 | `shared/measurement-protocol`の`prepareDailyExtremaAttestation`が24 JST Slot、Canonical STOPPED Slot、Public Metadata、Private Commitment Openingを作ります。 |
+| 日次準備 | `shared/measurement-protocol`の`prepareDailyExtremaAttestation`が24個のUTC Slot、Canonicalな計測なしSlot、Public Metadata、Private Commitment Openingを作ります。 |
 | Fleet管理 | `tools/midnight-operator/src/operator-authority.ts`がOwner-only Operator Authorityを保持し、Operator限定の登録／Rotation／無効化Commandを提供します。 |
 | Compact回路 | `midnight/contracts/sensor-registry/src/sensor-registry.compact`がMulti-Device Registry、Device-bound Assignment、1 Callの日次Attestationを定義します。 |
-| D1 Schema | Migration `0010`～`0022`がPolicy／Job、Fail-closed Fleet Registry Mirror、Device運用設定Revision、ClaimしたThreshold Result、非同期Sponsored Submission State、安定Measurement Group冪等性、冪等なJST日次Sponsor予約、Contract履歴、Wallet所有Project、Project単位Policy Operation、Browser Enrollment State、実際のZKP生成日時、永続Provisioning Progressを追加します。 |
+| D1 Schema | Migration `0010`～`0025`がPolicy／Job、Fail-closed Fleet Registry Mirror、Device運用設定Revision、日次／時間帯別Threshold Result、非同期Sponsored Submission State、安定Measurement Group冪等性、冪等なJST日次Sponsor予約、Contract履歴、Wallet所有Project、Project単位Policy Operation、Browser Enrollment State、実際のZKP生成日時、永続Provisioning Progressを追加します。 |
 | Proof Admission | `POST /api/v1/proof-jobs`がAuthenticated Device、登録済みAssignment Metadata、ClaimしたBoolean Resultを検証しますが、Threshold Boundは受け取りません。Cronは02:00～06:00 JSTにAdmissionします。 |
 | Proof生成 | Wallet AgentがPrivate Proving Requestを認証済みWorker RouteからContainerへStreamし、Bodyは永続化しません。 |
 | Device TX Bind | 現場Transaction Identity、または`payFees: false`の対応Browser Walletが、NIGHT／DUSTなしでProof済み`submitDailyAttestation` CallをBindします。 |
 | 送信手数料の負担 | `POST /api/v1/proof-jobs/:proofJobId/sponsor`は利用回数を原子的に予約し、1つのトランザクションハッシュへ固定し、非公開バイト列をR2へ保存します。`awaiting_sponsor`を記録し、Queueへ処理IDだけを入れて`202`を返します。同じ内容の再送は、追加の上限予約、R2保存、Queue投入、Wallet処理より前に止めて既存状態を返し、異なる内容は`409`で拒否します。ウォレット同期後、Queue処理が保存データを再検査し、DUSTだけを追加して送信します。デバイスは状態を確認し、保留した同じバイト列から再開できます。 |
-| 管理者GUI | Device Session保護DashboardがそのDeviceの1時間AggregateをJST日付別に表示し、Threshold外れ値、明示的な現在の正常／異常状態、該当日の日次Proof操作とProof／TX状態を表示します。 |
-| 第三者GUI | Public Endpoint／Viewが日次Proof Jobを新しい順にRedacted List表示し、日付から直接開けます。Extremaを隠したまま証明済みWITHIN／OUTSIDE／STOPPED Result、Bound、正確なClaim、Commitment、Assignment、実際のZKP生成日時、Network、Contract、Attestation TXを表示します。 |
+| 管理者GUI | Device Session保護DashboardがそのDeviceの1時間AggregateをUTC日付別に表示し、Threshold外れ値、明示的な現在の正常／異常状態、該当日の日次Proof操作とProof／TX状態を表示します。 |
+| 第三者GUI | TX hashから確定済みProofを開き、Extremaを隠したままUTC計測日、24個のしきい値以内／範囲外／計測なし、適用しきい値／有効期間、Device Commitment、正確なClaim、Network、Contract、Block、Attestation TXを表示します。 |
 
 旧`proof_jobs`、Reading単位Attestation Table／Endpoint、Shared Merkle Helper TestはMigrationまたは開発互換用に残ります。運用Worker／Wallet Pathは`daily_proof_jobs`へ書き、Selected-leaf Circuitを呼びません。
 
@@ -107,6 +109,7 @@ GET  /api/v1/projects/:projectId/dashboard       Legacy Loopback Administrator�
 GET  /api/v1/projects/:projectId/measurement-windows
 GET  /api/v1/projects/:projectId/anomaly-events  Legacy Loopback Administratorのみ
 GET  /api/v1/public/proofs                        Public Redacted最新順List
+GET  /api/v1/public/proofs/by-transaction/:hash   D1 Index互換用の任意検索。TX Viewerは使用しない
 GET  /api/v1/public/proofs/:proofJobId            Public Redacted Evidence
 
 GET  /ready                                      admitted Device Session only
@@ -114,7 +117,9 @@ POST /check
 POST /prove                                      admitted Device Session only
 ```
 
-`POST /api/v1/proof-jobs`はCommitment、Device Commitment、期間、Policy／Assignment Identifier、Presence、Count、Claimした`thresholdSatisfied`、Circuit Versionを受け取ります。未登録／不一致Assignmentを拒否し、Proof Policy Inputとして`minimum`／`maximum`を受け取りません。WorkerはClaim Resultを冪等性と表示用に保存しますが、Midnight TXがConfirmedになるまで未検証として扱います。
+TX hash ViewerはPublic Midnight Indexerへ直接問い合わせ、成功TXからContract Addressを導出し、該当BlockのState差分をDecodeします。Public D1 Listと互換Lookupは補助機能であり、TX hash検証の依存先ではありません。
+
+`POST /api/v1/proof-jobs`はCommitment、Device Commitment、UTC Measurement Day／期間、Policy／Assignment Identifier、Presence、24個のHour Result、Count、Claimした`thresholdSatisfied`、Circuit Versionを受け取ります。未登録／不一致Assignmentを拒否し、Proof Policy Inputとして`minimum`／`maximum`を受け取りません。WorkerはClaim Resultを冪等性と表示用に保存しますが、Midnight TXがConfirmedになるまで未検証として扱います。
 
 ## Storage
 

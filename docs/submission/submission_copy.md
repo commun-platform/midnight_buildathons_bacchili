@@ -12,7 +12,7 @@ Prove whether sensor values are within a registered threshold without showing th
 
 ## Short description
 
-BACCHIRI!━━Verifiable Measurement Layer reduces one synthetic day of measurements to hourly minima and maxima and creates a threshold result while keeping those values private. In the Wave 1 review flow, a user-authorized browser client acts as the simulated measurement source and authorizes the Midnight transaction. The public record is WITHIN or OUTSIDE; an hour with no measurements is STOPPED rather than silently treated as WITHIN.
+BACCHIRI!━━Verifiable Measurement Layer reduces one synthetic UTC day to private hourly minima and maxima and publishes a proven WITHIN, OUTSIDE, or NO DATA result for each of its 24 hours. In the Wave 1 review flow, a user-authorized browser client acts as the simulated measurement source and authorizes the Midnight transaction.
 
 ## Problem
 
@@ -23,13 +23,13 @@ Measurement results are shared through dashboards, CSV files, reports, and cloud
 - Simulated measurement source: creates the synthetic daily record, keeps raw values and its private proof opening in the user-authorized browser client, and uploads bounded hourly summaries for the authorized operator workflow.
 - Review interface: combines operator steps and a third-party view so judges can follow the complete PoC without revealing private values.
 - Managed backend: stores authorized hourly summaries and workflow records, accepts proof requests, and generates proofs as a trusted Wave 1 component.
-- Midnight: records the public threshold, its target Device, the confirmed result, and the transaction record.
+- Midnight: records the UTC day, 24 hourly results, public threshold/validity, target Device Commitment, and transaction record.
 
 ![From raw-data disclosure to minimum necessary evidence](../assets/review/privacy-value-proposition-en.png)
 
 ## Why Midnight
 
-Midnight separates private values from a result record that anyone can check. Hourly minimum / maximum values and the proof nonce remain private. The day, threshold, target Device, observed hours, counts, result, and transaction record are public. The proof uses the threshold registered before operation rather than accepting a different threshold at proof time.
+Midnight separates private values from a result record that anyone can check. Hourly minimum/maximum values and the proof nonce remain private. The UTC day, 24 hourly statuses, threshold/validity, Device Commitment, counts, and transaction record are public. The proof uses the threshold registered before operation rather than accepting a different threshold at proof time.
 
 ## Wave 1 progress
 
@@ -40,7 +40,7 @@ The repository also contains supporting field-runtime authentication, collection
 The current working source was validated on 2026-08-31 JST:
 
 - all 6 proof circuits compiled;
-- all 333 automated tests passed;
+- all 339 automated tests passed;
 - all workspace type checks and builds passed; and
 - the Cloudflare pre-deployment check passed.
 
@@ -54,7 +54,7 @@ Source validation and dated Midnight preproduction-network records remain separa
 
 ## Exact proof claim
 
-A confirmed daily proof establishes that the private minimum and maximum values for every observed hour are within the registered threshold, or that at least one observed hour is outside it. It also binds the day, observed hours, counts, target Device, registered threshold, and proof-input commitment.
+A confirmed daily proof establishes the public result for each UTC hour from its private minimum/maximum values and registered threshold. It also binds the day, counts, Device Commitment, policy/validity, and proof-input commitment.
 
 It does not prove physical sensor integrity, continuous sampling, that no readings were withheld, or correct source-side aggregation. The managed backend and proof service are trusted in the current architecture. The browser queries the public Midnight Indexer directly and compares the confirmed Contract state, but it does not rerun the ZK verifier locally or expose the witness.
 

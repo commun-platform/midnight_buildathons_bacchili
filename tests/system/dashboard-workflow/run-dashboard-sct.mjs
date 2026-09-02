@@ -42,6 +42,10 @@ const publicProof = {
   thresholdResult: 'outside-threshold',
   resultVerified: true,
   hourPresence: Array.from({ length: 24 }, () => true),
+  hourResults: Array.from({ length: 24 }, (_value, hour) => (
+    hour === 12 || hour === 18 ? 'outside-threshold' : 'within-threshold'
+  )),
+  deviceCommitment: '22'.repeat(32),
   thresholdPolicyVersion: 'temperature-v1',
   policyKey: '44'.repeat(32),
   policy: {
@@ -50,14 +54,16 @@ const publicProof = {
   },
   assignmentKey: '55'.repeat(32),
   assignmentVersion: 1,
+  assignmentValidFrom: '2026-08-01T00:00:00.000Z',
+  assignmentValidUntil: '2026-09-01T00:00:00.000Z',
   measurementGroupId: '66'.repeat(32),
   attestationCommitment: '77'.repeat(32),
-  schemaVersion: 5,
-  circuitVersion: 3,
+  schemaVersion: 6,
+  circuitVersion: 4,
   proofGeneratedAt: '2026-08-28T02:14:15.000Z',
   status: 'confirmed',
-  claim: 'At least one submitted private hourly minimum or maximum was outside the registered public threshold policy; the sensor values remain private.',
-  claimJa: '非公開の時間別最小値・最大値のうち、少なくとも1つが公開しきい値外です。',
+  claim: 'Each UTC hour is publicly proved as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.',
+  claimJa: 'UTCの各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。',
   checks: {
     dailyAttestationRecorded: true,
     committedHourlyExtrema: true,
@@ -86,8 +92,9 @@ const publicProofWithin = {
   periodDate: '2026-08-27',
   thresholdSatisfied: true,
   thresholdResult: 'within-threshold',
-  claim: 'Every submitted private hourly minimum and maximum was within the registered public threshold policy; the sensor values remain private.',
-  claimJa: '非公開の時間別最小値・最大値は、すべて公開しきい値内です。',
+  hourResults: Array.from({ length: 24 }, () => 'within-threshold'),
+  claim: 'Each UTC hour is publicly proved as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.',
+  claimJa: 'UTCの各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。',
   attestationCommitment: '99'.repeat(32),
   transactions: {
     attest: {
@@ -105,11 +112,12 @@ const publicProofStopped = {
   sampleCount: 0,
   observedHourCount: 0,
   stoppedHourCount: 24,
-  thresholdSatisfied: false,
+  thresholdSatisfied: true,
   thresholdResult: 'stopped',
   hourPresence: Array.from({ length: 24 }, () => false),
-  claim: 'No hourly sensor summary was submitted for this day; the public result is STOPPED and does not claim misconduct.',
-  claimJa: 'この日は時間別センサー集計が送信されておらず、公開結果はSTOPPEDです。',
+  hourResults: Array.from({ length: 24 }, () => 'no-data'),
+  claim: 'All 24 UTC hours are publicly reported as NO DATA; no sensor values are disclosed.',
+  claimJa: 'UTCの24時間すべてが「計測なし」として公開され、センサー値自体は開示されません。',
   attestationCommitment: 'bb'.repeat(32),
   transactions: {
     attest: {
@@ -147,15 +155,15 @@ const state = {
 const periodDate = '2026-08-28';
 const historicalPeriodDate = '2026-08-27';
 const windows = Array.from({ length: 24 }, (_, hour) => ({
-  periodStart: new Date(Date.parse(periodDate + 'T00:00:00+09:00') + hour * 3600000).toISOString(),
-  periodEnd: new Date(Date.parse(periodDate + 'T00:00:00+09:00') + (hour + 1) * 3600000).toISOString(),
+  periodStart: new Date(Date.parse(periodDate + 'T00:00:00Z') + hour * 3600000).toISOString(),
+  periodEnd: new Date(Date.parse(periodDate + 'T00:00:00Z') + (hour + 1) * 3600000).toISOString(),
   count: 60, minimum: hour === 12 ? 8 : 20, maximum: hour === 18 ? 38 : 24,
   average: 22, unit: '°C', commitment: String(hour + 1).padStart(2, '0').repeat(32),
 }));
 const historicalWindows = windows.map((window, hour) => ({
   ...window,
-  periodStart: new Date(Date.parse(historicalPeriodDate + 'T00:00:00+09:00') + hour * 3600000).toISOString(),
-  periodEnd: new Date(Date.parse(historicalPeriodDate + 'T00:00:00+09:00') + (hour + 1) * 3600000).toISOString(),
+  periodStart: new Date(Date.parse(historicalPeriodDate + 'T00:00:00Z') + hour * 3600000).toISOString(),
+  periodEnd: new Date(Date.parse(historicalPeriodDate + 'T00:00:00Z') + (hour + 1) * 3600000).toISOString(),
   minimum: 20,
   maximum: 24,
   commitment: String(hour + 25).padStart(2, '0').repeat(32),
@@ -385,7 +393,9 @@ export const browserDeviceFlow = {
         sampleCount: 1440, policyId: 'temperature-v1', policyKey,
         assignmentId: state.provisioned.assignmentId, assignmentKey,
         hourPresence: Array.from({ length: 24 }, () => true), observedHourCount: 24,
-        schemaVersion: 5, circuitVersion: 3,
+        hourResults: Array.from({ length: 24 }, (_, hour) =>
+          hour === 12 || hour === 18 ? 'outside-threshold' : 'within-threshold'),
+        measurementDay: 20693, schemaVersion: 6, circuitVersion: 4,
       } },
     };
     localStorage.setItem('sct-capture-created', 'true');
@@ -444,6 +454,11 @@ export async function verifyPublicAttestation(data) {
   return { ...data, checks: { dailyAttestationRecorded: true, committedHourlyExtrema: true,
     attestationVerified: true, midnightConfirmed: true } };
 }
+export async function loadPublicAttestationByTransactionHash(transactionHash) {
+  if (transactionHash !== '${'88'.repeat(32)}') throw new Error('Unknown GUI SCT transaction');
+  await new Promise((resolve) => setTimeout(resolve, 750));
+  return ${JSON.stringify({ ...publicProof, proofJobId: null, proofGeneratedAt: null, hourlyResultsAvailable: true })};
+}
 `;
 
 function createServer() {
@@ -457,6 +472,11 @@ function createServer() {
     }
     if (url.pathname === '/api/v1/public/proofs') {
       return json(response, 200, { proofs: publicProofs });
+    }
+    if (url.pathname.startsWith('/api/v1/public/proofs/by-transaction/')) {
+      const transactionHash = decodeURIComponent(url.pathname.slice('/api/v1/public/proofs/by-transaction/'.length));
+      const proof = publicProofs.find((candidate) => candidate.transactions.attest.txHash === transactionHash);
+      if (proof) return json(response, 200, { proofJobId: proof.proofJobId });
     }
     if (url.pathname.startsWith('/api/v1/public/proofs/')) {
       const proofJobId = decodeURIComponent(url.pathname.slice('/api/v1/public/proofs/'.length));
@@ -571,7 +591,8 @@ try {
       if (await evaluate(`Boolean(${expression})`)) return;
       await sleep(100);
     }
-    throw new Error(`Timed out waiting for GUI state: ${expression}`);
+    const body = await evaluate(`document.querySelector('main')?.textContent || document.body.textContent`);
+    throw new Error(`Timed out waiting for GUI state: ${expression}\nRendered text: ${String(body).slice(0, 2_000)}`);
   };
   const click = async (selector) => {
     await waitFor(`document.querySelector(${JSON.stringify(selector)}) && !document.querySelector(${JSON.stringify(selector)}).disabled`);
@@ -711,19 +732,27 @@ try {
   assert.equal(await evaluate(`document.querySelector('.verifier-form tbody tr:first-child')?.textContent.includes('2026-08-28')`), true);
   assert.equal(await evaluate(`document.querySelector('.verifier-form').textContent.includes('WITHIN THRESHOLD')`), true);
   assert.equal(await evaluate(`document.querySelector('.verifier-form').textContent.includes('OUTSIDE THRESHOLD')`), true);
-  assert.equal(await evaluate(`document.querySelector('.verifier-form').textContent.includes('STOPPED')`), true);
-  await pass('11-third-party-proof-list', 'Newest-first daily list renders WITHIN, OUTSIDE, and STOPPED public results');
+  assert.equal(await evaluate(`document.querySelector('.verifier-form').textContent.includes('NO DATA')`), true);
+  assert.equal(await evaluate(`Boolean(document.querySelector('#transaction-hash-form'))`), true);
+  await pass('11-third-party-proof-list', 'Newest-first daily list renders WITHIN, OUTSIDE, and NO DATA public results');
 
-  await evaluate(`location.hash = '#/verify/${publicProof.proofJobId}'`);
+  await evaluate(`document.querySelector('#transaction-hash-input').value = '${'88'.repeat(32)}'; document.querySelector('#transaction-hash-form').requestSubmit()`);
+  await waitFor(`location.hash.includes('verify-tx/${'88'.repeat(32)}')`);
   await waitFor(`document.querySelector('.dashboard-sync-state.syncing') && document.querySelector('.dashboard-sync-progress')`);
   await pass('12-third-party-chain-checking', 'A visible progress indicator remains while the public Indexer check is running');
   await waitFor(`document.querySelectorAll('.check-list .check-code:not(.waiting)').length === 4 && document.querySelectorAll('.public-proof-pipeline li.complete').length === 5`);
   assert.equal(await evaluate(`Boolean(document.querySelector('.raw-values-redacted'))`), true);
   assert.equal(await evaluate(`document.body.textContent.includes('HIDDEN FROM THIRD PARTIES')`), true);
   assert.equal(await evaluate(`document.body.textContent.includes('PRIVATE_EXTREMA_SENTINEL')`), false);
+  assert.equal(await evaluate(`document.querySelectorAll('.hourly-results-table tbody tr').length`), 24);
+  assert.equal(await evaluate(`document.querySelectorAll('.hour-result.outside-threshold').length`), 2);
+  assert.equal(await evaluate(`document.body.textContent.includes('${'22'.repeat(32)}')`), true);
+  assert.equal(await evaluate(`['Effective from', 'Effective until'].every((label) => { const term = [...document.querySelectorAll('.definition-grid dt')].find((node) => node.textContent.trim() === label); return term?.nextElementSibling?.textContent.includes('2026'); })`), true);
   assert.equal(await evaluate(`document.querySelectorAll('a.explorer-link[href^="https://preprod.midnightexplorer.com/"]').length >= 4`), true);
   assert.equal(await evaluate(`[...document.querySelectorAll('a.explorer-link')].every((link) => link.target === '_blank' && link.rel.includes('noopener'))`), true);
   await pass('13-third-party-verification', 'Public checks and Explorer evidence complete while raw and hourly values remain hidden');
+  await evaluate(`document.querySelector('.hourly-results-table').scrollIntoView({ block: 'start' })`);
+  await pass('13-third-party-hourly-results', 'All 24 UTC hourly threshold results are visible without revealing extrema');
 
   await evaluate(`localStorage.setItem('vsp-browser-device-id', ${JSON.stringify(`device-${'a1'.repeat(32)}`)})`);
   await cdp.send('Page.navigate', { url: `${baseUrl}/?sct=wallet-switch#/device` });

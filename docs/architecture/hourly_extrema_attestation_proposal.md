@@ -2,8 +2,8 @@
 
 [Japanese](../ja/architecture/hourly_extrema_attestation_proposal.md)
 
-Status: implemented and verified on Preprod for WITHIN and OUTSIDE; reviewer video remains.
-Last updated: 2026-08-28 JST
+Status: implemented in the current source; historical Preprod records use the prior schema and do not contain hourly results.
+Last updated: 2026-09-01 JST
 
 This document defines the fixed-shape daily threshold attestation implemented by
 `midnight/contracts/sensor-registry`. Despite the stable legacy filename, it is no longer a proposal.
@@ -12,18 +12,24 @@ This document defines the fixed-shape daily threshold attestation implemented by
 
 ## 1. Claim and boundary
 
-For one JST calendar day, the registered device privately supplies 24 hourly slots. Every observed
-slot contains a minimum, maximum, and reported sample count. The transaction also supplies the public
-Boolean result `thresholdSatisfied`. A confirmed Midnight transaction proves exactly one claim:
+For one UTC calendar day, fixed to 00:00–24:00, the registered device privately supplies 24 hourly
+slots. Every observed slot contains a minimum, maximum, and reported sample count. The transaction
+publishes one `hourResults` entry for each UTC hour:
+
+- `withinThreshold`: that hour's submitted extrema are inside the registered public threshold;
+- `outsideThreshold`: at least one submitted extremum for that hour is outside the threshold;
+- `noData`: the canonical private slot contains no measurement.
+
+The transaction also retains the public Boolean `thresholdSatisfied` as a daily summary:
 
 - `thresholdSatisfied = true`: every submitted hourly minimum and maximum for the observed hours was
   within the registered public threshold policy;
 - `thresholdSatisfied = false`: at least one submitted hourly minimum or maximum for an observed hour
   was outside the registered public threshold policy.
 
-Hours without data are STOPPED and excluded from threshold calculation. A fully STOPPED day has no
-observed violation; the ledger Boolean is therefore `true`, while the GUI derives and displays
-STOPPED from `observedHourCount = 0`. An OUTSIDE result is a valid zero-knowledge claim, not a failed
+Hours without data are canonical absent slots and excluded from threshold calculation. A fully absent
+day has no observed violation; the ledger Boolean is therefore `true`, while the GUI displays NO DATA
+for all 24 hours. An OUTSIDE result is a valid zero-knowledge claim, not a failed
 proof. A malformed commitment, non-canonical slot, false result, or unauthorized call fails and
 records no attestation.
 
@@ -88,6 +94,7 @@ DailyExtremaInput {
   measurementGroupId
   policyId
   assignmentId
+  measurementDay
   periodStart
   periodEnd
   hours[24]
@@ -102,8 +109,9 @@ sensor values is automatically `STOPPED` and has the canonical representation `p
 threshold failure. This is necessary because construction work is not necessarily active for 24
 hours and schedules vary by day.
 
-Wave 1 defines a day as 00:00–24:00 JST. The circuit receives Unix seconds and requires an exact
-86,400-second period. Daylight-saving handling is outside Wave 1 because JST has no DST.
+Wave 1 defines a day as UTC 00:00–24:00. The circuit receives a UTC epoch day plus Unix seconds and
+requires `periodStart = measurementDay * 86,400` and `periodEnd = periodStart + 86,400`. Local-time
+offsets and daylight-saving transitions cannot change the proof period.
 
 The private ZK shape is independent of raw sampling frequency:
 
@@ -136,9 +144,11 @@ measurementGroupId
 deviceCommitment
 policyId
 assignmentId
+measurementDay
 periodStart
 periodEnd
 hourPresence[24]
+hourResults[24]
 observedHourCount
 sampleCount
 schemaVersion
@@ -148,7 +158,7 @@ verified = true
 ```
 
 Hourly minima/maxima and the commitment nonce remain private. Thresholds, mode, unit/type codes,
-policy version, assignment, period, presence, counts, commitment, and the WITHIN/OUTSIDE result are
+policy version, assignment, UTC day/period, presence, counts, commitment, and the 24 hourly results are
 public.
 
 ## 5. Circuit rules
@@ -159,14 +169,15 @@ public.
 2. derives the attestation ID from the registered Device Commitment and public measurement group ID,
    then rejects an ID already present in the ledger;
 3. loads the immutable assignment and policy and rejects an assignment belonging to another Device;
-4. checks the exact 24-hour period and assignment validity;
+4. checks the exact UTC day, 24-hour period, and assignment validity;
 5. opens and recomputes the private daily commitment;
 6. binds measurement group, device, policy, assignment, period, schema, circuit version, and presence
    to public state;
 7. checks canonical STOPPED slots and valid ordered extrema for every observed slot;
-8. computes `allWithin` from every observed slot and the registered ledger policy;
-9. proves `allWithin == thresholdSatisfied`, accepting truthful WITHIN and OUTSIDE results while
-   rejecting a false result; and
+8. computes each hour's result from the private slot and registered ledger policy and proves it equals
+   the corresponding public `hourResults` entry;
+9. computes `allWithin` from every observed slot and proves it equals the daily
+   `thresholdSatisfied` summary; and
 10. recomputes the total and observed-hour counts before recording the public attestation.
 
 There is no separate dataset-registration transaction. Policy registration is an operator lifecycle
@@ -214,45 +225,45 @@ Migrations `0010_hourly_extrema_policies.sql` and `0011_multi_device_registry.sq
   result.
 
 The Worker validates that the authenticated device, D1 policy/assignment mirror, device commitment,
-period, claimed result, and job metadata agree before queueing. It accepts policy and assignment
+UTC day/period, claimed hourly results, daily summary, and job metadata agree before queueing. It accepts policy and assignment
 identifiers but no threshold bounds. The claimed result is not trusted as evidence until the
 corresponding Midnight transaction is confirmed; the circuit recomputes it from private extrema and
 ledger policy. The public verifier joins the confirmed job to the registered policy and displays the
-public bounds, WITHIN/OUTSIDE/STOPPED result, observed/STOPPED hours, exact claim, contract address,
-and transaction reference.
+public bounds and validity, 24 WITHIN/OUTSIDE/NO DATA results, Device Commitment, exact claim,
+contract address, and transaction reference.
 
 ## 8. Versions and migration
 
 - Compact toolchain: `0.31.1`
 - Compact language pragma: `0.23`
 - contract schema version: `3`
-- daily schema version: `4`
-- circuit version: `2`
-- D1 migrations: through `0013_daily_threshold_result.sql`
+- daily schema version: `6`
+- circuit version: `4`
+- D1 migrations: through `0025_hourly_threshold_results.sql`
 
 The prior selected-Merkle-leaf, singleton, and WITHIN-only Fleet Registry contracts are not
 state-compatible with this ledger.
 Adoption requires a new Fleet Registry deployment, Operator-only Device/Policy/Device-bound
 Assignment registration before operation, updating the public contract address, and applying all D1
-migrations through `0013`. The old 24/96/1,440 `daily-attestation` profiles remain development-only
+migrations through `0025`. Historical schema-5 transactions remain valid daily-summary evidence but
+cannot be retrofitted with 24 hourly results. The old 24/96/1,440 `daily-attestation` profiles remain development-only
 circuit-scaling experiments and are not the operational path or pricing basis.
 
 ## 9. Verified implementation cases
 
 Automated tests cover:
 
-- one policy, one assignment, and successful WITHIN and OUTSIDE daily attestation transactions;
+- one policy, one assignment, and successful mixed hourly WITHIN, OUTSIDE, and NO DATA results;
 - the same fixed circuit input derived from 24, 96, and 1,440 samples;
 - partial and fully STOPPED days without treating missing data as fraud;
 - below-minimum and above-maximum data recorded as truthful OUTSIDE results;
-- false WITHIN/OUTSIDE result claims and reversed extrema rejected;
+- false hourly results, false daily summaries, and reversed extrema rejected;
 - commitment, presence, device, policy, and assignment binding;
 - distinct Device and Policy authorities; and
 - redacted public API responses that disclose policy but not hourly extrema or nonce.
 
-The schema-3 contract is deployed on Preprod. The standard Device-signed 1,440-reading day—one Raw
-reading per minute reduced locally to 24 private hourly minimum/maximum slots—is confirmed with schema
-`4` / circuit `2`. Its transaction time, proof time, proving-key size, request size, transaction size,
-DUST fee, and 10,000-Device planning estimate are recorded in
-[the cost benchmark](../implementation/cost_benchmark.md). The confirmed 24/96 days are retained only
-as fixed-circuit equivalence evidence. Older selected-leaf measurements do not apply to this circuit.
+Historical Preprod transactions confirm the prior daily-summary design, including a 1,440-reading day
+reduced locally to 24 private hourly extrema slots. Their transaction time, proof time, proving-key
+size, request size, transaction size, DUST fee, and planning estimates remain in
+[the cost benchmark](../implementation/cost_benchmark.md). They do not demonstrate schema `6` /
+circuit `4` hourly public results; that requires a new contract deployment and new transactions.

@@ -458,6 +458,24 @@ a:visited { color: #551a8b; }
 .data-table tbody tr:hover { background: #ffffcc; }
 .data-table tr.outlier { background: #ffd6d6; }
 .data-table tr.outlier:nth-child(even) { background: #ffcaca; }
+.hourly-results-scroll {
+  overflow-x: auto;
+  border: 2px solid;
+  border-color: #404040 #fff #fff #404040;
+}
+.hourly-results-table { min-width: 360px; }
+.hourly-results-table th:first-child, .hourly-results-table td:first-child { width: 50%; }
+.hour-result {
+  display: inline-block;
+  min-width: 110px;
+  padding: 3px 8px;
+  border: 1px solid #000;
+  font-weight: 700;
+  text-align: center;
+}
+.hour-result.within-threshold { background: #008000; color: #fff; }
+.hour-result.outside-threshold { background: #800000; color: #fff; }
+.hour-result.no-data { background: #c0c0c0; color: #000; }
 .numeric { font-family: "Courier New", monospace; text-align: right !important; }
 .nowrap { white-space: nowrap; }
 

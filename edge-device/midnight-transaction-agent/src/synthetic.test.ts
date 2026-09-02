@@ -15,7 +15,7 @@ for (const sampleCount of syntheticBenchmarkSampleCounts) {
   test(`prepares a locally valid ${sampleCount}-sample synthetic benchmark day`, async () => {
     const dataset = await prepareSyntheticBenchmarkDataset({ sampleCount, runId: 'repeatable-run' });
     assert.equal(dataset.publicData.sampleCount, sampleCount);
-    assert.equal(dataset.publicData.periodStart, '2026-08-26T15:00:00.000Z');
+    assert.equal(dataset.publicData.periodStart, '2026-08-27T00:00:00.000Z');
     assert.equal(
       Date.parse(dataset.publicData.periodEnd) - Date.parse(dataset.publicData.periodStart),
       86_400 * 1_000,

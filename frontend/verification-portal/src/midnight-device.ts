@@ -6,12 +6,14 @@ import {
 } from '@midnight-demo/sensor-registry-contract/witnesses';
 import {
   Contract,
+  HourThresholdResult as CompactHourThresholdResult,
   ledger as decodeLedger,
   pureCircuits,
 } from '@midnight-demo/sensor-registry-contract/contract';
 import {
   hexToBytes,
   type BrowserWalletSignature,
+  type HourThresholdResult,
   type PreparedDailyExtremaAttestation,
 } from '@midnight-demo/shared';
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
@@ -465,6 +467,7 @@ export async function submitBrowserAttestation(input: {
   proofJobId: string;
   deviceSecretHex: string;
   attestation: PreparedDailyExtremaAttestation;
+  hourResults: HourThresholdResult[];
   thresholdSatisfied: boolean;
   onProgress?: (progress: SubmissionProgress) => void;
 }): Promise<BrowserSubmissionResult> {
@@ -669,9 +672,15 @@ export async function submitBrowserAttestation(input: {
     hexToBytes(publicData.deviceCommitment),
     hexToBytes(publicData.measurementGroupId),
     hexToBytes(publicData.assignmentKey),
+    BigInt(publicData.measurementDay),
     BigInt(publicData.periodStartEpoch),
     BigInt(publicData.periodEndEpoch),
     publicData.hourPresence,
+    input.hourResults.map((result) => result === 'outside-threshold'
+      ? CompactHourThresholdResult.outsideThreshold
+      : result === 'within-threshold'
+        ? CompactHourThresholdResult.withinThreshold
+        : CompactHourThresholdResult.noData),
     BigInt(publicData.sampleCount),
     input.thresholdSatisfied,
     BigInt(publicData.schemaVersion),

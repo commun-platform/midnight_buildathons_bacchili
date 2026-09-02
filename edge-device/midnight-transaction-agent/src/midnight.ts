@@ -12,6 +12,7 @@ import {
 import {
   bytesToHex,
   hexToBytes,
+  type HourThresholdResult,
   type PreparedDailyExtremaAttestation,
 } from '@midnight-demo/shared';
 import { deviceAuthenticatedFetch } from '@midnight-demo/device-auth';
@@ -74,9 +75,11 @@ interface LoadedContract {
         deviceCommitment: Uint8Array;
         policyId: Uint8Array;
         assignmentId: Uint8Array;
+        measurementDay: bigint;
         periodStart: bigint;
         periodEnd: bigint;
         hourPresence: boolean[];
+        hourResults: number[];
         observedHourCount: bigint;
         sampleCount: bigint;
         schemaVersion: bigint;
@@ -391,6 +394,7 @@ export async function submitDailyAttestation(
   network: NetworkConfig,
   contractAddress: string,
   dataset: PreparedDailyExtremaAttestation,
+  hourResults: HourThresholdResult[],
   thresholdSatisfied: boolean,
   proofJobId?: string,
   transactionObserver?: TransactionObserver,
@@ -439,9 +443,11 @@ export async function submitDailyAttestation(
     hexToBytes(publicData.deviceCommitment),
     hexToBytes(publicData.measurementGroupId),
     hexToBytes(publicData.assignmentKey),
+    BigInt(publicData.measurementDay),
     BigInt(publicData.periodStartEpoch),
     BigInt(publicData.periodEndEpoch),
     publicData.hourPresence,
+    hourResults.map((result) => result === 'outside-threshold' ? 2 : result === 'within-threshold' ? 1 : 0),
     BigInt(publicData.sampleCount),
     thresholdSatisfied,
     BigInt(publicData.schemaVersion),
@@ -517,9 +523,15 @@ export async function queryRegistry(network: NetworkConfig, contractAddress: str
       deviceCommitment: bytesToHex(attestation.deviceCommitment),
       policyKey: bytesToHex(attestation.policyId),
       assignmentKey: bytesToHex(attestation.assignmentId),
+      measurementDay: attestation.measurementDay.toString(),
       periodStart: new Date(Number(attestation.periodStart) * 1000).toISOString(),
       periodEnd: new Date(Number(attestation.periodEnd) * 1000).toISOString(),
       hourPresence: attestation.hourPresence,
+      hourResults: attestation.hourResults.map((result) => result === 2
+        ? 'outside-threshold'
+        : result === 1
+          ? 'within-threshold'
+          : 'no-data'),
       observedHourCount: attestation.observedHourCount.toString(),
       stoppedHourCount: (24n - attestation.observedHourCount).toString(),
       sampleCount: attestation.sampleCount.toString(),

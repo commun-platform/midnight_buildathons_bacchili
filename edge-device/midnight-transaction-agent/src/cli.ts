@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
+  evaluatePreparedDailyExtremaHoursLocally,
   evaluatePreparedDailyExtremaLocally,
   prepareDailyExtremaAttestation,
   type PreparedDailyExtremaAttestation,
@@ -140,9 +141,10 @@ async function runSubmit(
     version: numericFlag('threshold-version', 1),
   };
   const thresholdResult = evaluatePreparedDailyExtremaLocally(dataset, policy);
+  const hourResults = evaluatePreparedDailyExtremaHoursLocally(dataset, policy);
   const thresholdSatisfied = thresholdResult === 'within-threshold';
   process.stdout.write(`Daily threshold result: ${thresholdResult}\n`);
-  const requested = await requestProofJob(network, dataset, thresholdSatisfied);
+  const requested = await requestProofJob(network, dataset, hourResults, thresholdSatisfied);
   if (requested.proofJobId && requested.job) {
     process.stdout.write(
       `Proof Job ${requested.proofJobId}: ${requested.job.status}; available after ${requested.job.availableAfter}\n`,
@@ -207,6 +209,7 @@ async function runSubmit(
       network,
       deviceContractAddress(flag('contract')),
       dataset,
+      hourResults,
       thresholdSatisfied,
       admission.proofJobId,
       async (phase, transaction) => reportProofTransaction(

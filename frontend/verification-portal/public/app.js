@@ -34,27 +34,36 @@ const copy = {
     average: 'Average', commitment: 'Commitment', anomalies: 'Immediate Anomaly Transitions', transition: 'Transition',
     occurred: 'Occurred', jobs: 'Proof / Transaction Jobs', job: 'Proof Job', status: 'Status', root: 'Data fingerprint',
     tx: 'Attestation Transaction', action: 'Action', inspect: 'Public view', none: 'No records yet.',
-    verifierIntro: 'Anyone can check the result without seeing individual sensor readings or the hidden hourly minimum and maximum values.',
+    verifierIntro: 'Anyone can check the UTC measurement date, each hourly threshold result, and the applied public policy without seeing sensor values.', txProofViewer: 'Transaction proof viewer',
     proofId: 'Proof record ID', open: 'Check result', latest: 'Use latest local record', claim: 'Public Result', checks: 'What Was Checked',
     dataset: 'Daily proof record found', inclusion: 'Hidden hourly summary is tied to this proof',
-    threshold: 'ZK proof matches the published threshold result',
+    threshold: 'ZK proof matches all 24 published hourly results',
     midnight: 'Midnight transaction confirmed', publicData: 'Information Anyone Can Check', privateData: 'Information Hidden from Third Parties', private: 'HIDDEN',
     rawSensorValues: 'Raw Sensor Values', rawValuesHidden: 'HIDDEN FROM THIRD PARTIES',
     zkProtected: 'VALUES STAY PRIVATE',
     rawValuesExplanation: 'Individual readings stay on the Device. Third parties can see only how many readings were used and a cryptographic fingerprint of the hidden hourly summary.',
     sample: 'READING', redacted: 'HIDDEN',
     txHash: 'Transaction hash', blockHeight: 'Block height', openExplorer: 'Open in Midnight Explorer',
+    txLookupLabel: 'Find proof by transaction hash', txLookupPlaceholder: '64-character Midnight transaction hash', txLookupAction: 'Open proof',
+    txLookupFailed: 'No confirmed proof was found for that transaction hash.', txLookupSearching: 'Searching confirmed transactions...',
     proofPipeline: 'How This ZK Proof Was Checked',
     proofPipelineIntro: 'This view uses public information only. Hidden sensor values and proof secrets never appear here.',
     pipelineCommitment: 'Hidden hourly summary matches this proof', pipelineCircuit: 'ZK proof checked successfully',
-    pipelinePolicy: 'Threshold result matches the public policy', pipelineChain: 'Transaction found on Midnight',
+    pipelinePolicy: 'Hourly results match the public policy', legacyPipelinePolicy: 'Legacy daily result matches the public policy', pipelineChain: 'Transaction found on Midnight',
     pipelineVerifier: 'Public verification complete',
     thresholdPublic: 'PUBLIC ON MIDNIGHT', privateRawValues: 'RAW SENSOR VALUES',
     privateHourlySummary: 'HOURLY MINIMUM / MAXIMUM', privateProofSecret: 'RANDOM PROOF SECRET',
-    publicHourStatus: 'OBSERVED / STOPPED HOURS', publicThreshold: 'THRESHOLD RULE',
+    publicHourStatus: 'HOURLY WITHIN / OUTSIDE / NO DATA', publicThreshold: 'THRESHOLD RULE',
     network: 'Network', contract: 'Contract',
-    sampleCount: 'Sensor readings used', observedHours: 'Observed hours', stoppedHours: 'STOPPED hours', policyId: 'Threshold setting ID',
+    sampleCount: 'Sensor readings used', observedHours: 'Observed hours', stoppedHours: 'NO DATA hours', policyId: 'Threshold setting ID',
+    measurementDate: 'Measurement date (UTC)', hourlyResults: 'Hourly threshold results (UTC)',
+    hourlyResultsIntro: 'Each result is proved from the hidden hourly minimum and maximum. The values themselves remain private.',
+    hourBand: 'UTC time band', hourResult: 'Result', hourlyWithin: 'WITHIN', hourlyOutside: 'OUTSIDE', hourlyNoData: 'NO DATA',
+    legacyHourlyResults: 'This legacy record predates hourly public results. Only its aggregate daily result is available.',
+    legacyThreshold: 'Legacy aggregate ZK result matches the registered threshold',
     policyMode: 'Threshold rule', policyBounds: 'Public threshold', policyVersion: 'Policy version',
+    policyScale: 'Value scale', policyUnit: 'Unit', policyValidFrom: 'Effective from', policyValidUntil: 'Effective until', noStartDate: 'No start restriction', noExpiry: 'No end date',
+    proofSubject: 'Proof subject (deviceCommitment)',
     modeClosedRange: 'Between minimum and maximum', modeUpperBound: 'At or below the maximum', modeLowerBound: 'At or above the minimum',
     sensorTemperature: 'Temperature',
     assignment: 'Applied policy record', schemaVersion: 'Schema version', circuitVersion: 'Circuit version',
@@ -133,12 +142,12 @@ const copy = {
     reproofReady: 'The previous TX was released. Regenerate the ZK proof and TX with the same Proof Job ID.',
     deviceId: 'Device ID (derived from Wallet)', wallet: 'Wallet', temperature: 'Temperature', progress: 'Processing status',
     identityRestored: 'Stored Device Identity restored', registrationRestored: 'Registered Device and policy assignment restored',
-    autoGenerate: 'Auto Generate one day', generationDate: 'Sensor date (JST)', previousSensorDay: '◀ Previous day', nextSensorDay: 'Next day ▶',
+    autoGenerate: 'Auto Generate one day', generationDate: 'Measurement date (UTC)', previousSensorDay: '◀ Previous day', nextSensorDay: 'Next day ▶',
     generationMode: 'Generation mode', withOutliers: 'Random values with outliers (OUTSIDE proof)',
     withinThreshold: 'Within threshold (ZKP test)', outlierCount: 'Outliers', dailyHistory: 'Daily sensor history',
     selectDay: 'View this day', verifyDaily: 'Verify daily ZKP', requestDaily: 'Request daily proof',
     submitDaily: 'Generate ZKP / submit TX', thresholdResult: 'Threshold result',
-    withinResult: 'WITHIN THRESHOLD', outsideResult: 'OUTSIDE THRESHOLD', stoppedResult: 'STOPPED',
+    withinResult: 'WITHIN THRESHOLD', outsideResult: 'OUTSIDE THRESHOLD', stoppedResult: 'NO DATA',
     privateAvailable: 'Private proof input available', privateUnavailable: 'Private proof input is not stored in this browser',
     feeSponsored: 'The service Sponsor Wallet adds the DUST fee and submits the approved Device transaction.',
     feeSponsoredLabel: 'TRANSACTION FEE SPONSORED',
@@ -147,7 +156,7 @@ const copy = {
     sponsorQuotaReached: 'The daily limit is reached. Already reserved proof jobs can still be retried.',
     alreadyAttested: 'This measurement group is already recorded on Midnight. It will not be submitted again.',
     completeDay: 'Complete day', incompleteDay: 'Day in progress', generationRange: 'Previous 30 completed days only', latestProofs: 'Daily proof records (newest first)',
-    publicProofListIntro: 'Choose a date to check its public result.', publicView: 'PUBLIC VIEW', checked: 'CHECKED', checksComplete: 'checks complete',
+    publicProofListIntro: 'Choose a UTC measurement date to check all 24 hourly results.', publicView: 'PUBLIC VIEW', checked: 'CHECKED', checksComplete: 'checks complete',
     statusPending: 'Waiting', statusAggregating: 'Collecting readings', statusProving: 'Creating ZK proof',
     statusSubmitted: 'Sent to Midnight', statusConfirmed: 'Recorded on Midnight', statusFailed: 'Could not complete',
     statusActive: 'Active', statusDisabled: 'Disabled', statusRevoked: 'Revoked', statusRegistered: 'Registered',
@@ -186,25 +195,34 @@ const copy = {
     anomalies: '即時異常遷移', transition: '遷移', occurred: '発生時刻', jobs: '証明・トランザクション処理',
     job: '証明処理', status: '状態', root: '照合用のデータ指紋', tx: '証明トランザクション', action: '操作',
     inspect: '第三者表示', none: 'まだ記録がありません。',
-    verifierIntro: '第三者は個別センサー値や非公開の時間別最小・最大値を見ることなく、判定結果を確認できます。',
+    verifierIntro: '第三者はセンサー値を見ることなく、UTCの計測日、24時間分の判定、適用された公開しきい値を確認できます。', txProofViewer: 'TX証明ビューワ',
     proofId: '証明記録ID', open: '結果を確認', latest: '最新の記録を使用', claim: '公開された結果',
     checks: '確認できたこと', dataset: '日次の証明記録がある', inclusion: '非公開の時間別集計と証明が一致',
-    threshold: 'ZK証明の判定が公開しきい値と一致', midnight: 'Midnightへの記録を確認', publicData: '誰でも確認できる情報',
+    threshold: 'ZK証明と24時間分の公開判定が一致', midnight: 'Midnightへの記録を確認', publicData: '誰でも確認できる情報',
     privateData: '第三者には見えない情報', private: '非公開', thresholdPublic: 'MIDNIGHTで公開',
     privateRawValues: '元のセンサー値', privateHourlySummary: '時間別の最小値・最大値',
-    privateProofSecret: '証明に使うランダムな秘密情報', publicHourStatus: '観測・停止した時間', publicThreshold: 'しきい値ルール',
+    privateProofSecret: '証明に使うランダムな秘密情報', publicHourStatus: '時間別の閾値以内・範囲外・計測なし', publicThreshold: 'しきい値ルール',
     network: 'ネットワーク', rawSensorValues: '元のセンサー値', rawValuesHidden: '第三者には非公開',
     zkProtected: '値を見せずに証明',
     rawValuesExplanation: '個別センサー値はデバイス内に残ります。第三者に見えるのは、使用した件数と、非公開の時間別集計を照合するためのデータの指紋だけです。',
     sample: '測定', redacted: '非公開',
     txHash: 'トランザクションハッシュ', blockHeight: 'ブロック番号', openExplorer: 'Midnight Explorerで確認',
+    txLookupLabel: 'TX hashから証明を開く', txLookupPlaceholder: 'Midnightの64文字のトランザクションハッシュ', txLookupAction: '証明を表示',
+    txLookupFailed: 'このTX hashに対応する確定済み証明は見つかりません。', txLookupSearching: '確定済みトランザクションを検索中...',
     proofPipeline: 'ゼロ知識証明（ZKP）の確認ステップ',
     proofPipelineIntro: 'この画面で使うのは公開情報だけです。非公開のセンサー値や証明用の秘密情報は表示されません。',
     pipelineCommitment: '非公開の時間別集計と証明を照合', pipelineCircuit: 'ZK証明が正しいことを確認',
-    pipelinePolicy: '判定結果と公開しきい値を照合', pipelineChain: 'Midnightへの記録を確認',
+    pipelinePolicy: '時間帯別判定と公開しきい値を照合', legacyPipelinePolicy: '旧形式の日次総合結果と公開しきい値を照合', pipelineChain: 'Midnightへの記録を確認',
     pipelineVerifier: '第三者による確認が完了',
     contract: 'コントラクト', sampleCount: '使用したセンサー値の件数', observedHours: '観測時間数', policyId: 'しきい値設定ID',
-    stoppedHours: '停止時間数', policyMode: 'しきい値ルール', policyBounds: '公開しきい値',
+    stoppedHours: '計測なし時間数', measurementDate: '計測日（UTC）', hourlyResults: '時間帯別結果（UTC）',
+    hourlyResultsIntro: '非公開の時間別最小値・最大値から各判定を証明しています。実測値自体は公開しません。',
+    hourBand: 'UTC時間帯', hourResult: '判定', hourlyWithin: '閾値以内', hourlyOutside: '範囲外', hourlyNoData: '計測なし',
+    legacyHourlyResults: 'この旧形式の記録は時間帯別結果の公開前に作成されたため、日次の集約判定だけを確認できます。',
+    legacyThreshold: '旧形式の日次総合ZK結果と登録しきい値が一致',
+    policyMode: 'しきい値ルール', policyBounds: '公開しきい値',
+    policyScale: 'スケール', policyUnit: '単位', policyValidFrom: '適用開始', policyValidUntil: '適用終了', noStartDate: '開始日の制限なし', noExpiry: '終了日なし',
+    proofSubject: '証明対象（deviceCommitment）',
     modeClosedRange: '最小値から最大値まで', modeUpperBound: '最大値以下', modeLowerBound: '最小値以上',
     sensorTemperature: '温度',
     policyVersion: 'しきい値設定のバージョン', assignment: '適用したしきい値設定', schemaVersion: 'データ形式のバージョン', circuitVersion: 'ZK回路のバージョン',
@@ -283,12 +301,12 @@ const copy = {
     reproofReady: '前回のTXは解放済みです。同じProof Job IDでZK証明とTXを再生成できます。',
     deviceId: 'デバイスID（ウォレットから自動生成）', wallet: 'ウォレット', temperature: '温度', progress: '処理状況',
     identityRestored: '保存済みのデバイス認証鍵を復元しました', registrationRestored: '登録済みデバイスとしきい値設定を復元しました',
-    autoGenerate: '1日分を自動生成', generationDate: 'センサー日付（JST）', previousSensorDay: '◀ 前日', nextSensorDay: '翌日 ▶',
+    autoGenerate: '1日分を自動生成', generationDate: '計測日（UTC）', previousSensorDay: '◀ 前日', nextSensorDay: '翌日 ▶',
     generationMode: '生成モード', withOutliers: 'ランダム値＋外れ値（しきい値外の証明）',
     withinThreshold: 'しきい値内（ZK証明の確認用）', outlierCount: '外れ値', dailyHistory: '日別センサー履歴',
     selectDay: 'この日を表示', verifyDaily: '日次ZK証明を確認', requestDaily: '日次証明を要求',
     submitDaily: 'ZK証明を生成・トランザクション送信', thresholdResult: 'しきい値結果',
-    withinResult: 'しきい値内', outsideResult: 'しきい値外', stoppedResult: '停止',
+    withinResult: 'しきい値内', outsideResult: 'しきい値外', stoppedResult: '計測なし',
     privateAvailable: 'このブラウザに非公開の証明入力あり', privateUnavailable: 'このブラウザに非公開の証明入力がありません',
     feeSponsored: 'サービスのSponsor WalletがDUST手数料を付与し、デバイスが承認したトランザクションを送信します。',
     feeSponsoredLabel: 'トランザクション手数料はスポンサー負担',
@@ -297,7 +315,7 @@ const copy = {
     sponsorQuotaReached: '本日分の上限に達しました。予約済みの証明処理は引き続き再試行できます。',
     alreadyAttested: 'この測定グループはMidnightに記録済みです。再送信は行いません。',
     completeDay: '1日分完了', incompleteDay: '当日進行中', generationRange: '完了済みの過去30日間のみ', latestProofs: '日次証明記録（新しい順）',
-    publicProofListIntro: '確認したい日付を選択してください。', publicView: '第三者向け画面', checked: '確認済み', checksComplete: '項目を確認済み',
+    publicProofListIntro: 'UTCの計測日を選び、24時間分の判定を確認してください。', publicView: '第三者向け画面', checked: '確認済み', checksComplete: '項目を確認済み',
     statusPending: '待機中', statusAggregating: 'センサー値を集計中', statusProving: 'ZK証明を作成中',
     statusSubmitted: 'Midnightへ送信済み', statusConfirmed: 'Midnightに記録済み', statusFailed: '処理に失敗',
     statusActive: '利用中', statusDisabled: '無効', statusRevoked: '利用停止', statusRegistered: '登録済み',
@@ -352,8 +370,8 @@ const deviceState = {
   historyListError: '',
 };
 
-function jstDate(value = new Date()) {
-  return new Date(value.valueOf() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+function utcDate(value = new Date()) {
+  return value.toISOString().slice(0, 10);
 }
 
 function defaultSensorDate() {
@@ -362,11 +380,11 @@ function defaultSensorDate() {
 
 function sensorDateBounds(value = new Date()) {
   const dayMilliseconds = 24 * 60 * 60 * 1000;
-  const today = jstDate(value);
-  const todayStart = Date.parse(`${today}T00:00:00+09:00`);
+  const today = utcDate(value);
+  const todayStart = Date.parse(`${today}T00:00:00.000Z`);
   return {
-    minimum: jstDate(new Date(todayStart - 30 * dayMilliseconds)),
-    maximum: jstDate(new Date(todayStart - dayMilliseconds)),
+    minimum: utcDate(new Date(todayStart - 30 * dayMilliseconds)),
+    maximum: utcDate(new Date(todayStart - dayMilliseconds)),
   };
 }
 
@@ -377,7 +395,7 @@ function normalizedSensorDate(value) {
     : bounds.maximum;
 }
 
-function windowDate(window) { return jstDate(new Date(window.periodStart)); }
+function windowDate(window) { return utcDate(new Date(window.periodStart)); }
 
 function locale() {
   if (selectedLanguage === 'en' || selectedLanguage === 'ja') return selectedLanguage;
@@ -422,6 +440,18 @@ function dateTime(value) {
   return Number.isNaN(parsed.valueOf()) ? String(value) : new Intl.DateTimeFormat(
     locale() === 'ja' ? 'ja-JP' : 'en-GB',
     { dateStyle: 'short', timeStyle: 'medium' },
+  ).format(parsed);
+}
+function utcDateTime(value) {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf()) ? String(value) : new Intl.DateTimeFormat(
+    locale() === 'ja' ? 'ja-JP' : 'en-GB',
+    {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZone: 'UTC', timeZoneName: 'short',
+    },
   ).format(parsed);
 }
 function localized(english, japanese) { return locale() === 'ja' && japanese ? japanese : english; }
@@ -1200,6 +1230,11 @@ async function verifyPublicProofOnMidnight(data) {
   return deviceModule.verifyPublicAttestation(data);
 }
 
+async function loadPublicProofFromMidnight(transactionHash) {
+  deviceModule ||= await import('/device-flow.js?v=20260831-4');
+  return deviceModule.loadPublicAttestationByTransactionHash(transactionHash);
+}
+
 async function deviceAction(actionId, message, operation, preparedFlow = null) {
   const fullRender = [
     'wallet-connect-button',
@@ -1487,7 +1522,7 @@ function attachDeviceActions() {
     const input = document.querySelector('#device-period-date');
     if (!input?.value) return;
     const bounds = sensorDateBounds();
-    const shifted = jstDate(new Date(Date.parse(`${input.value}T00:00:00+09:00`) + days * 24 * 60 * 60 * 1000));
+    const shifted = utcDate(new Date(Date.parse(`${input.value}T00:00:00.000Z`) + days * 24 * 60 * 60 * 1000));
     const nextDate = shifted < bounds.minimum ? bounds.minimum : shifted > bounds.maximum ? bounds.maximum : shifted;
     input.value = nextDate;
     deviceState.generationDate = nextDate;
@@ -1660,13 +1695,18 @@ function check(ok, label) {
   return `<div class="check-row"><span class="check-code ${ok ? '' : 'waiting'}">${escapeHtml(t(ok ? 'checked' : 'waiting'))}</span><strong>${escapeHtml(label)}</strong></div>`;
 }
 
-function publicProofList(data, message = '') {
+function publicProofList(data, message = '', transactionHash = '') {
   return `<div class="project-heading"><div><h2>${escapeHtml(t('verifier'))}</h2><p>${escapeHtml(t('verifierIntro'))}</p></div><span class="network-label">${escapeHtml(t('publicView'))}</span></div>
-    <section class="window verifier-form"><div class="window-title">${escapeHtml(t('latestProofs'))}</div><div class="window-body">
-      <p>${escapeHtml(t('publicProofListIntro'))}</p>${message ? `<p>${escapeHtml(message)}</p>` : ''}
+    <section class="window verifier-form"><div class="window-title">${escapeHtml(t(Array.isArray(data?.proofs) ? 'latestProofs' : 'txProofViewer'))}</div><div class="window-body">
+      <form id="transaction-hash-form">
+        <label>${escapeHtml(t('txLookupLabel'))}<input id="transaction-hash-input" name="transactionHash" type="text" inputmode="text" autocomplete="off" spellcheck="false" minlength="64" maxlength="66" pattern="(?:0x)?[0-9a-fA-F]{64}" placeholder="${escapeHtml(t('txLookupPlaceholder'))}" value="${escapeHtml(transactionHash)}" required></label>
+        <button type="submit">${escapeHtml(t('txLookupAction'))}</button>
+      </form>
+      <p id="transaction-hash-message" role="status" aria-live="polite">${message ? escapeHtml(message) : ''}</p>
+      ${Array.isArray(data?.proofs) ? `<p>${escapeHtml(t('publicProofListIntro'))}</p>
       ${table(
         [t('period'), t('sampleCount'), t('observedHours'), t('stoppedHours'), t('thresholdResult'), t('policyBounds'), t('proofGeneratedAt'), t('status'), t('action')],
-        (data?.proofs || []).map((proof) => `<tr><td><strong>${escapeHtml(proof.periodDate)}</strong><br><small class="hash">${escapeHtml(short(proof.proofJobId, 24))}</small></td><td class="numeric">${escapeHtml(proof.sampleCount)}</td><td class="numeric">${escapeHtml(proof.observedHourCount)}</td><td class="numeric">${escapeHtml(proof.stoppedHourCount)}</td><td>${thresholdResult(proof.thresholdResult, proof.observedHourCount)}</td><td>${escapeHtml(policyBounds(proof.policy))}</td><td class="nowrap">${escapeHtml(dateTime(proof.proofGeneratedAt))}</td><td>${status(proof.status)}</td><td><a class="button-link" href="#/verify/${encodeURIComponent(proof.proofJobId)}">${escapeHtml(t('viewDay'))}</a></td></tr>`),
+        data.proofs.map((proof) => `<tr><td><strong>${escapeHtml(proof.periodDate)}</strong><br><small class="hash">${escapeHtml(short(proof.proofJobId, 24))}</small></td><td class="numeric">${escapeHtml(proof.sampleCount)}</td><td class="numeric">${escapeHtml(proof.observedHourCount)}</td><td class="numeric">${escapeHtml(proof.stoppedHourCount)}</td><td>${thresholdResult(proof.thresholdResult, proof.observedHourCount)}</td><td>${escapeHtml(policyBounds(proof.policy))}</td><td class="nowrap">${escapeHtml(dateTime(proof.proofGeneratedAt))}</td><td>${status(proof.status)}</td><td><a class="button-link" href="#/verify/${encodeURIComponent(proof.proofJobId)}">${escapeHtml(t('viewDay'))}</a></td></tr>`),
         {
           state: 'ready',
           loadingTitle: t('loadingPublicProofs'),
@@ -1674,8 +1714,30 @@ function publicProofList(data, message = '') {
           emptyTitle: t('noPublicProofs'),
           emptyDetail: t('noPublicProofsDetail'),
         },
-      )}
+      )}` : ''}
     </div></section>`;
+}
+
+function attachPublicProofActions() {
+  const form = document.querySelector('#transaction-hash-form');
+  if (!form || form.dataset.attached === 'true') return;
+  form.dataset.attached = 'true';
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = document.querySelector('#transaction-hash-input');
+    const message = document.querySelector('#transaction-hash-message');
+    const submit = form.querySelector('button[type="submit"]');
+    const transactionHash = String(input?.value || '').trim();
+    if (!form.reportValidity()) return;
+    if (message) message.textContent = t('txLookupSearching');
+    if (submit) submit.disabled = true;
+    try {
+      location.hash = `#/verify-tx/${encodeURIComponent(transactionHash.replace(/^0x/iu, '').toLowerCase())}`;
+    } catch {
+      if (message) message.textContent = t('txLookupFailed');
+      if (submit) submit.disabled = false;
+    }
+  });
 }
 
 function redactedRawValues(data) {
@@ -1689,6 +1751,30 @@ function redactedRawValues(data) {
       <div class="raw-value-list" aria-hidden="true">${rows}</div>
       <p class="raw-values-explanation">${escapeHtml(t('rawValuesExplanation'))}</p>
     </div>
+  </div></section>`;
+}
+
+function hourlyResultLabel(result) {
+  if (result === 'within-threshold') return t('hourlyWithin');
+  if (result === 'outside-threshold') return t('hourlyOutside');
+  return t('hourlyNoData');
+}
+
+function hourlyResultView(data) {
+  if (!Array.isArray(data.hourResults) || data.hourResults.length !== 24) {
+    return `<section class="window full-width"><div class="window-title inactive">${escapeHtml(t('hourlyResults'))}</div><div class="window-body"><div class="notice"><strong>${escapeHtml(t('legacyHourlyResults'))}</strong></div></div></section>`;
+  }
+  const rows = data.hourResults.map((result, hour) => {
+    const start = String(hour).padStart(2, '0');
+    const end = String(hour + 1).padStart(2, '0');
+    const safeResult = ['within-threshold', 'outside-threshold', 'no-data'].includes(result)
+      ? result
+      : 'no-data';
+    return `<tr><td class="nowrap"><strong>${start}:00–${end}:00</strong></td><td><span class="hour-result ${escapeHtml(safeResult)}">${escapeHtml(hourlyResultLabel(safeResult))}</span></td></tr>`;
+  }).join('');
+  return `<section class="window full-width"><div class="window-title">${escapeHtml(t('hourlyResults'))}</div><div class="window-body">
+    <p>${escapeHtml(t('hourlyResultsIntro'))}</p>
+    <div class="hourly-results-scroll"><table class="data-table hourly-results-table"><thead><tr><th>${escapeHtml(t('hourBand'))}</th><th>${escapeHtml(t('hourResult'))}</th></tr></thead><tbody>${rows}</tbody></table></div>
   </div></section>`;
 }
 
@@ -1719,7 +1805,7 @@ function publicProofPipeline(data) {
     },
     {
       complete: checks.attestationVerified,
-      label: t('pipelinePolicy'),
+      label: t(data.hourlyResultsAvailable === false ? 'legacyPipelinePolicy' : 'pipelinePolicy'),
       detail: `${policyBounds(data.policy)} / ${publishedThresholdResult}`,
     },
     {
@@ -1747,6 +1833,7 @@ function publicProofPipeline(data) {
 
 function verifierView(list, data, chainVerification = { state: 'idle', error: '' }) {
   const confirmed = data.checks.midnightConfirmed;
+  const chainRecorded = data.status === 'confirmed' && Boolean(data.transactions?.attest);
   const chainNotice = chainVerification.state === 'checking'
     ? `<div class="dashboard-sync-state syncing"><div><strong>${escapeHtml(t('chainCheckInProgress'))}</strong><span>${escapeHtml(t('chainCheckInProgressDetail'))}</span></div></div><div class="progress-shell dashboard-sync-progress" aria-hidden="true"><div class="progress-bar"></div></div>`
     : chainVerification.state === 'complete'
@@ -1754,27 +1841,30 @@ function verifierView(list, data, chainVerification = { state: 'idle', error: ''
       : chainVerification.state === 'failed'
         ? `<div class="dashboard-sync-state failed"><div><strong>${escapeHtml(t('chainCheckFailed'))}</strong><span>${escapeHtml(chainVerification.error)}</span></div></div>`
         : '';
-  return `${publicProofList(list)}
+  return `${publicProofList(list, '', data.transactions?.attest?.txHash || '')}
     ${chainNotice}
     <div class="page-grid section-gap">
-      <section class="window"><div class="window-title ${confirmed ? 'success' : 'inactive'}">${escapeHtml(t('claim'))}</div><div class="window-body">
+      <section class="window"><div class="window-title ${chainRecorded ? 'success' : 'inactive'}">${escapeHtml(t('claim'))}</div><div class="window-body">
         <p class="claim-text">${escapeHtml(localized(data.claim, data.claimJa))}</p>
-        ${!confirmed ? `<div class="notice"><strong>${escapeHtml(t('waiting'))}</strong><span>${escapeHtml(t('pendingClaim'))}</span></div>` : ''}
+        ${!chainRecorded ? `<div class="notice"><strong>${escapeHtml(t('waiting'))}</strong><span>${escapeHtml(t('pendingClaim'))}</span></div>` : ''}
       </div></section>
       <section class="window"><div class="window-title">${escapeHtml(t('checks'))}</div><div class="window-body check-list">
         ${check(data.checks.dailyAttestationRecorded, t('dataset'))}${check(data.checks.committedHourlyExtrema, t('inclusion'))}
-        ${check(data.checks.attestationVerified, t('threshold'))}${check(data.checks.midnightConfirmed, t('midnight'))}
+        ${check(data.checks.attestationVerified, t(data.hourlyResultsAvailable === false ? 'legacyThreshold' : 'threshold'))}${check(data.checks.midnightConfirmed, t('midnight'))}
       </div></section>
       <section class="window"><div class="window-title">${escapeHtml(t('publicData'))}</div><div class="window-body"><dl class="definition-grid">
-        <dt>${escapeHtml(t('proofId'))}</dt><dd class="hash">${escapeHtml(data.proofJobId)}</dd><dt>${escapeHtml(t('period'))}</dt><dd>${escapeHtml(data.periodDate)}</dd>
+        ${data.proofJobId ? `<dt>${escapeHtml(t('proofId'))}</dt><dd class="hash">${escapeHtml(data.proofJobId)}</dd>` : ''}<dt>${escapeHtml(t('measurementDate'))}</dt><dd>${escapeHtml(data.periodDate)}</dd>
+        <dt>${escapeHtml(t('proofSubject'))}</dt><dd class="hash">${escapeHtml(data.deviceCommitment)}</dd>
         <dt>${escapeHtml(t('sampleCount'))}</dt><dd>${escapeHtml(data.sampleCount)}</dd><dt>${escapeHtml(t('observedHours'))}</dt><dd>${escapeHtml(data.observedHourCount)} / 24</dd>
         <dt>${escapeHtml(t('stoppedHours'))}</dt><dd>${escapeHtml(data.stoppedHourCount)} / 24</dd><dt>${escapeHtml(t('thresholdResult'))}</dt><dd>${thresholdResult(data.thresholdResult, data.observedHourCount)}</dd><dt>${escapeHtml(t('policyId'))}</dt><dd>${escapeHtml(data.thresholdPolicyVersion)}</dd>
         <dt>${escapeHtml(t('policyMode'))}</dt><dd>${escapeHtml(policyModeLabel(data.policy.mode))}</dd><dt>${escapeHtml(t('policyBounds'))}</dt><dd>${escapeHtml(policyBounds(data.policy))}</dd>
-        <dt>${escapeHtml(t('policyVersion'))}</dt><dd>${escapeHtml(data.policy.version)}</dd><dt>${escapeHtml(t('sensor'))}</dt><dd>${escapeHtml(sensorTypeLabel(data.policy.sensorType))} / ${escapeHtml(data.policy.unit)}</dd>
+        <dt>${escapeHtml(t('policyVersion'))}</dt><dd>${escapeHtml(data.policy.version)}</dd><dt>${escapeHtml(t('policyScale'))}</dt><dd>${escapeHtml(data.policy.valueScale)}</dd>
+        <dt>${escapeHtml(t('policyUnit'))}</dt><dd>${escapeHtml(data.policy.unit)}</dd><dt>${escapeHtml(t('sensor'))}</dt><dd>${escapeHtml(sensorTypeLabel(data.policy.sensorType))}</dd>
+        <dt>${escapeHtml(t('policyValidFrom'))}</dt><dd>${data.assignmentValidFrom ? escapeHtml(utcDateTime(data.assignmentValidFrom)) : escapeHtml(t('noStartDate'))}</dd><dt>${escapeHtml(t('policyValidUntil'))}</dt><dd>${data.assignmentValidUntil ? escapeHtml(utcDateTime(data.assignmentValidUntil)) : escapeHtml(t('noExpiry'))}</dd>
         <dt>${escapeHtml(t('assignment'))}</dt><dd class="hash">${escapeHtml(data.assignmentKey)}</dd><dt>${escapeHtml(t('schemaVersion'))}</dt><dd>${escapeHtml(data.schemaVersion)}</dd>
         <dt>${escapeHtml(t('circuitVersion'))}</dt><dd>${escapeHtml(data.circuitVersion)}</dd><dt>${escapeHtml(t('root'))}</dt><dd class="hash">${escapeHtml(data.attestationCommitment)}</dd>
         <dt>${escapeHtml(t('status'))}</dt><dd>${status(data.status)}</dd>
-        <dt>${escapeHtml(t('proofGeneratedAt'))}</dt><dd>${escapeHtml(dateTime(data.proofGeneratedAt))}</dd>
+        ${data.proofGeneratedAt ? `<dt>${escapeHtml(t('proofGeneratedAt'))}</dt><dd>${escapeHtml(utcDateTime(data.proofGeneratedAt))}</dd>` : ''}
         <dt>${escapeHtml(t('network'))}</dt><dd>${escapeHtml(data.network)}</dd><dt>${escapeHtml(t('contract'))}</dt><dd class="hash">${explorerLink('contract', data.contractAddress, data.network)}</dd>
         <dt>${escapeHtml(t('tx'))}</dt><dd class="hash">${escapeHtml(data.transactions.attest?.txId || '—')}</dd>
         <dt>${escapeHtml(t('txHash'))}</dt><dd class="hash">${explorerLink('transaction', data.transactions.attest?.txHash, data.network)}</dd>
@@ -1783,6 +1873,7 @@ function verifierView(list, data, chainVerification = { state: 'idle', error: ''
       <section class="window"><div class="window-title danger">${escapeHtml(t('privateData'))}</div><div class="window-body"><div class="privacy-box">
         ${escapeHtml(t('privateRawValues'))} ... ${escapeHtml(t('private'))}<br>${escapeHtml(t('privateHourlySummary'))} .... ${escapeHtml(t('private'))}<br>${escapeHtml(t('privateProofSecret'))} .... ${escapeHtml(t('private'))}<br>${escapeHtml(t('publicHourStatus'))} ....... ${escapeHtml(t('thresholdPublic'))}<br>${escapeHtml(t('publicThreshold'))} .... ${escapeHtml(t('thresholdPublic'))}
       </div></div></section>
+      ${hourlyResultView(data)}
       ${publicProofPipeline(data)}
       ${redactedRawValues(data)}
     </div>`;
@@ -1791,6 +1882,7 @@ function verifierView(list, data, chainVerification = { state: 'idle', error: ''
 function route() {
   const parts = location.hash.replace(/^#\/?/u, '').split('/');
   if (parts[0] === 'verify') return { name: 'verify', id: parts[1] || '' };
+  if (parts[0] === 'verify-tx') return { name: 'verify', id: '', txHash: parts[1] || '' };
   if (parts[0] === 'device') return { name: 'device', id: '' };
   return { name: 'admin', id: '' };
 }
@@ -1848,9 +1940,18 @@ async function render({ showLoading = true } = {}) {
       footerSource.textContent = `${t('source')}: ${data.source}`;
       main.innerHTML = adminView(data);
       attachAdminActions();
+    } else if (current.txHash) {
+      main.innerHTML = `<section class="window"><div class="window-title">${escapeHtml(t('checking'))}</div><div class="window-body">
+        <div class="dashboard-sync-state syncing"><div><strong>${escapeHtml(t('chainCheckInProgress'))}</strong><span>${escapeHtml(t('chainCheckInProgressDetail'))}</span></div></div>
+        <div class="progress-shell dashboard-sync-progress" aria-hidden="true"><div class="progress-bar"></div></div>
+      </div></section>`;
+      const list = {};
+      const data = await loadPublicProofFromMidnight(current.txHash);
+      footerSource.textContent = `${t('source')}: Midnight transaction / block / Contract state`;
+      main.innerHTML = verifierView(list, data, { state: 'complete', error: '' });
     } else if (!current.id) {
-      const list = await fetchJson('/api/v1/public/proofs?limit=100');
-      footerSource.textContent = `${t('source')}: public API`;
+      const list = await fetchJson('/api/v1/public/proofs?limit=100').catch(() => ({ proofs: [] }));
+      footerSource.textContent = `${t('source')}: Midnight Indexer / optional public index`;
       main.innerHTML = publicProofList(list);
     } else {
       const [list, data] = await Promise.all([
@@ -1858,7 +1959,14 @@ async function render({ showLoading = true } = {}) {
         fetchJson(`/api/v1/public/proofs/${encodeURIComponent(current.id)}`),
       ]);
       footerSource.textContent = `${t('source')}: public API / Midnight Indexer`;
-      if (data.status === 'confirmed' && data.transactions?.attest) {
+      if (
+        data.status === 'confirmed'
+        && data.transactions?.attest
+        && data.schemaVersion === 6
+        && data.circuitVersion === 4
+        && Array.isArray(data.hourResults)
+        && data.hourResults.length === 24
+      ) {
         const pending = {
           ...data,
           resultVerified: false,
@@ -1899,6 +2007,7 @@ async function render({ showLoading = true } = {}) {
       }
     }
     updateReloadControl();
+    if (current.name === 'verify') attachPublicProofActions();
     if (showLoading) main.focus({ preventScroll: true });
   } catch (error) { renderError(error); }
 }

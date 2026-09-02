@@ -25,10 +25,10 @@ Output: `bacchiri-demo-pitch-en.mp4`; produce a separate Japanese version only i
 | 0:00–0:11.984 | Title/value slide | Ask whether an auditor can verify a threshold result without receiving the sensor values; introduce BACCHIRI as a verifiable measurement layer. |
 | 0:11.984–0:32.392 | Minimum-evidence explanation slide | Explain the cross-organization reporting problem and why BACCHIRI shares only the evidence required for trust. |
 | 0:32.392–0:48.816 | Device Workflow GUI; source 0:20.500–0:36.924 | Show the connected user-controlled Wallet, Device identity, and policy bound before measurement. |
-| 0:48.816–1:06.296 | Private sensor-evidence explanation slide | Explain private raw readings, 24 ordered hourly MIN/MAX slots, and explicit STOPPED hours. Do not show a proof-transaction screen in this scene. |
+| 0:48.816–1:06.296 | Private sensor-evidence explanation slide | Explain private raw readings, 24 ordered hourly MIN/MAX slots, and canonical no-data hours. Do not show a proof-transaction screen in this scene. |
 | 1:06.296–1:22.216 | ZK proof GUI; source 3:58.000–4:13.920 | Show proof generation against the threshold already registered on Midnight. |
 | 1:22.216–1:39.864 | Device approval GUI; source 4:58.000–5:15.648 | Show Device approval of the exact payload and separate Sponsor Wallet DUST contribution. |
-| 1:39.864–1:58.664 | Third-party GUI and Explorer; source 5:54.000–6:12.800 | Show the public policy, result, observed hours, commitment, and transaction evidence while private values remain redacted. |
+| 1:39.864–1:58.664 | Third-party GUI and Explorer; source 5:54.000–6:12.800 | Paste the TX hash and show the UTC date, 24 hourly results, applied policy/validity, Device Commitment, block, and transaction evidence while private values remain redacted. |
 | 1:58.664–2:18.040 | Exact claim-boundary slide | State what Midnight proves and explicitly exclude physical sensor accuracy, complete sampling, and correct measurement-source aggregation. |
 
 The burned-in captions reproduce the TTS script exactly and use speech/silence boundaries measured from the generated narration. Browser chrome, the Windows taskbar, and the password-entry sequence are excluded.
@@ -48,8 +48,8 @@ The burned-in captions reproduce the TTS script exactly and use speech/silence b
 11. Click Generate proof and record TX.
 12. Wait for confirmed, then capture the shortened transaction ID and result.
 13. Click Verify daily ZKP.
-14. Show policy bounds, observed / STOPPED counts, commitment, confirmed state, and transaction ID.
-15. Open Third-Party Verification from the top navigation and show that the same public result is accessible without private input.
+14. Show policy bounds, the 24 UTC hourly results, Device Commitment, confirmed state, and transaction ID.
+15. Open Third-Party Verification, paste the transaction hash, and show the same UTC date, hourly results, policy/validity, Device Commitment, block, and transaction without private input.
 
 ## Required shots
 
@@ -62,10 +62,10 @@ The burned-in captions reproduce the TTS script exactly and use speech/silence b
 | GUI-05 | Proof requested | Proof Job ID and admitted / ready status |
 | GUI-06 | Proof generated | Proving / proof-ready state |
 | GUI-07 | Transaction confirmed | Result and shortened TX ID |
-| GUI-08 | Public verifier | Policy, result, observed / STOPPED, commitment, TX |
+| GUI-08 | Public verifier | TX-hash lookup, UTC date, 24 hourly results, policy/validity, Device Commitment, block, TX |
 | GUI-09 | Negative / boundary | OUTSIDE or one explicit tamper-rejection result |
 | EVD-01 | Compile | Six circuits and submitDailyAttestation rows |
-| EVD-02 | Tests | 333 passed |
+| EVD-02 | Tests | 339 passed |
 
 ## Fallback policy
 

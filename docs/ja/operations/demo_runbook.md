@@ -154,8 +154,8 @@ Device／Assignment回路も実行しますが、Workerは先にLace署名を検
 Wallet接続、登録署名、Device TX承認は明示的なUser Confirmationです。
 
 **センサーデバイス管理者**Routeは同じDevice Sessionを使い、そのDeviceの1時間集計、Anomaly、Proof/TX
-Stateだけを表示します。**第三者検証**RouteはPublicなNewest-first Listで、Device SessionやPrivate値を
-含みません。
+Stateだけを表示します。**第三者検証**RouteはPublicで、TX hashを受け取ります。Device SessionやPrivate値を
+使わず、UTC計測日、24個の時間帯別結果、適用しきい値／有効期間、Device Commitment、Block、TX Evidenceを表示します。
 
 Stepperの順序：Device登録・認証、1時間集計、Anomaly、Proof要求／Admission、Proof生成／Device承認／Sponsor Fee付与、Midnight Confirm。説明動画ではDevice発の疑似値、Proof前、Admission、Proof／Sponsorship、Confirm、値を開示しない第三者Claimを撮影します。
 

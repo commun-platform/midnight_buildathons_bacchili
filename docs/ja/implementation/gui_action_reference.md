@@ -34,7 +34,7 @@ Project設定に登録済みPolicyが含まれるまで、処理中または登�
 | --- | --- | --- | --- |
 | **Device Identityを作成** | Wallet／Projectから決定的に導出したDevice IDを使い、Device P-256秘密鍵とDevice Authority秘密値をBrowser IndexedDBへ生成または復帰します。 | 秘密値は送信しません。 | チェックはLocal Identityを利用できる意味です。同じBrowser StorageとWallet／Projectが再読込復帰に必要です。 |
 | **Deviceを登録してPolicyを割り当て** | 5分間One-time Challengeを取得し、Device、Project、P-256 Public Identity、Device Authority Commitment、選択Policy、Nonce、TimestampへBrowser Walletで署名します。 | WorkerがWallet署名とProject所有権を検査し、安定したRegistration Operationを作ってQueueへ投入します。Private Operator PathがDeviceとDevice-bound Policy AssignmentをMidnightへ登録します。Indexer確定後だけD1のDevice Key、Assignment Mirror、Device Session経路、初期`normal`状態を有効にします。 | ButtonはDurable受付後に戻ります。Queued／Running／RetryingはBackground Jobとして表示し、Browserを処理中に固定しません。確定後にDevice／Assignment TX Linkを表示します。 |
-| **前日／日付／翌日** | 過去30日以内の完了済みJST日を選びます。 | API書込みなし。 | 1日全体のClaimにするため当日と未来日は生成できません。 |
+| **前日／日付／翌日** | 過去30日以内の完了済みUTC日を選びます。 | API書込みなし。 | 1日全体のClaimにするためUTCの当日と未来日は生成できません。 |
 | **生成モード** | すべてPolicy範囲内、または説明用の外れ値入りを選びます。 | 生成するまではAPI書込みなし。 | どちらも正常なProof経路で、Public ResultがWITHINまたはOUTSIDEになります。 |
 | **1,440件を自動生成** | 1分1件のPrivate Sampleを生成し、各時間の真の最小、最大、平均（`合計 / 件数`）、件数、24 SlotのPrivate Input、Commitment、Nonceを作ります。Raw値とOpeningはIndexedDBだけに保存します。 | 最大24件の時間別運用Summaryと、状態が変化した場合だけEventを送ります。D1は現在の`normal`／`anomaly`を保持し、1,440 Raw値やPrivate Extrema Openingを受け取りません。 | 日別センサー履歴へ追加します。登録時から明示的な現在状態を持つため、異常Eventが一度もなくてもAdministratorの「現在状態を取得」は完了します。 |
 | 日別履歴の**選択** | IndexedDBに残る場合はその日のPrivate Captureを復帰し、Server側Summary／Jobも選びます。 | D1からDevice自身の履歴を取得します。 | 日付を変えて何度でも試せます。Local Private Dataがない日は明示的に利用不可となり、そのBrowserではProofを作れません。 |
@@ -45,7 +45,7 @@ Project設定に登録済みPolicyが含まれるまで、処理中または登�
 
 | 操作 | 処理と表示元 |
 | --- | --- |
-| **前の日／日付プルダウン／次の日** | 取得済みDevice履歴内のJST日付を切り替えます。時間別最小、最大、平均、件数、Commitment、現在の正常／異常状態、日次Job／TX状態は認証済みWorker／D1 APIから取得します。Raw SampleとPrivate Openingはありません。 |
+| **前の日／日付プルダウン／次の日** | 取得済みDevice履歴内のUTC日付を切り替えます。時間別最小、最大、平均、件数、Commitment、現在の正常／異常状態、日次Job／TX状態は認証済みWorker／D1 APIから取得します。Raw SampleとPrivate Openingはありません。 |
 | **日次Proof操作** | 選択したDevice日について上記と同じ要求／生成処理を使います。別Workflowを作らず、Device認可も迂回しません。 |
 | Explorer Link | Public Evidenceがある場合、Contract、Policy登録、Device登録、Assignment、Attestation TXをNetwork別Midnight Explorerで開きます。 |
 
@@ -53,7 +53,7 @@ Project設定に登録済みPolicyが含まれるまで、処理中または登�
 
 | 操作 | Browser／Public API | Midnight照合と非公開結果 |
 | --- | --- | --- |
-| **日次Proof Record一覧／開く** | `GET /api/v1/public/proofs`が確定済みRedacted Recordを新しい順で返し、日付を開くと`GET /api/v1/public/proofs/:proofJobId`を呼びます。Wallet不要です。 | Policy、Assignment、Public Result、Commitment、Observed／STOPPED数、TX Evidence、実際のZKP生成日時を表示します。 |
+| **TX hash／検証** | BrowserがPublic Midnight IndexerをTX hashで検索し、成功TX／Block、呼び出したContract、そのBlockのState差分をDecodeします。WalletもD1検索も不要です。 | UTC計測日、24個の時間帯別結果、適用しきい値／有効期間、Device Commitment、Block、TX Evidenceを表示します。 |
 | 自動の**ゼロ知識証明（ZKP）の確認ステップ** | Indeterminate Progress Indicatorを表示し、時間制限付きでPublic Midnight Indexerへ問い合わせます。 | 成功TX／Hash／Blockを一致させ、そのBlockのContract LedgerをDecodeし、Commitment、Verified Flag、Presence／Count、Result、Policy、Device-bound Assignmentを独立照合します。不一致時は確認未完了です。 |
 | **元のセンサー値**欄 | **第三者には非公開／値を見せずに証明**という意図的なRedactionを表示します。 | Public APIにはRaw Sample、Hourly Extrema、Nonce、Witness、Proof Server Body、Wallet Secretがありません。この欄から値を見られません。 |
 | Explorer Link | Public TX、Block、Contract Evidenceを開きます。 | Explorer表示は直接Indexer照合を補助します。D1の`confirmed`文字列だけをProofとして扱いません。 |

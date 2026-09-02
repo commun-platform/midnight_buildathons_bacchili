@@ -41,6 +41,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 - [Implementation map](implementation/implement_spec.md): specification-to-code, API, storage, and contract-field mapping.
 - [GUI action and processing reference](implementation/gui_action_reference.md): every reviewer control, execution location, asynchronous state, reload behavior, and privacy boundary.
 - [Operational ZK circuit specification](implementation/zk_circuit_spec.md): six proof circuits, private/public inputs, checks, ledger effects, diagrams, and explicit non-claims.
+- [Transaction-hash verification specification](implementation/transaction_hash_verification.md): trust anchors, public ledger field meanings, the 24-hour proof relation, normative third-party verification steps, and a real Preprod conformance vector.
 - [Future feature backlog](implementation/future_features.md): contract-first changes, later operational features, priorities, and completion conditions.
 - [Midnight fee sponsorship](implementation/fee_sponsorship.md): DUST-only fee payer, key boundaries, asynchronous Wallet synchronization, exact-byte transaction hold, retries, and current integration status.
 - [Cost benchmark](implementation/cost_benchmark.md): measured results and planning model.

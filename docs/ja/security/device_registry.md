@@ -47,7 +47,7 @@ Self-enrollment Circuitは設けず、すべてOperator-only Circuitを実行し
 2. Private Device Contract Authorityから導出した値がRegistryのPublic Authorityと一致する
 3. 選択したImmutable Policy Assignmentが同じDevice Commitmentを含む
 4. CommitmentされたPrivate Daily Inputが同じDevice／Policy／Assignment Keyを含む
-5. Daily Schema `5`、Circuit `3`、24時間Period、Presence、Count、Policy検査がすべて通る
+5. Daily Schema `6`、Circuit `4`、正確なUTC日次Period、Presence、24個の時間帯別結果、Count、Policy検査がすべて通る
 
 Daily Commitmentには明示的なDomain `vsp:daily-extrema:v1`を含め、回路内で固定値を検証します。
 
@@ -145,7 +145,7 @@ MirrorしていないDeviceはCloudflare Sessionを取得できません。こ�
 Migration `0011_multi_device_registry.sql`は`devices`へPublic Mirror Fieldと管理Transaction Evidence、
 `policy_assignments`へ`device_commitment`、Operator Leaseへ`contract_admin` Purposeを追加します。
 Migration `0012_device_operation_configuration.sql`は単調増加するPublic Configuration Revisionと
-専用`configuration:read` Scopeを追加します。Migration `0013_daily_threshold_result.sql`は日次の冪等Proof JobへClaimしたPublic WITHIN／OUTSIDE ResultをBindingします。Migration `0019_worker_browser_provisioning.sql`はHash化したBrowser ChallengeとWallet Verification Key Bindingを追加します。SecretはD1へ保存しません。
+専用`configuration:read` Scopeを追加します。Migration `0013_daily_threshold_result.sql`は日次の冪等Proof JobへClaimした日次総合値をBindingします。Migration `0019_worker_browser_provisioning.sql`はHash化したBrowser ChallengeとWallet Verification Key Bindingを追加します。Migration `0025_hourly_threshold_results.sql`はSchema-6のChain Evidenceを特定・表示するための24個のPublic時間帯別結果を保存します。SecretはD1へ保存しません。
 
 WorkerはSession発行／運用Input受理前に次を必須とします。
 
@@ -184,8 +184,8 @@ Preprod Deploy／Transaction成功として報告してはいけません。
 6. Edge Device Walletが自身のDUSTで`submitDailyAttestation`を署名／SubmitしPreprodでConfirmed
 7. Local管理GUIとPublic Verifierが同一のConfirmed TXと正確なRedacted Claimを表示
 
-Edge Deviceから自己負担の正しいWITHIN／OUTSIDE Attestationを完了しました。現行Schema-5のSponsor負担
-WITHIN Attestationは2026-08-30 JSTに別途確定し、現在のSponsorship境界のEvidenceとします。
+Edge Deviceから自己負担の正しいWITHIN／OUTSIDE Attestationを完了しました。過去のSchema-5 Sponsor負担
+WITHIN Attestationは2026-08-30 JSTに別途確定したSponsorship境界のEvidenceですが、Schema-6の時間帯別結果は含みません。
 
 現行Sponsor負担Release GateではStep 6を次へ置き換えます。
 

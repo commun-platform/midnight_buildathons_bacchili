@@ -12,7 +12,7 @@ Common constraints: hard enterprise-engineering style; no board-specific hardwar
 ## privacy-value-proposition-en.png
 
 - Headline: `PROVE THRESHOLD COMPLIANCE WITHOUT DISCLOSING SENSOR VALUES`.
-- Show that a third party checks `DAY · THRESHOLD · RESULT` and does not see `SENSOR VALUES`.
+- Show that a third party checks `UTC DAY · 24 HOURLY RESULTS · POLICY · DEVICE COMMITMENT` and does not see sensor values.
 - Keep the customer value readable in five seconds.
 
 ## hourly-extrema-zkp-en.png
@@ -30,24 +30,24 @@ Common constraints: hard enterprise-engineering style; no board-specific hardwar
 ## wave1-system-overview-en.png
 
 - Use exactly four domains: `EDGE DEVICE`, `FRONTEND`, `BACKEND`, and `MIDNIGHT`.
-- Edge Device keeps sensor values and signing keys; Frontend holds no Device credential; Backend handles public workflow storage and proof generation; Midnight records the public threshold, target Device, and result.
+- Edge Device keeps sensor values and signing keys; Frontend holds no Device credential; Backend handles public workflow storage and proof generation; Midnight records the UTC day, 24 hourly results, public threshold/validity, and target Device Commitment.
 - Keep the overview simple and direct detailed disclosure and sequence questions to later figures.
 
 ## data-location-disclosure-en.png
 
 - Use a `DATA × VIEWER` table with columns for storage, administrator, third party, and Midnight record.
-- Mark raw values private, hourly minimum / maximum administrator-only during proof and private to third parties, and day / observed hours / count / specification version / threshold / result / signed transaction public.
+- Mark raw values and hourly minimum/maximum private, and UTC day / 24 hourly statuses / count / specification version / threshold/validity / Device Commitment / signed transaction public.
 - State that D1 is a display mirror and that the Backend does not retain hourly minimum / maximum values after proof generation.
 
 ## daily-proof-flow-en.png
 
 - Use five stages only: Edge collection and hourly aggregation; Backend proof generation; Edge transaction signature; Midnight threshold check and result record; third-party review.
-- Public: day, threshold, result, and Midnight transaction record.
+- Public: UTC day, 24 hourly results, threshold/validity, Device Commitment, and Midnight transaction record.
 - Private: hourly minimum / maximum values are not shown to third parties.
 
 ## engineering-evidence-en.png
 
-- Show only judge-relevant results: 6 proof circuits compile, 333 automated tests pass across 9 workspaces, typecheck and build pass, Cloudflare pre-deployment check passes, and dated Midnight Preprod evidence includes the 2026-08-28 self-funded and 2026-08-30 Sponsor-funded records.
+- Show only judge-relevant results: 6 proof circuits compile, 339 automated tests pass across 9 workspaces, typecheck and build pass, Cloudflare pre-deployment check passes, and dated Midnight Preprod evidence includes the 2026-08-28 self-funded and 2026-08-30 Sponsor-funded records.
 - Footer separates current source validation on 2026-08-29 JST from the Midnight record on 2026-08-28, which was not rerun today.
 - Omit internal function names, circuit row counts, `k` values, and deployment-tool jargon.
 

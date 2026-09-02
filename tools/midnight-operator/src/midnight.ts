@@ -60,9 +60,11 @@ interface LoadedContract {
         deviceCommitment: Uint8Array;
         policyId: Uint8Array;
         assignmentId: Uint8Array;
+        measurementDay: bigint;
         periodStart: bigint;
         periodEnd: bigint;
         hourPresence: boolean[];
+        hourResults: number[];
         observedHourCount: bigint;
         sampleCount: bigint;
         schemaVersion: bigint;
@@ -474,9 +476,15 @@ export async function queryRegistry(network: NetworkConfig, contractAddress: str
       deviceCommitment: bytesToHex(attestation.deviceCommitment),
       policyKey: bytesToHex(attestation.policyId),
       assignmentKey: bytesToHex(attestation.assignmentId),
+      measurementDay: attestation.measurementDay.toString(),
       periodStart: new Date(Number(attestation.periodStart) * 1000).toISOString(),
       periodEnd: new Date(Number(attestation.periodEnd) * 1000).toISOString(),
       hourPresence: attestation.hourPresence,
+      hourResults: attestation.hourResults.map((result) => result === 2
+        ? 'outside-threshold'
+        : result === 1
+          ? 'within-threshold'
+          : 'no-data'),
       observedHourCount: attestation.observedHourCount.toString(),
       stoppedHourCount: (24n - attestation.observedHourCount).toString(),
       sampleCount: attestation.sampleCount.toString(),

@@ -119,7 +119,11 @@ interface PublicProofRow extends ProofJobRow {
   unit: string;
   policy_version: number;
   assignment_version: number;
+  valid_from: string | null;
+  valid_until: string | null;
 }
+
+type HourThresholdResult = 'no-data' | 'within-threshold' | 'outside-threshold';
 
 interface ThresholdPolicyRow {
   policy_id: string;
@@ -240,6 +244,36 @@ function hourPresence(body: Record<string, unknown>): { values: boolean[]; encod
     values,
     encoded: values.map((entry) => entry ? '1' : '0').join(''),
   };
+}
+
+function hourThresholdResults(
+  body: Record<string, unknown>,
+): { values: HourThresholdResult[]; encoded: string } {
+  const value = body.hourResults;
+  const allowed = new Set<HourThresholdResult>([
+    'no-data',
+    'within-threshold',
+    'outside-threshold',
+  ]);
+  if (
+    !Array.isArray(value)
+    || value.length !== 24
+    || value.some((entry) => typeof entry !== 'string' || !allowed.has(entry as HourThresholdResult))
+  ) throw new Error('hourResults must contain exactly 24 hourly threshold results');
+  const values = value as HourThresholdResult[];
+  return {
+    values,
+    encoded: values.map((entry) => entry === 'no-data' ? '0' : entry === 'within-threshold' ? '1' : '2').join(''),
+  };
+}
+
+function decodedHourResults(value: string | null | undefined): HourThresholdResult[] | null {
+  if (typeof value !== 'string' || value.length !== 24 || /[^012]/u.test(value)) return null;
+  return [...value].map((entry) => entry === '0'
+    ? 'no-data'
+    : entry === '1'
+      ? 'within-threshold'
+      : 'outside-threshold');
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -470,6 +504,7 @@ export function proofJobView(row: ProofJobRow) {
     assignmentId: row.assignment_id,
     assignmentKey: row.assignment_key,
     hourPresence: [...row.hour_presence].map((value) => value === '1'),
+    hourResults: decodedHourResults(row.hour_results),
     observedHourCount: row.observed_hour_count,
     stoppedHourCount: 24 - row.observed_hour_count,
     thresholdSatisfied: row.threshold_satisfied === 1,
@@ -732,16 +767,24 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     const policyKey = publicCommitment(body, 'policyKey');
     const assignmentId = identifier(body, 'assignmentId');
     const assignmentKey = publicCommitment(body, 'assignmentKey');
+    const measurementDay = nonnegativeInteger(body, 'measurementDay', 0xffff_ffff);
     const presence = hourPresence(body);
+    const hourlyResults = hourThresholdResults(body);
     const observedHourCount = nonnegativeInteger(body, 'observedHourCount', 24);
     const thresholdSatisfied = requiredBoolean(body, 'thresholdSatisfied');
     const schemaVersion = positiveInteger(body, 'schemaVersion', 65_535);
     const circuitVersion = positiveInteger(body, 'circuitVersion', 65_535);
-    if (schemaVersion !== 5 || circuitVersion !== 3) {
+    if (schemaVersion !== 6 || circuitVersion !== 4) {
       throw new Error('Unsupported daily attestation schema or circuit version');
     }
     if (presence.values.filter(Boolean).length !== observedHourCount) {
       throw new Error('observedHourCount does not match hourPresence');
+    }
+    if (hourlyResults.values.some((result, index) => (
+      (result === 'no-data') === presence.values[index]
+    ))) throw new Error('hourResults does not match hourPresence');
+    if (thresholdSatisfied === hourlyResults.values.includes('outside-threshold')) {
+      throw new Error('thresholdSatisfied does not match hourResults');
     }
     const device = await registeredDevice(env, deviceId, projectId);
     if (!device) return json(404, { error: 'Device not found' });
@@ -775,10 +818,12 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     ) {
       return json(400, { error: 'Device commitment does not match the authenticated device' });
     }
-    const periodStart = Date.parse(`${periodDate}T00:00:00+09:00`);
+    const periodStart = Date.parse(`${periodDate}T00:00:00.000Z`);
     const periodEnd = periodStart + 86_400_000;
     if (
       !Number.isFinite(periodStart)
+      || new Date(periodStart).toISOString().slice(0, 10) !== periodDate
+      || measurementDay !== periodStart / 86_400_000
       || (assignment.valid_from && periodStart < Date.parse(assignment.valid_from))
       || (assignment.valid_until && periodEnd > Date.parse(assignment.valid_until))
     ) return json(400, { error: 'Proof period is outside the registered policy assignment' });
@@ -789,17 +834,17 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
          id, project_id, device_id, period_date, contract_address, measurement_group_id,
          attestation_commitment, device_commitment,
          sample_count, threshold_policy_version, policy_key, assignment_id, assignment_key,
-         hour_presence, observed_hour_count, threshold_satisfied, schema_version, circuit_version,
+         hour_presence, hour_results, observed_hour_count, threshold_satisfied, schema_version, circuit_version,
          status, attempt_count, available_after, sponsor_available_after, created_at, updated_at
        ) VALUES (
          ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-         ?16, ?17, ?18, 'pending', 0, ?19, ?19, ?20, ?20
+         ?16, ?17, ?18, ?19, 'pending', 0, ?20, ?20, ?21, ?21
        )`,
       [
         proofJobId, projectId, deviceId, periodDate,
         device.midnight_contract_address, measurementGroupId,
         attestationCommitment, deviceCommitment, sampleCount, thresholdPolicyVersion, policyKey,
-        assignmentId, assignmentKey, presence.encoded, observedHourCount,
+        assignmentId, assignmentKey, presence.encoded, hourlyResults.encoded, observedHourCount,
         thresholdSatisfied ? 1 : 0, schemaVersion, circuitVersion, availableAfter, now.toISOString(),
       ],
     );
@@ -822,6 +867,7 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
       || job.assignment_id !== assignmentId
       || job.assignment_key !== assignmentKey
       || job.hour_presence !== presence.encoded
+      || job.hour_results !== hourlyResults.encoded
       || job.observed_hour_count !== observedHourCount
       || job.threshold_satisfied !== (thresholdSatisfied ? 1 : 0)
       || job.schema_version !== schemaVersion
@@ -1272,7 +1318,7 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
     `SELECT
        j.*,
        p.mode, p.minimum, p.maximum, p.value_scale, p.sensor_type, p.unit,
-       p.policy_version, a.assignment_version
+       p.policy_version, a.assignment_version, a.valid_from, a.valid_until
      FROM daily_proof_jobs j
      JOIN threshold_policies p ON p.policy_key = j.policy_key
      JOIN policy_assignments a ON a.assignment_key = j.assignment_key
@@ -1293,29 +1339,36 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
     ? jobAddress.replace(/^0x/iu, '')
     : null;
   const thresholdSatisfied = row.threshold_satisfied === 1;
+  const hourResults = decodedHourResults(row.hour_results);
+  const hourlyResultsAvailable = hourResults !== null
+    && row.schema_version === 6
+    && row.circuit_version === 4;
   const thresholdResult = row.observed_hour_count === 0
     ? 'stopped'
     : thresholdSatisfied ? 'within-threshold' : 'outside-threshold';
-  const verifiedClaim = thresholdResult === 'stopped'
-    ? 'No hourly extrema were submitted for this day; all 24 hours are reported as STOPPED.'
-    : thresholdSatisfied
-      ? 'Every submitted hourly minimum and maximum for the observed hours was within the registered public threshold policy; hours without data are reported as STOPPED.'
-      : 'At least one submitted private hourly minimum or maximum was outside the registered public threshold policy; the sensor values remain private.';
-  const verifiedClaimJa = thresholdResult === 'stopped'
-    ? 'この日は時間別の最小値・最大値が提出されておらず、24時間すべてが停止として記録されています。'
-    : thresholdSatisfied
-      ? '観測された各時間帯について、提出された非公開の最小値・最大値が登録済みの公開しきい値内であることを確認しました。データがない時間帯は停止として扱います。'
-      : '提出された非公開の時間別最小値・最大値のうち、少なくとも1つが登録済みの公開しきい値外であることを確認しました。センサー値自体は非公開です。';
+  const verifiedClaim = hourResults === null
+    ? 'This legacy record contains only the aggregate daily threshold result; hourly results are unavailable.'
+    : thresholdResult === 'stopped'
+    ? 'No hourly extrema were submitted for this day; all 24 hours are reported as NO DATA.'
+    : 'Each UTC hourly slot is publicly reported as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.';
+  const verifiedClaimJa = hourResults === null
+    ? 'この旧形式の記録には日次の集約判定しかなく、時間帯別の判定結果は確認できません。'
+    : thresholdResult === 'stopped'
+    ? 'この日は時間別の最小値・最大値が提出されておらず、24時間すべてが計測なしとして記録されています。'
+    : 'UTCの各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。';
   return json(200, {
     proofJobId: row.id,
     periodDate: row.period_date,
+    deviceCommitment: row.device_commitment,
     sampleCount: row.sample_count,
     observedHourCount: row.observed_hour_count,
     stoppedHourCount: 24 - row.observed_hour_count,
     thresholdSatisfied,
     thresholdResult,
     resultVerified: confirmed,
+    hourlyResultsAvailable,
     hourPresence: [...row.hour_presence].map((value) => value === '1'),
+    hourResults,
     thresholdPolicyVersion: row.threshold_policy_version,
     policyKey: row.policy_key,
     policy: {
@@ -1329,6 +1382,8 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
     },
     assignmentKey: row.assignment_key,
     assignmentVersion: row.assignment_version,
+    assignmentValidFrom: row.valid_from,
+    assignmentValidUntil: row.valid_until,
     measurementGroupId: row.measurement_group_id,
     attestationCommitment: row.attestation_commitment,
     schemaVersion: row.schema_version,
@@ -1372,7 +1427,7 @@ async function listPublicProofs(env: Env, url: URL): Promise<Response> {
     `SELECT
        j.*,
        p.mode, p.minimum, p.maximum, p.value_scale, p.sensor_type, p.unit,
-       p.policy_version, a.assignment_version
+       p.policy_version, a.assignment_version, a.valid_from, a.valid_until
      FROM daily_proof_jobs j
      JOIN threshold_policies p ON p.policy_key = j.policy_key
      JOIN policy_assignments a ON a.assignment_key = j.assignment_key
@@ -1393,6 +1448,7 @@ async function listPublicProofs(env: Env, url: URL): Promise<Response> {
       sampleCount: row.sample_count,
       observedHourCount: row.observed_hour_count,
       stoppedHourCount: 24 - row.observed_hour_count,
+      hourResults: decodedHourResults(row.hour_results),
       thresholdSatisfied: row.threshold_satisfied === 1,
       thresholdResult: row.observed_hour_count === 0
         ? 'stopped'
@@ -1414,6 +1470,29 @@ async function listPublicProofs(env: Env, url: URL): Promise<Response> {
       updatedAt: row.updated_at,
     })),
   });
+}
+
+async function publicProofByTransaction(env: Env, rawTransactionHash: string): Promise<Response> {
+  let transactionHash: string;
+  try {
+    transactionHash = decodeURIComponent(rawTransactionHash).replace(/^0x/iu, '').toLowerCase();
+  } catch {
+    return json(400, { error: 'Transaction hash is not valid URL input' });
+  }
+  if (!/^[a-f\d]{64}$/u.test(transactionHash)) {
+    return json(400, { error: 'Transaction hash must be 64 hexadecimal characters' });
+  }
+  const row = await createSqlDatabase(env).first<{ id: string }>(
+    `SELECT id FROM daily_proof_jobs
+     WHERE (lower(attest_tx_hash) = ?1 OR lower(attest_tx_hash) = '0x' || ?1)
+       AND status = 'confirmed'
+       AND attest_tx_id IS NOT NULL
+       AND attest_tx_hash IS NOT NULL
+       AND block_height IS NOT NULL`,
+    [transactionHash],
+  );
+  if (!row) return json(404, { error: 'Confirmed public Proof record not found for this transaction' });
+  return json(200, { proofJobId: row.id });
 }
 
 export async function handleWave1Api(request: Request, env: Env): Promise<Response | null> {
@@ -1452,6 +1531,16 @@ export async function handleWave1Api(request: Request, env: Env): Promise<Respon
     && parts[3]
     && parts[4] === 'admit'
   ) return admitProofJobForBrowserDevice(request, env, parts[3]);
+  if (
+    request.method === 'GET'
+    && parts.length === 6
+    && parts[0] === 'api'
+    && parts[1] === 'v1'
+    && parts[2] === 'public'
+    && parts[3] === 'proofs'
+    && parts[4] === 'by-transaction'
+    && parts[5]
+  ) return publicProofByTransaction(env, parts[5]);
   if (
     request.method === 'GET'
     && parts.length === 4

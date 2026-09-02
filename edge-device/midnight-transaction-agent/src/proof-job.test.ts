@@ -34,16 +34,17 @@ function attestation(
       assignmentId: 'device-1-temperature-v1-wave1',
       assignmentKey: 'ef'.repeat(32),
       periodDate: '2026-08-28',
-      periodStart: '2026-08-27T15:00:00.000Z',
-      periodEnd: '2026-08-28T15:00:00.000Z',
-      periodStartEpoch: '1787842800',
-      periodEndEpoch: '1787929200',
+      measurementDay: 20_693,
+      periodStart: '2026-08-28T00:00:00.000Z',
+      periodEnd: '2026-08-29T00:00:00.000Z',
+      periodStartEpoch: '1787875200',
+      periodEndEpoch: '1787961600',
       hourPresence: Array(24).fill(false) as boolean[],
       observedHourCount: 0,
       stoppedHourCount: 24,
       sampleCount: 0,
-      schemaVersion: 5,
-      circuitVersion: 3,
+      schemaVersion: 6,
+      circuitVersion: 4,
     },
     privateData: {
       attestationCommitment: commitment,
@@ -52,12 +53,12 @@ function attestation(
       measurementGroupId,
       policyKey: 'cd'.repeat(32),
       assignmentKey: 'ef'.repeat(32),
-      periodStartEpoch: '1787842800',
-      periodEndEpoch: '1787929200',
+      periodStartEpoch: '1787875200',
+      periodEndEpoch: '1787961600',
       hours,
       nonceHex: '11'.repeat(32),
-      schemaVersion: 5,
-      circuitVersion: 3,
+      schemaVersion: 6,
+      circuitVersion: 4,
     },
   };
 }
@@ -86,7 +87,7 @@ test('rejects a loopback-only Device flow because sponsorship requires the gatew
     node: 'http://127.0.0.1:9944',
     proofServer: 'http://127.0.0.1:6300',
     faucet: 'http://127.0.0.1:8080',
-  }, attestation('01'.repeat(32)), true), /sponsorship requires the authenticated Cloudflare gateway/u);
+  }, attestation('01'.repeat(32)), Array(24).fill('no-data'), true), /sponsorship requires the authenticated Cloudflare gateway/u);
 });
 
 test('retries bounded transient Sponsor responses and honors a short Retry-After', () => {

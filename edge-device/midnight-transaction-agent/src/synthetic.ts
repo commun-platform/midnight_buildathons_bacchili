@@ -36,7 +36,7 @@ export async function prepareSyntheticBenchmarkDataset(
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(periodDate)) {
     throw new Error('Synthetic benchmark period date must be YYYY-MM-DD');
   }
-  const periodStart = new Date(`${periodDate}T00:00:00+09:00`);
+  const periodStart = new Date(`${periodDate}T00:00:00.000Z`);
   if (Number.isNaN(periodStart.valueOf())) throw new Error('Synthetic benchmark period date is invalid');
   if (options.outlierValue !== undefined && !Number.isFinite(options.outlierValue)) {
     throw new Error('Synthetic benchmark outlier value must be finite');

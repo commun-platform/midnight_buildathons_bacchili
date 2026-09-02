@@ -10,11 +10,14 @@ It proves whether the private hourly minimum and maximum values for an observed 
 
 ## What can a third party check?
 
-A third party can check the day, target Device, public threshold, observed hours and counts, the WITHIN / OUTSIDE / STOPPED result, and the Midnight transaction record. Raw sensor values and hourly minimum / maximum values are not displayed.
+A third party can paste a transaction hash and check the UTC measurement date, 24 hourly
+WITHIN/OUTSIDE/NO DATA results, applied lower/upper bounds, unit, scale, version, validity interval,
+`deviceCommitment`, and the Midnight transaction/block. Raw sensor values and hourly minimum/maximum
+values are not displayed.
 
 ## What does it not prove?
 
-It does not prove that a physical sensor produced correct values, that sampling was continuous, that no readings were withheld, or that the measurement source aggregated the readings correctly. An hour with no readings is published as STOPPED; it is not automatically classified as WITHIN or fraudulent.
+It does not prove that a physical sensor produced correct values, that sampling was continuous, that no readings were withheld, or that the measurement source aggregated the readings correctly. An hour with no readings is published as NO DATA; it is not automatically classified as WITHIN or fraudulent.
 
 ## Why use Midnight?
 
@@ -38,15 +41,15 @@ It keeps the proof input format unchanged whether readings arrive hourly, every 
 
 ## How are hours without readings shown?
 
-Each hour is recorded as either observed or STOPPED. A third party can check which hours were observed and how many hours were stopped.
+Each UTC hour is published as WITHIN, OUTSIDE, or NO DATA. The hourly extrema remain private.
 
 ## What has been verified so far?
 
-For the current source on 2026-09-01, all 6 proof circuits compiled, 333 automated tests passed, and the type checks, builds, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are separate evidence.
+For the current source on 2026-09-01, all 6 proof circuits compiled, 339 automated tests passed, and the type checks, builds, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are separate evidence.
 
 ## Can the third-party view verify independently?
 
-Yes for the public chain evidence. Without a Wallet or private input, the browser directly queries the public Midnight Indexer, matches the successful transaction and block, decodes the Contract Ledger at that block, and compares the commitment, verified result, Policy, presence/counts, and Device-bound Assignment. It does not rerun the proof verifier locally or expose the witness; Midnight performed proof verification as part of accepting the transaction.
+Yes for the public chain evidence. Without a Wallet, private input, or D1 lookup, the browser queries the public Midnight Indexer by transaction hash, confirms the successful transaction and block, derives the called Contract, and compares its state at that block with the preceding block. It decodes the newly added Attestation, UTC day, 24 hourly results, Policy/validity, presence/counts, Device Commitment, and Device-bound Assignment. The browser does not rerun the proof verifier locally or expose the witness; Midnight performed proof verification as part of accepting the transaction.
 
 ## Who holds which keys?
 

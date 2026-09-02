@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   canonicalizeSensorRecord,
   evaluatePreparedDailyExtremaLocally,
+  evaluatePreparedDailyExtremaHoursLocally,
   generateSensorRecords,
   policyAssignmentKey,
   prepareDailyExtremaAttestation,
@@ -92,7 +93,7 @@ for (const sampleCount of [24, 96, 1440]) {
   test(`the fixed daily-extrema shape accepts ${sampleCount} raw samples`, async () => {
     const records = generateSensorRecords({
       deviceId: 'edge-temp-001',
-      start: new Date('2026-08-27T15:00:00.000Z'),
+      start: new Date('2026-08-28T00:00:00.000Z'),
       samples: sampleCount,
       intervalSeconds: 86_400 / sampleCount,
       seed: 700 + sampleCount,
@@ -115,7 +116,7 @@ for (const sampleCount of [24, 96, 1440]) {
 test('missing hours are canonical STOPPED slots and do not fail the observed-range claim', async () => {
   const records = generateSensorRecords({
     deviceId: 'edge-temp-001',
-    start: new Date('2026-08-27T15:00:00.000Z'),
+    start: new Date('2026-08-28T00:00:00.000Z'),
     samples: 8,
     intervalSeconds: 3 * 3_600,
     seed: 801,
@@ -126,6 +127,11 @@ test('missing hours are canonical STOPPED slots and do not fail the observed-ran
   });
   assert.equal(attestation.publicData.observedHourCount, 8);
   assert.equal(attestation.publicData.stoppedHourCount, 16);
+  assert.equal(
+    evaluatePreparedDailyExtremaHoursLocally(attestation, temperaturePolicy)
+      .filter((result) => result === 'no-data').length,
+    16,
+  );
   assert.equal(
     attestation.privateData.hours
       .filter((hour) => !hour.present)
@@ -138,7 +144,7 @@ test('missing hours are canonical STOPPED slots and do not fail the observed-ran
 test('valid out-of-range extrema produce a provable outside-threshold result', async () => {
   const records = generateSensorRecords({
     deviceId: 'edge-temp-001',
-    start: new Date('2026-08-27T15:00:00.000Z'),
+    start: new Date('2026-08-28T00:00:00.000Z'),
     samples: 24,
     intervalSeconds: 3_600,
     seed: 803,
@@ -152,13 +158,17 @@ test('valid out-of-range extrema produce a provable outside-threshold result', a
     evaluatePreparedDailyExtremaLocally(attestation, temperaturePolicy),
     'outside-threshold',
   );
+  assert.equal(
+    evaluatePreparedDailyExtremaHoursLocally(attestation, temperaturePolicy)[7],
+    'outside-threshold',
+  );
   assert.equal(verifyPreparedDailyExtremaLocally(attestation, temperaturePolicy), false);
 });
 
 test('daily extrema commitment and public presence tampering are rejected locally', async () => {
   const records = generateSensorRecords({
     deviceId: 'edge-temp-001',
-    start: new Date('2026-08-27T15:00:00.000Z'),
+    start: new Date('2026-08-28T00:00:00.000Z'),
     samples: 24,
     intervalSeconds: 3_600,
     seed: 802,

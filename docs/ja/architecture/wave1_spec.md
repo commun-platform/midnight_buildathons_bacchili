@@ -3,7 +3,7 @@
 [English](../../architecture/wave1_spec.md)
 
 状態：実装基準
-最終更新：2026-08-31 JST
+最終更新：2026-09-01 JST
 
 本書をWave 1の製品・実装仕様の正本とします。過去の設計文書と矛盾する場合、本書を優先します。
 
@@ -38,6 +38,7 @@ Integration Evidenceと移行基盤ですが、長期間の自律運用と本番
 | Daily Extrema Input | Observed／STOPPEDの24時間Slotを持つ固定形状Private Objectです。 |
 | STOPPED | Readingがない時間です。AbsentかつCount／値がZeroの正規表現にします。Threshold失敗ではありません。 |
 | Threshold Policy | Mode、Bound、数値Scale、Sensor Type／Unit、Versionを定義するImmutableなPublic Midnight Stateです。 |
+| 時間帯別結果 | UTCの各1時間に対するPublic Resultです。`withinThreshold`／`outsideThreshold`／`noData`のいずれかで、時間帯は分かりますが実値は分かりません。 |
 | Threshold Result | Private Hourly ExtremaとAssignment済みLedger Policyから証明するPublic Boolean `thresholdSatisfied`です。`true`は全Observed Hourが範囲内、`false`は少なくとも1時間が範囲外です。 |
 | Policy Assignment | Policy、登録済みDevice Commitment、有効期間を結び付けるImmutable Stateです。 |
 | Attestation Commitment | Private Daily Extrema InputとNonceへのPublic Commitmentです。 |
@@ -75,10 +76,14 @@ ID、内容から導出するProof Job IDをまだ使用しています。上記
 
 ![ゼロ知識証明で分かること、非公開の情報、証明しないこと](../assets/review/zk-claim-boundary-ja.png)
 
-Confirmed Daily Attestationは、一緒に記録したPublic Resultを証明します。
+Confirmed Daily Attestationは、UTCの24時間それぞれに一緒に記録したPublic Resultを証明します。
 
-- WITHIN（`thresholdSatisfied = true`）：観測された全時間の提出最小値／最大値が登録済みしきい値の範囲内
-- OUTSIDE（`thresholdSatisfied = false`）：観測された少なくとも1時間で、提出最小値または最大値が登録済みしきい値の範囲外
+- しきい値以内：その時間のPrivate Minimum／Maximumが登録済みPolicyの範囲内
+- 範囲外：その時間のPrivate MinimumまたはMaximumが登録済みPolicyの範囲外
+- 計測なし：その時間がCountとPrivate値をZeroにしたCanonical Absent Slot
+
+`thresholdSatisfied`は日次の総合結果として残します。`true`は全Observed Hourがしきい値以内、
+`false`は1時間以上が範囲外です。時間帯Viewerの正本は、この総合結果ではなく24要素の時間帯別結果です。
 
 Readingがない時間はSTOPPEDとしてThreshold計算から除外します。24時間すべてSTOPPEDの場合、GUIは`observedHourCount = 0`からSTOPPEDを表示し、数学的に真となるLedger Booleanを正常稼働日として表示しません。OUTSIDEはProof成功結果です。Private Data不整合またはPrivate Dataと一致しないClaim Resultは失敗し、何も記録しません。
 
@@ -92,7 +97,7 @@ Readingがない時間はSTOPPEDとしてThreshold計算から除外します。
 - Firmwareの集計、Clock、Filter、Debounceの正しさ
 - Off-chain Raw Storageの完全性／真正性
 
-GUI／営業資料でWITHINを「すべての物理Sensor値が正常だった」と強めてはいけません。また、OUTSIDEを発生させた実値は開示しません。
+GUI／営業資料でWITHINを「すべての物理Sensor値が正常だった」と強めてはいけません。範囲外の時間帯は公開しますが、実値とどちらのBoundを超えたかは開示しません。
 
 ## 4. Trust、Privacy、Runtime境界
 
@@ -277,7 +282,7 @@ commitment, thresholdPolicyVersion
 
 WorkerはAuthenticated Device／Project、Sensor Metadata、Policy Version、有限かつ順序が正しい値、Period、Count、Commitment形式、Unique `batchId`を検証します。D1にはHourly Aggregateを保存し、Raw Sampleごとには書きません。
 
-審査用Browser Deviceは完了済みの過去30日間からJST日付を選び、1分間隔のRaw値を1,440件生成します。生成Raw値とPrivate OpeningはそのBrowserのIndexedDBだけに保持し、Cloudへは最大24件のHourly Windowだけを送ります。当日と未来日は選択対象外なので、生成データは必ず完了した日次Claimになります。Threshold内Modeと外れ値ModeはどちらもZKP成功経路であり、それぞれHourly Extremaを開示せずPublic WITHIN／OUTSIDE Resultを生成します。
+審査用Browser Deviceは完了済みの過去30日間からUTC日付を選び、1分間隔のRaw値を1,440件生成します。生成Raw値とPrivate OpeningはそのBrowserのIndexedDBだけに保持し、Cloudへは最大24件のHourly Windowだけを送ります。当日と未来日は選択対象外なので、生成データは必ず完了した日次Claimになります。Threshold内Modeと外れ値ModeはどちらもZKP成功経路であり、Hourly Extremaを開示せず24個の時間帯別結果と日次総合結果を生成します。
 
 AnomalyはDebounce済みState Transitionとして即時送信します。
 
@@ -332,11 +337,11 @@ D1はAdmission前検査とGUI用にConfirmed Policy／Assignment MetadataをMirr
 
 ![測定値を24個の時間枠へ集約し、値を隠したまましきい値と照合する](../assets/review/hourly-extrema-zkp-ja.png)
 
-Wallet AgentはReadingをJST Hour 0～23へ分類し、欠測時間を自動的にCanonical STOPPED Slotにします。稼働予定の事前登録は行いません。
+Wallet AgentはReadingをUTC Hour 0～23へ分類し、欠測時間を自動的にCanonical STOPPED Slotにします。稼働予定の事前登録は行いません。
 
-Private `DailyExtremaInput`はMeasurement Group／Device／Policy／Assignment Binding、正確な24時間Period、24個の`{present, minimum, maximum, sampleCount}`、Schema Version、Circuit Versionを持ちます。1つのNonceでPublic Persistent CommitmentをOpenします。
+Private `DailyExtremaInput`はMeasurement Group／Device／Policy／Assignment Binding、UTCのMeasurement Dayとその00:00:00～24:00:00、24個の`{present, minimum, maximum, sampleCount}`、Schema Version、Circuit Versionを持ちます。1つのNonceでPublic Persistent CommitmentをOpenします。
 
-`submitDailyAttestation`はActive Fleet Registry Entry、そのDevice Contract Authority、Assignmentに埋め込まれた同一Device Commitment、期間、Commitment Opening、Public／PrivateのMeasurement Group／Device／Policy／Assignment／Period／Presence／Version Binding、Canonical STOPPED値、Observed SlotのPositive CountとExtrema順序、再計算したTotal／Observed Countを検証します。全Observed Private SlotとAssignment済みLedger Policyから`allWithin`を計算し、Public `thresholdSatisfied`と一致することを証明します。Ledger Keyは`deviceCommitment + measurementGroupId`から導出し、同じGroup ID、虚偽Result、Malformed Slotを拒否します。
+`submitDailyAttestation`はActive Fleet Registry Entry、そのDevice Contract Authority、Assignmentに埋め込まれた同一Device Commitment、期間、Commitment Opening、Public／PrivateのMeasurement Group／Device／Policy／Assignment／Period／Presence／Version Binding、Canonical STOPPED値、Observed SlotのPositive CountとExtrema順序、再計算したTotal／Observed Countを検証します。各SlotでPrivate ExtremaとAssignment済みLedger Policyから求めた「計測なし／しきい値以内／範囲外」がPublic Hour Resultと一致することを証明します。日次の`allWithin`もPublic `thresholdSatisfied`と一致させます。Ledger Keyは`deviceCommitment + measurementGroupId`から導出し、同じGroup ID、虚偽Result、Malformed Slotを拒否します。
 
 回路は常に24 Slotを見るため、1日24、96、1,440件またはさらに高頻度へ変えても回路／Proving Keyは変わりません。Report CountはBindingされますがDevice申告値です。
 
@@ -344,7 +349,7 @@ Private `DailyExtremaInput`はMeasurement Group／Device／Policy／Assignment B
 
 Default Proof Server Admission時間は02:00～06:00 JSTです。時間外もIngestion／Anomaly Alertは継続します。
 
-1. DeviceがJST日次をCloseし、Private 24 Slot Attestationを準備
+1. DeviceがUTC日次をCloseし、Private 24 Slot Attestationを準備
 2. `proofJobId`を`zjb_<UUIDv7>`として生成・永続化し、Public Metadataだけを送信する。再送でも同じIDを使う
 3. WorkerがD1 Policy／Assignment Mirrorを検査し、`daily_proof_jobs`へ`pending`で1件保存
 4. 営業時間内にCronがDue RowをConditional Claimし、Job参照をQueueへ送信
@@ -399,10 +404,22 @@ Framework-free GUIをReview／撮影用にLocal Hostでき、Workerからも配�
 6. Midnight Attestation Confirmed
 
 管理者画面はHourly Operational Minimum／Maximum／Average／Count、Anomaly Marker、Observed／STOPPED時間、Proof／TX状態を表示できます。Raw SampleやPrivate Daily Openingは表示しません。
-時系列はJST日付ごとにまとめ、新しい日を初期表示し、その日の日次Proof操作を同じ画面に表示します。
+時系列はUTC日付ごとにまとめ、新しい日を初期表示し、その日の日次Proof操作を同じ画面に表示します。
 
-第三者画面はTransaction ID／Hash／Block Heightが揃ったConfirmed Recordだけを一覧表示します。証明済みWITHIN／OUTSIDE／STOPPED Result、正確なClaim、Public Policy Mode／Bound／Unit／Version、Assignment、Commitment、Observed／STOPPED Count、Network、Contract Address、Attestation TX、実際のZKP生成日時を表示します。Hourly Extrema／Nonceは表示せず、物理的完全性を示唆しません。
-最初に日次Proof Jobを新しい順で表示し、選択した日付を直接開きます。
+第三者画面はTransaction ID／Hash／Block Heightが揃ったConfirmed Recordだけを一覧表示します。TX hashの貼り付け、または一覧行の選択から詳細を開き、次の順で表示します。
+
+| 表示項目 | 意味 |
+| --- | --- |
+| 計測日 | `YYYY-MM-DD`。UTCの00:00～24:00に固定します。 |
+| 時間帯別結果 | UTCの1時間ごと24行で、しきい値以内／範囲外／計測なしを表示します。 |
+| 適用しきい値 | 下限、上限、単位、スケール、Policy Version、Assignmentの有効期間です。 |
+| 証明対象 | `deviceCommitment`。AttestationとAssignmentが同じ仮名Deviceに対することを結び付けます。 |
+
+詳細にはCommitment、Network、Contract、TX hash、Block Heightも表示します。Hourly ExtremaとNonceは非公開のままです。貼り付けたHashについて、BrowserはPublic Midnight Indexerから成功TX／Blockを確認し、呼び出したContractを導出して直前Blockとの差分をDecodeします。この経路はD1を使いません。最新順のD1 Listは任意のNavigation補助であり、Chain Evidenceではありません。
+
+必要なTrust Anchor、Ledger項目の意味、時間ごとのZK制約、安全側に失敗する検証手順、実Preprod適合確認値は、
+[TX hashによる第三者検証仕様](../implementation/transaction_hash_verification.md)で定めます。TX hashは検索キーであり、
+独立ビューワは対象Networkと、承認済みContract Deploymentまたはレビュー済みVerifier Keyにも結果を結び付ける必要があります。
 
 第三者画面には、意図的に黒塗りした**元のセンサー値**欄を設け、**第三者には非公開／値を見せずに証明**と
 明示します。この欄には測定値を一切入れません。元の値はデバイスの非公開保存領域に残し、公開APIが
@@ -411,12 +428,7 @@ Framework-free GUIをReview／撮影用にLocal Hostでき、Workerからも配�
 証明の照合、ZK証明の正しさ、判定結果と公開しきい値の照合、Midnightへの記録、第三者による確認完了だけを
 可視化します。Witness、元の値、時間別最小・最大、Nonce、Proof Byte、Proof Server内部処理は可視化も返却もしません。
 
-確定済み記録でも、ブラウザはD1のStatusだけを証明として扱いません。まずRedacted済みPublic Recordを表示し、
-同じTransaction ID／Hash／Blockの成功をPublic Midnight Indexerへ問い合わせます。その正確なBlockのFleet
-Registry LedgerをDecodeし、Attestation Commitment、Verified Flag、24時間のPresence／Count、判定結果、
-Policy、DeviceにBindingされたAssignmentを独立に照合します。値が1つでも異なる場合やPublic Lookup失敗時は
-4つのCheckを未完了のままにします。時間がかかる直接照合は、WalletやPrivate Inputを使わず、時間上限と
-Indeterminate Progress Indicator付きで実行します。
+BrowserはTX hashから同じTransaction／Blockの成功をPublic Midnight Indexerへ問い合わせます。TXに含まれるContract Actionを取得し、その正確なBlockと直前BlockのFleet Registry LedgerをDecodeします。新規Attestationを1件だけ特定し、Attestation Commitment、Verified Flag、UTC Measurement Day、24時間のPresence／Result VectorとCount、Policy／有効期間、DeviceにBindingされたAssignmentを独立に取得します。矛盾、0件、複数件、Public Lookup失敗時は確認済みにしません。時間がかかる直接照合は、D1、Wallet、Private Inputを使わず、時間上限とIndeterminate Progress Indicator付きで実行します。
 
 公開値が存在する場合、コントラクトアドレス、トランザクションハッシュ、数値のブロック番号をネットワーク別の
 Midnight Explorerへのリンクにします。ブラウザ上のデバイスはMidnightの取引データから確定トランザクションハッシュを
@@ -476,15 +488,15 @@ Cost実測は標準運用Profileだけを記録します。1分ごとのRaw Samp
 ```text
 Compact toolchain 0.31.1
 Compact language  0.23
-daily schema      5
-circuit           3
+daily schema      6
+circuit           4
 contract schema   3
-D1 migrations     0022_project_policies.sqlまで
+D1 migrations     0025_hourly_threshold_results.sqlまで
 ```
 
 旧Selected-Merkle-leaf／Singleton／WITHIN専用Fleet Registry Ledgerとは互換性がありません。採用には新Fleet Registry Deploy、
 運用前のOperator限定Device／Policy／Device-bound Assignment TX、管理TX Evidence付きD1 Migration／Mirror
-Sync、D1 Migration `0022`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
+Sync、D1 Migration `0025`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
 
 Wave 1は、審査用PoCで次を確認できた時点で完了とします。
 
@@ -492,12 +504,12 @@ Wave 1は、審査用PoCで次を確認できた時点で完了とします。
 - 証明対象としきい値条件を、選択した計測日より前に登録できる
 - 疑似の日次計測データを固定形状の非公開入力へ集約し、公開検証画面へ元の値を出さない
 - 時間別Summaryは認可済み運用者Workflowだけで閲覧できる
-- STOPPED時間は成功し、正しいWITHIN／OUTSIDE Resultを記録し、Malformed STOPPED／Observed Slotは失敗
-- 範囲外DataをWITHIN、範囲内DataをOUTSIDEとClaimすると失敗
+- 計測なし時間は成功し、正しい時間帯別のしきい値以内／範囲外を記録し、Malformed Absent／Observed Slotは失敗
+- Private Dataと異なる時間帯別結果をClaimすると失敗
 - Proof Requestから別Threshold Boundを指定できない
 - Policy、Assignment、Device、Period、Presence、Count、Commitment改ざんが失敗
 - User認可済み・Service Fee負担のPreprod Attestation TXがConfirmedとなり第三者画面へ表示
-- 第三者画面がPolicy／Statusを公開し、Hourly Extrema／Nonceを公開しない
+- 第三者画面がUTC計測日、24個の時間帯別結果、適用Policy、Device Commitmentを公開し、Hourly Extrema／Nonceを公開しない
 - Cost／Version実測記録をBenchmark文書へ追加
 
 Wave 2では、自律的な現場運用、本番Role分離、認証・認可、監査・解析Log、監視、復旧、運用ダッシュボードを追加します。

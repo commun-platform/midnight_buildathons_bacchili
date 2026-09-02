@@ -48,7 +48,7 @@ old and new authorities, so neither can be reused by another Device.
 2. the private Device Contract Authority derives to that registry entry's public authority;
 3. the selected immutable Policy Assignment contains the same Device Commitment;
 4. the private committed daily input contains the same Device, Policy, and Assignment keys; and
-5. daily schema `5`, circuit `3`, the exact 24-hour period, presence bitmap, counts, and policy checks pass.
+5. daily schema `6`, circuit `4`, the exact UTC day, presence bitmap, 24 hourly results, counts, and policy checks pass.
 
 The daily commitment contains and constrains the explicit domain `vsp:daily-extrema:v1`.
 
@@ -160,9 +160,11 @@ evidence to `devices`, adds
 `device_commitment` to `policy_assignments`, and permits purpose-limited `contract_admin` Proof
 Leases. Migration `0012_device_operation_configuration.sql` adds the monotonically increasing public
 configuration revision and the dedicated `configuration:read` scope. Migration
-`0013_daily_threshold_result.sql` binds the claimed public WITHIN/OUTSIDE result to each idempotent
-daily Proof Job. Migration `0019_worker_browser_provisioning.sql` adds hashed one-time browser
-challenges and hashed Wallet verification-key bindings. Secrets are never stored in D1.
+`0013_daily_threshold_result.sql` binds the claimed public daily summary to each idempotent Proof
+Job. Migration `0019_worker_browser_provisioning.sql` adds hashed one-time browser challenges and
+hashed Wallet verification-key bindings. Migration `0025_hourly_threshold_results.sql` stores the
+24 public hourly results used to locate and render schema-6 chain evidence. Secrets are never stored
+in D1.
 
 The Worker requires all of these before issuing a Session or accepting operational input:
 
@@ -209,9 +211,9 @@ the cost benchmark:
 7. the local administrator GUI and public verifier show the same confirmed transaction and exact
    redacted claim.
 
-The Edge Device completed both truthful WITHIN and OUTSIDE self-funded attestations. The current
-schema-5 Sponsor-funded WITHIN attestation was separately confirmed on 2026-08-30 JST and is the
-operational sponsorship-boundary evidence.
+The Edge Device completed both truthful WITHIN and OUTSIDE self-funded attestations. The historical
+schema-5 Sponsor-funded WITHIN attestation was separately confirmed on 2026-08-30 JST and remains
+operational sponsorship-boundary evidence; it does not contain schema-6 hourly results.
 
 The current Sponsor-funded release gate replaces step 6 with:
 

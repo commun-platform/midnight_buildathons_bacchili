@@ -34,9 +34,18 @@ Browser Private Storage、補助的な現場経路ではLocal Field Storageで�
 第三者Viewと同じ審査Applicationに入っていますが、本番Role・Application分離はWave 2の目標です。Private Aggregate値を
 第三者Public APIに含めません。
 
-Public Proof画面はPeriod、Sample Count、Daily Attestation Commitment、仮名Proof Job ID、Policy Mode／Public Bound／ID／Version／Assignment、Observed／STOPPED Count、証明済みWITHIN／OUTSIDE Result、Attestation TX ID／Hash、Block Height、Network、Contract Addressを表示できます。Observed HourがZeroの場合はSTOPPEDを導出表示します。
+Public Proof画面は次の項目を表示します。
 
-運用ContractはThreshold Mode、Minimum／Maximum、Scale、Sensor／Unit Code、Policy Assignment、`thresholdSatisfied`をPublic Ledger Stateへ保存します。そのため製品説明でもThreshold PolicyとWITHIN／OUTSIDE Resultは公開と明記します。ZKが隠すのは提出済みHourly ExtremaとCommitment Nonceであり、OUTSIDEを発生させたHour／実値は開示しません。
+| 表示項目 | 公開内容 |
+| --- | --- |
+| 計測日 | `YYYY-MM-DD`。UTCの00:00～24:00に固定 |
+| 時間帯別結果 | UTCの1時間ごと24件のしきい値以内／範囲外／計測なし |
+| 適用しきい値 | 下限・上限・単位・スケール・Version・有効期間 |
+| 証明対象 | `deviceCommitment` |
+
+その他、Sample Count、Daily Attestation Commitment、仮名Proof Job ID、Assignment、日次総合結果、Attestation TX ID／Hash、Block Height、Network、Contract Addressを表示できます。
+
+運用ContractはThreshold Mode、Minimum／Maximum、Scale、Sensor／Unit Code、Policy Assignment、UTC Measurement Day、24個の時間帯別結果、日次の`thresholdSatisfied`をPublic Ledger Stateへ保存します。そのため製品説明でもThreshold Policyと各時間帯のStatusは公開と明記します。ZKが隠すのは提出済みHourly ExtremaとCommitment Nonceであり、範囲外の時間帯は分かりますが、実値とどちらのBoundを超えたかは開示しません。
 
 Cloudflare Worker／Proof Server ContainerはTransit中のPrivate Proving Requestを扱うTrusted Componentです。Workerは転送前にAuthorization Headerを除去し、BodyをLog／D1／R2／Queueへ保存せずStreamします。現場Transaction AgentまたはUser管理のBrowser AccountがTransaction Authorityを保持し、FeeなしTXを明示承認します。PrivateなSponsor Wallet ContainerはDUST付与／送信用の分離Sponsor Seedと、固定されたBrowser登録回路用のOperator Authority秘密値を保持します。どちらもPublic RouteやBrowserへ公開しません。
 
@@ -46,3 +55,5 @@ Contextと生成Imageには、Sponsor Seed、Operator Authority秘密値、`.env
 Checkpoint、Wallet Stateを含めてはいけません。Compile済みCompact Prover／Verifier ArtifactはBuild
 Artifactであり、秘密鍵素材ではありません。Local開発ではGit Ignore済みの`.dev.vars`等でCloudflare
 Secret Bindingを代替できますが、CommitまたはImageへのCopyは禁止します。
+
+BrowserはZK Verifier自体を再実行しません。貼り付けたTX hashからPublic Midnight Indexerへ成功TX、Block、Contract Actionを問い合わせ、該当Blockと直前BlockのContract State差分をDecodeして、そのTXが追加したAttestationを特定します。そこからUTC計測日、24個の時間帯別結果、Policy／有効期間、Device Commitmentを表示します。このHash検証経路はD1を使いません。Local Proof Verifier実行と複数Indexer比較は将来拡張です。

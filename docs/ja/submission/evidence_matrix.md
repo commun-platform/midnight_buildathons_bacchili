@@ -14,13 +14,13 @@ Local Source検証と記録済みPreprod Transactionは意図的に分けます�
 | CLAIM-02 | PolicyとDevice AssignmentをProof前に登録する | Policy / Assignment Circuit、Fleet Registry仕様 | Contract Compile、Simulator 13 Test成功 | Schema-5 Policy / Device-bound AssignmentをPreprod記録 | Contract変更なし、Worker／GUIは2026-08-31 JSTにDeploy |
 | CLAIM-03 | 24時間ExtremaとNonceはPrivate Witnessである | sensor-registry、Public Field Map | CompileとRedaction Test成功 | Public Verifier RecordにExtrema / Nonceなし | Trusted BackendはTransit中のProof Inputを見る |
 | CLAIM-04 | 真のWITHIN / OUTSIDEを同一Daily Circuitで証明する | submitDailyAttestationとTest | 28,699 rows、k=15、成功 / Reject Test成功 | 両結果を2026-08-28に確認 | Sensorの真実性や完全性は証明しない |
-| CLAIM-05 | Missing HourをSTOPPEDとして表す | Wave 1仕様、Daily Input Utility | Shared STOPPED Test成功 | Public ResultにObserved / Stopped Count | STOPPEDは不正検知ではない |
+| CLAIM-05 | Missing Hourを「計測なし」として表す | Wave 1仕様、Daily Input Utility | Canonicalな計測なしSlot Test成功 | 対応するUTC時間のPublic Resultを「計測なし」として公開 | Missing Dataは不正検知ではない |
 | CLAIM-06 | User Transaction Authority、現場API Identity、Service Fee Authorityを分離する | Browser認可と補助的な現場Agent Boundary | Frontend、Identity Agent、Transaction Agent Test成功 | 認可済みPreprod Transaction記録 | Hardware保護Attestationは将来 |
 | CLAIM-07 | Proof ServiceはUserの代理認可をできない | Proof Flow、Transaction Authorization Source | Boundary / Execution Lock Test成功 | Proof生成後にUserがCallを認可 | BackendはProof Inputに対してTrusted |
-| CLAIM-08 | Browser APIはPublic / 認可済みRedacted Stateだけを返す | Gateway API Test、Frontend責任設計 | Gateway 111、Dashboard 52 Test成功 | Public VerifierにPolicy、Result、Commitment、TX | BrowserはPublic IndexerのTX／Contract Stateを直接照合するがZK VerifierをLocal再実行しない |
+| CLAIM-08 | Browser APIはPublic / 認可済みRedacted Stateだけを返す | Gateway API Test、Frontend責任設計 | Gateway 147、Dashboard 65 Test成功 | Public VerifierにTX hash、UTC日付、24時間別結果、Policy／有効期間、Device Commitment、Block、TX | BrowserはPublic IndexerのTX／Contract Stateを直接照合するがZK VerifierをLocal再実行しない |
 | CLAIM-09 | PoCで1,440 Reading / Dayを固定24 Slot Proofとして扱う | Aggregation、Cost Benchmark | 24 / 96 / 1,440 Fixed Shape Test成功 | 1,440 Reading OUTSIDE TX確認 | 1疑似計測元 / DayはFleet Load Testではない |
 | CLAIM-10 | 必須の運用Compact ContractがCompileする | midnight/contracts/sensor-registry | 2026-08-31に6 Circuit全てCompile成功 | 過去のSchema-3 Deploy確認 | 最終提出Commit SHAは未固定 |
-| CLAIM-11 | Repository Verificationが成功する | Root verify、Workspace Script | 333 Test、Typecheck、Build、Wrangler dry-run成功 | 2026-09-01 JSTにWorker Version `486db124-ae9f-4bbc-9303-329999538c13`をDeploy | 制限付きDocker dry-runはbuildx状態更新だけ拒否され、Host Accessでの再実行は成功 |
+| CLAIM-11 | Repository Verificationが成功する | Root verify、Workspace Script | 339 Test、Typecheck、Build、Wrangler dry-run成功 | 2026-09-01 JSTにWorker Version `486db124-ae9f-4bbc-9303-329999538c13`をDeploy | 制限付きDocker dry-runはbuildx状態更新だけ拒否され、Host Accessでの再実行は成功 |
 | CLAIM-12 | GUIが疑似計測WorkflowとPublic Verificationを接続する | Dashboard Source、Route、Test | Dashboard Build、52 Test成功 | 日付付きCaptureが審査Flowを表示 | 統合審査UIは本番Role分離ではない。英語デモ動画を作成済み、公開URL待ち |
 
 ## 現行検証Command
@@ -35,14 +35,14 @@ Local Source検証と記録済みPreprod Transactionは意図的に分けます�
 | --- | ---: |
 | Shared | 18 |
 | sensor-registry Contract | 13 |
-| Dashboard | 63 |
-| Development CLI | 4 |
+| Dashboard | 65 |
+| Development CLI | 5 |
 | Device Auth | 6 |
-| Edge Agent | 13 |
+| Edge Agent | 14 |
 | Device Wallet Agent | 29 |
-| Proof Gateway | 145 |
+| Proof Gateway | 147 |
 | Sponsor Wallet | 42 |
-| 合計 | 333 |
+| 合計 | 339 |
 
 ![Engineering Evidenceと検証境界](../../ja/assets/review/engineering-evidence-ja.png)
 

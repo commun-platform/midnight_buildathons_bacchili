@@ -5,6 +5,12 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const isDeviceRelease = fs.existsSync(path.join(repoRoot, 'device-release-manifest.json'));
+
+function releaseFile(sourceRelative: string, packagedRelative: string): string {
+  const sourcePath = path.join(repoRoot, sourceRelative);
+  return fs.existsSync(sourcePath) ? sourcePath : path.join(repoRoot, packagedRelative);
+}
 
 test('Edge workspace has no Compact, wallet, contract, or prover dependencies', () => {
   const packageJson = JSON.parse(
@@ -27,7 +33,7 @@ test('Edge workspace has no Compact, wallet, contract, or prover dependencies', 
 
 test('device installer is scoped to operational workspaces', () => {
   const installer = fs.readFileSync(
-    path.join(repoRoot, 'edge-device/release/device-installer.sh'),
+    releaseFile('edge-device/release/device-installer.sh', 'device-installer.sh'),
     'utf8',
   );
   assert.match(installer, /--workspace @midnight-demo\/edge-agent/);
@@ -72,7 +78,9 @@ test('device installer is scoped to operational workspaces', () => {
   assert.doesNotMatch(installer, /run_user[^\n]*(compact|wrangler|docker|midnight:)/i);
 });
 
-test('development packaging produces an installer-rooted device archive', () => {
+test('development packaging produces an installer-rooted device archive', {
+  skip: isDeviceRelease,
+}, () => {
   const packaging = fs.readFileSync(
     path.join(repoRoot, 'edge-device/release/package_archive.sh'),
     'utf8',
@@ -100,7 +108,9 @@ test('development packaging produces an installer-rooted device archive', () => 
   assert.doesNotMatch(sourceEntries, /frontend|backend|tools\/midnight-operator/);
 });
 
-test('development workspaces refuse commands when the host is marked as a device', () => {
+test('development workspaces refuse commands when the host is marked as a device', {
+  skip: isDeviceRelease,
+}, () => {
   const guardedPackages: Array<[string, string[]]> = [
     ['tools/midnight-operator/package.json', ['wallet', 'deploy', 'benchmark:daily-proof']],
     ['backend/cloudflare/proof-gateway-worker/package.json', ['device:register', 'deploy', 'destroy']],
@@ -123,7 +133,10 @@ test('development workspaces refuse commands when the host is marked as a device
 
 test('legacy environment migration omits all wallet recovery material', () => {
   const migration = fs.readFileSync(
-    path.join(repoRoot, 'edge-device/release/scripts/migrate-device-env.mjs'),
+    releaseFile(
+      'edge-device/release/scripts/migrate-device-env.mjs',
+      'scripts/migrate-device-env.mjs',
+    ),
     'utf8',
   );
   for (const forbidden of [

@@ -3,7 +3,7 @@
 [日本語版](../ja/architecture/wave1_spec.md)
 
 Status: implementation baseline
-Last updated: 2026-08-31 JST
+Last updated: 2026-09-01 JST
 
 This is the normative Wave 1 product and implementation specification. If an older design note
 conflicts with this document, this document takes precedence.
@@ -47,6 +47,7 @@ value stream or separate premium proof capacity without changing the Wave 1 atte
 | Daily extrema input | The private fixed-shape object containing 24 observed/STOPPED hourly slots. |
 | STOPPED | An hour with no readings, represented canonically as absent with zero count and values. It is not a threshold failure. |
 | Threshold policy | Immutable public Midnight state defining mode, bounds, numeric scale, sensor type/unit, and version. |
+| Hourly threshold result | One public result for each UTC hour: `withinThreshold`, `outsideThreshold`, or `noData`. It reveals the hour's status but not its extrema. |
 | Threshold result | Public `thresholdSatisfied` Boolean proven from private hourly extrema and the assigned ledger policy. `true` means all observed hours are within; `false` means at least one observed hour is outside. |
 | Policy assignment | Immutable binding of a policy, one registered Device Commitment, and a validity interval. |
 | Attestation commitment | Public commitment to the private daily extrema input and nonce. |
@@ -88,12 +89,15 @@ must preserve an explicit mapping for existing records and must not silently rei
 
 ![What the zero-knowledge proof establishes, keeps private, and does not establish](../assets/review/zk-claim-boundary-en.png)
 
-A confirmed daily attestation proves the public result recorded with it:
+A confirmed daily attestation proves all 24 public UTC-hour results recorded with it:
 
-- WITHIN (`thresholdSatisfied = true`): every submitted hourly minimum and maximum for observed hours
-  was within the registered public threshold policy;
-- OUTSIDE (`thresholdSatisfied = false`): at least one submitted hourly minimum or maximum for an
-  observed hour was outside the registered public threshold policy.
+- WITHIN: that hour's submitted private minimum and maximum were within the registered public policy;
+- OUTSIDE: that hour's submitted private minimum or maximum was outside the registered public policy;
+- NO DATA: that hour is the canonical absent slot with zero count and zero-valued private fields.
+
+The public `thresholdSatisfied` Boolean remains as a daily summary: `true` means all observed hours
+are WITHIN; `false` means at least one observed hour is OUTSIDE. The 24-element hourly vector, not this
+summary, is authoritative for the time-band viewer.
 
 Hours without data are STOPPED and excluded from the threshold calculation. If all 24 hours are
 STOPPED, the GUI reports STOPPED from `observedHourCount = 0`; it does not present the vacuously true
@@ -111,7 +115,7 @@ The proof does not establish:
 - completeness/authenticity of off-chain raw storage.
 
 The GUI and sales material must not strengthen a WITHIN result to “all physical sensor values were
-valid,” and must not reveal the value that caused an OUTSIDE result.
+valid.” The OUTSIDE hour is public, while the value and the exceeded bound remain private.
 
 ## 4. Trust, privacy, and runtime boundary
 
@@ -331,11 +335,11 @@ The Worker verifies the authenticated device/project, sensor metadata, policy ve
 ordered values, period, count, commitment format, and unique `batchId`. D1 stores the hourly aggregate,
 not each raw sample.
 
-For review, a browser Device generates 1,440 one-minute samples for a selected completed JST day from
+For review, a browser Device generates 1,440 one-minute samples for a selected completed UTC day from
 the previous 30 days. The generated raw values and private opening remain in that browser's
 IndexedDB; only up to 24 hourly windows are uploaded. Today and future dates are excluded, so every
 generated dataset is a complete daily claim. Threshold-compliant and outlier modes both support a
-successful ZKP path: they produce public WITHIN and OUTSIDE results respectively, without revealing
+successful ZKP path: they produce 24 public hourly results plus a daily summary, without revealing
 the hourly extrema.
 
 Anomalies are sent immediately as debounced state transitions:
@@ -399,10 +403,11 @@ without a new circuit; automated overlap governance remains outside Wave 1.
 
 ![Local readings reduced into 24 hourly extrema slots and checked without disclosing the values](../assets/review/hourly-extrema-zkp-en.png)
 
-The Wallet Agent groups readings into JST hours 0–23. Missing hours are automatically canonical
+The Wallet Agent groups readings into UTC hours 0–23. Missing hours are automatically canonical
 STOPPED slots. No operating schedule is registered.
 
-The private `DailyExtremaInput` contains measurement-group/device/policy/assignment binding, an exact 24-hour period,
+The private `DailyExtremaInput` contains measurement-group/device/policy/assignment binding, a UTC
+measurement day and its exact 00:00:00–24:00:00 period,
 24 `{present, minimum, maximum, sampleCount}` slots, schema version, and circuit version. One nonce
 opens its public persistent commitment.
 
@@ -410,8 +415,9 @@ opens its public persistent commitment.
 Device Commitment embedded in the registered policy assignment, and the period; commitment opening;
 public/private device, policy, assignment, period, presence, and version binding; canonical STOPPED
 values; positive count and ordered extrema for observed slots; and recomputed total/observed counts.
-It computes `allWithin` from all observed private slots and the assigned ledger policy, then proves
-that it equals the public `thresholdSatisfied` result. The contract derives the ledger key from
+For every slot it proves that the public hourly result is NO DATA, WITHIN, or OUTSIDE as required by
+the private slot and assigned ledger policy. It also computes `allWithin` and proves that it equals
+the public daily `thresholdSatisfied` summary. The contract derives the ledger key from
 `deviceCommitment + measurementGroupId`; truthful WITHIN and OUTSIDE results both record one verified
 public state, while a repeated group ID, false result, or malformed slot fails.
 
@@ -423,7 +429,7 @@ not change the circuit or proving key. The reported count is bound but remains d
 The default Proof Server admission window is 02:00–06:00 JST. Ingestion and anomaly alerts continue
 outside the window.
 
-1. The device closes the JST day and prepares the private 24-slot attestation.
+1. The device closes the UTC day and prepares the private 24-slot attestation.
 2. It creates and persists `proofJobId` as `zjb_<UUIDv7>`, then posts only public metadata. A retry
    reuses that ID.
 3. The Worker checks the D1 policy/assignment mirror and stores one `daily_proof_jobs` row as `pending`.
@@ -495,15 +501,30 @@ Administrator stepper:
 
 The administrator view may show hourly operational min/max/average/count, anomaly markers,
 observed/STOPPED hours, and Proof/TX state. It does not expose raw samples or the private daily opening.
-It groups the time series by JST date, selects the newest date by default, and places the applicable
+It groups the time series by UTC date, selects the newest date by default, and places the applicable
 daily Proof action beside that date.
 
 The public verifier lists only confirmed records whose transaction ID, hash, and block height are
-available. It shows the proven WITHIN/OUTSIDE/STOPPED result, exact claim, public policy
-mode/bounds/unit/version, assignment, commitment, observed/STOPPED count, network, contract address,
-attestation TX, and the actual ZKP generation timestamp. It never shows hourly extrema or nonce and
-must not imply physical completeness.
-It starts with a newest-first daily Proof list and opens the selected date directly.
+available. It accepts a pasted transaction hash or a selected list row, then presents:
+
+| Viewer field | Meaning |
+| --- | --- |
+| Measurement date | `YYYY-MM-DD`, fixed to UTC 00:00–24:00. |
+| Hourly results | Exactly 24 rows, one per UTC hour, each showing WITHIN, OUTSIDE, or NO DATA. |
+| Applied threshold | Lower bound, upper bound, unit, scale, policy version, and assignment validity interval. |
+| Proof subject | `deviceCommitment`, which binds the attestation and assignment to the same pseudonymous Device. |
+
+The detail also shows the commitment, network, contract, transaction hash, and block height. Hourly
+extrema and nonce remain private. For a pasted hash, the browser queries the public Midnight Indexer,
+confirms the successful transaction and block, derives the called Contract, and decodes the state
+difference from the preceding block. This path does not use D1. The optional newest-first D1 list is a
+navigation convenience and is not chain evidence.
+
+The normative trust anchors, ledger-field meanings, per-hour ZK relation, fail-closed verification
+algorithm, and real Preprod conformance vector are defined in the
+[transaction-hash verification specification](../implementation/transaction_hash_verification.md).
+The transaction hash is a locator; an independent verifier must also bind the result to the expected
+network and an approved Contract deployment or reviewed Verifier Keys.
 
 The verifier deliberately includes a visually redacted **Raw Sensor Values** panel labeled **HIDDEN
 FROM THIRD PARTIES / VALUES STAY PRIVATE**. The panel contains no reading value: raw
@@ -513,13 +534,13 @@ five externally checkable stages: private-extrema commitment, circuit-result ver
 Policy result, Midnight confirmation, and completion of all third-party checks. It never visualizes or
 returns witness data, raw readings, hourly extrema, nonce, proof bytes, or Proof Server internals.
 
-For a confirmed record, the browser does not treat the D1 status as proof. It first renders the
-redacted public record, then queries the public Midnight Indexer for the same successful transaction
-ID/hash/block. At that exact block it decodes the Fleet Registry ledger and independently compares the
-Attestation Commitment, verified flag, 24-hour presence/counts, result, Policy, and Device-bound
-Assignment. All four checks remain incomplete if any value differs or the public lookup fails. The
-potentially slower direct lookup runs with a visible indeterminate progress indicator and a bounded
-timeout; it never requires a wallet or private input.
+For a pasted hash, the browser queries the public Midnight Indexer for the successful transaction and
+block, reads its Contract actions, and decodes the Fleet Registry ledger at that block and the
+preceding block. It requires exactly one newly added Attestation, then obtains its commitment,
+verified flag, UTC measurement day, 24-hour presence/result vectors, counts, Policy, validity
+interval, and Device-bound Assignment. A mismatch, zero/multiple additions, or lookup failure is not
+shown as verified. This bounded lookup uses a visible progress indicator and requires no D1, Wallet,
+or private input.
 
 Contract address, transaction hash, and numeric block height link to the network-specific Midnight
 Explorer when the corresponding public value is available. A Browser Device records the finalized
@@ -598,16 +619,16 @@ Current compatibility pair:
 ```text
 Compact toolchain 0.31.1
 Compact language  0.23
-daily schema      5
-circuit           3
+daily schema      6
+circuit           4
 contract schema   3
-D1 migrations     through 0022_project_policies.sql
+D1 migrations     through 0025_hourly_threshold_results.sql
 ```
 
 The prior selected-Merkle-leaf, singleton, and WITHIN-only Fleet Registry ledgers are incompatible.
 Adoption requires a new Fleet
 Registry deployment, Operator-only Device/Policy/Device-bound Assignment transactions before
-operation, D1 migrations through `0022`/mirror sync with administration TX evidence, and public contract-address
+operation, D1 migrations through `0025`/mirror sync with administration TX evidence, and public contract-address
 update. The old fixed 24/96/1,440 `daily-attestation` profiles are development-only benchmarks.
 
 Wave 1 is accepted when the review-oriented PoC demonstrates that:
@@ -617,14 +638,15 @@ Wave 1 is accepted when the review-oriented PoC demonstrates that:
 - a synthetic daily record is reduced to the fixed private input without exposing its values in the
   public verification view;
 - its hourly summaries are available only through the authorized operator workflow;
-- STOPPED hours succeed, truthful WITHIN and OUTSIDE results are recorded, and malformed STOPPED or
+- NO DATA hours succeed, truthful per-hour WITHIN and OUTSIDE results are recorded, and malformed absent or
   observed slots fail;
-- claiming WITHIN for outside data or OUTSIDE for within data fails;
+- claiming a false hourly result fails;
 - the proof request cannot supply alternate threshold bounds;
 - policy, assignment, device, period, presence, count, and commitment tampering fail;
 - user-authorized, service-funded Preprod attestation transactions are confirmed and shown in the
   public verifier;
-- the public verifier reveals policy and status but no hourly extrema or nonce; and
+- the public verifier reveals the UTC day, 24 hourly statuses, applied policy and Device Commitment,
+  but no hourly extrema or nonce; and
 - measured cost/version records are added to the benchmark documentation.
 
 Wave 2 adds autonomous field operation, production role separation, authentication and authorization,

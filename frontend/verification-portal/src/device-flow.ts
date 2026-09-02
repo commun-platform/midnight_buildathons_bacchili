@@ -231,6 +231,7 @@ export interface ProofJob {
   sampleCount: number;
   observedHourCount: number;
   stoppedHourCount: number;
+  hourResults: Array<'no-data' | 'within-threshold' | 'outside-threshold'>;
   thresholdSatisfied: boolean;
   availableAfter: string;
   attestTxId: string | null;
@@ -965,7 +966,7 @@ async function uploadDailyCapture(capture: BrowserDailyCapture, operationId: str
         thresholdPolicyVersion: policy.policyId,
       }),
       signal: AbortSignal.timeout(15_000),
-    }), `Measurement upload (${window.hourIndex}:00 JST)`);
+    }), `Measurement upload (${window.hourIndex}:00 UTC)`);
   }
   const anomalyHeaders = await authenticatedHeaders('anomaly:write', operationId);
   let anomalyOpen = false;
@@ -995,7 +996,7 @@ async function uploadDailyCapture(capture: BrowserDailyCapture, operationId: str
         thresholdPolicyVersion: policy.policyId,
       }),
       signal: AbortSignal.timeout(15_000),
-    }), `Anomaly transition (${window.hourIndex}:00 JST)`);
+    }), `Anomaly transition (${window.hourIndex}:00 UTC)`);
   }
 }
 
@@ -1099,7 +1100,7 @@ export async function requestProof(input: {
   const device = requireProvisioned();
   if (input.periodDate) await selectDailyCapture(input.periodDate);
   const measurement = requireCaptured();
-  if (!measurement.completeDay) throw new Error('The selected JST day is still in progress');
+  if (!measurement.completeDay) throw new Error('The selected UTC day is still in progress');
   const publicData = measurement.attestation.publicData;
   const headers = await authenticatedHeaders('proof:request', operationId);
   let job = (await jsonResponse<{ job: ProofJob }>(await fetch(
@@ -1120,7 +1121,9 @@ export async function requestProof(input: {
         policyKey: publicData.policyKey,
         assignmentId: publicData.assignmentId,
         assignmentKey: publicData.assignmentKey,
+        measurementDay: publicData.measurementDay,
         hourPresence: publicData.hourPresence,
+        hourResults: measurement.hourResults,
         observedHourCount: publicData.observedHourCount,
         thresholdSatisfied: measurement.thresholdSatisfied,
         schemaVersion: publicData.schemaVersion,
@@ -1160,7 +1163,7 @@ export async function proveAndSubmit(
   const device = requireProvisioned();
   if (periodDate) await selectDailyCapture(periodDate);
   const measurement = requireCaptured();
-  if (!measurement.completeDay) throw new Error('The selected JST day is still in progress');
+  if (!measurement.completeDay) throw new Error('The selected UTC day is still in progress');
   const currentWallet = requireWallet();
   const proofHeaders = await authenticatedHeaders('proof:generate', operationId);
   const accessToken = proofHeaders.Authorization?.replace(/^Bearer\s+/u, '');
@@ -1178,6 +1181,7 @@ export async function proveAndSubmit(
         proofJobId: measurement.proofJobId,
         deviceSecretHex: requireIdentity().deviceSecretHex,
         attestation: measurement.attestation,
+        hourResults: measurement.hourResults,
         thresholdSatisfied: measurement.thresholdSatisfied,
         onProgress,
       });

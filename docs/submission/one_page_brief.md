@@ -14,10 +14,10 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 
 | Not public | Public |
 | --- | --- |
-| Raw sensor values | Day and target Device |
-| Hourly minimum / maximum values | Threshold: lower bound, upper bound, and unit |
-| Proof nonce | Observed hours and counts |
-| Device signing key and wallet information | WITHIN / OUTSIDE / STOPPED result and Midnight transaction record |
+| Raw sensor values | UTC measurement date and `deviceCommitment` |
+| Hourly minimum / maximum values | Threshold: bounds, unit, scale, version, and validity |
+| Proof nonce | 24 hourly WITHIN / OUTSIDE / NO DATA results and counts |
+| Device signing key and wallet information | Midnight transaction and block record |
 
 ## How it works
 
@@ -25,12 +25,12 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 2. It keeps raw values and the private opening in browser-private state, reduces the readings to 24 hourly slots, and uploads bounded summaries for the authorized operator workflow.
 3. The trusted managed backend stores those restricted summaries, accepts the request, and generates the proof without publishing the values to third parties.
 4. The user authorizes the transaction while the service handles its fee.
-5. Midnight records the public result, which a third party can inspect without receiving the underlying values.
+5. Midnight records all 24 hourly results, policy/validity, Device Commitment, and transaction evidence for third-party inspection.
 
 ## Verified in Wave 1
 
 - All 6 proof circuits compile.
-- All 333 automated tests pass across 9 workspaces.
+- All 339 automated tests pass across 9 workspaces.
 - Type checks, builds, and the Cloudflare pre-deployment check pass.
 - Midnight preproduction-network records from 2026-08-28 include both WITHIN and OUTSIDE.
 - A day with 1,440 readings is reduced to one daily proof with 24 hourly slots.

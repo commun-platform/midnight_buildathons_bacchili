@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
 
 import { deviceAuthenticatedFetch } from '@midnight-demo/device-auth';
-import type { PreparedDailyExtremaAttestation } from '@midnight-demo/shared';
+import type {
+  HourThresholdResult,
+  PreparedDailyExtremaAttestation,
+} from '@midnight-demo/shared';
 
 import {
   deviceProofAuthConfig,
@@ -23,6 +26,7 @@ export interface ProofJob {
   assignmentId: string;
   assignmentKey: string;
   hourPresence: boolean[];
+  hourResults: HourThresholdResult[];
   observedHourCount: number;
   stoppedHourCount: number;
   thresholdSatisfied: boolean;
@@ -197,6 +201,7 @@ async function getJob(network: NetworkConfig, proofJobId: string): Promise<Proof
 export async function requestProofJob(
   network: NetworkConfig,
   attestation: PreparedDailyExtremaAttestation,
+  hourResults: HourThresholdResult[],
   thresholdSatisfied: boolean,
 ): Promise<ProofJobAdmission> {
   if (isLocalProofServer(network.proofServer)) {
@@ -224,7 +229,9 @@ export async function requestProofJob(
         policyKey: attestation.publicData.policyKey,
         assignmentId: attestation.publicData.assignmentId,
         assignmentKey: attestation.publicData.assignmentKey,
+        measurementDay: attestation.publicData.measurementDay,
         hourPresence: attestation.publicData.hourPresence,
+        hourResults,
         observedHourCount: attestation.publicData.observedHourCount,
         thresholdSatisfied,
         schemaVersion: attestation.publicData.schemaVersion,
@@ -238,6 +245,7 @@ export async function requestProofJob(
     job.proofJobId !== proofJobId
     || job.measurementGroupId !== attestation.publicData.measurementGroupId
     || job.attestationCommitment !== attestation.publicData.attestationCommitment
+    || job.hourResults.join(',') !== hourResults.join(',')
     || job.thresholdSatisfied !== thresholdSatisfied
   ) {
     throw new Error('Proof Job response does not match the prepared daily attestation');

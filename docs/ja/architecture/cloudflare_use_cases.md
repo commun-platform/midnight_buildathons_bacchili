@@ -35,7 +35,7 @@
 
 ![Midnightの確定結果を表示用にD1へ複製し、第三者画面へ公開情報だけを表示する](../assets/review/cloudflare-uc05-public-review-ja.svg)
 
-着目点：第三者が見るのは対象日・公開しきい値・判定結果・Midnight取引記録だけです。センサー値は見えません。
+着目点：第三者がTX hashを貼り付けると、UTC計測日、24個の時間帯別のしきい値以内／範囲外／計測なし、適用しきい値／有効期間、Device Commitment、Block、Midnight取引記録を確認できます。センサー値は見えません。
 
 ## 説明資料との分担
 

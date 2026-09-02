@@ -106,7 +106,7 @@ npm run device:submit -- --input /path/to/prepared-real-dataset.json
 npm run device:status
 ```
 
-Development OperatorがContractをDeployする前にContract Authorityを一度だけ生成します。公開`enrollment.json`だけを転送し、Secretを含む`authority.json`はEdge Deviceから出しません。`device:submit`は実際の`SensorRecord[]`または`PreparedDailyExtremaAttestation`を受け取ります。配列Inputは24個のJST Observed／STOPPED Slotへ集計し、指定できるのは日付と登録済みPolicy／Assignment IDだけです。Threshold Boundは送信できません。Submitは日次Scheduled Proof Jobを1件作成または再利用します。Collectorは1時間AggregateとAnomaly TransitionだけをUploadし、Raw Readingは送りません。
+Development OperatorがContractをDeployする前にContract Authorityを一度だけ生成します。公開`enrollment.json`だけを転送し、Secretを含む`authority.json`はEdge Deviceから出しません。`device:submit`は実際の`SensorRecord[]`または`PreparedDailyExtremaAttestation`を受け取ります。配列Inputは24個のUTC Observed／計測なしSlotへ集計し、指定できるのはUTC日付と登録済みPolicy／Assignment IDだけです。Threshold Boundは送信できません。Submitは日次Scheduled Proof Jobを1件作成または再利用します。Collectorは1時間AggregateとAnomaly TransitionだけをUploadし、Raw Readingは送りません。
 
 PreprodのCost結合試験を明示的に行う場合、標準の1日分をDeviceのMemory内に生成します。1分ごとの
 Private Raw値1,440件をDevice内で24時間分の時間別最小値・最大値Slotへ集約し、同じ運用Walletと

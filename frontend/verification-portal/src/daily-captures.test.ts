@@ -49,6 +49,7 @@ describe('browser private daily captures', () => {
     expect(capture.windows).toHaveLength(24);
     expect(capture.windows.reduce((sum, window) => sum + window.count, 0)).toBe(sampleCount);
     expect(capture.thresholdSatisfied).toBe(true);
+    expect(capture.hourResults).toEqual(Array(24).fill('within-threshold'));
     expect(capture.outlierCount).toBe(0);
   });
 
@@ -67,9 +68,10 @@ describe('browser private daily captures', () => {
 
     expect(capture.outlierCount).toBeGreaterThan(0);
     expect(capture.thresholdSatisfied).toBe(false);
+    expect(capture.hourResults).toContain('outside-threshold');
   });
 
-  it('allows only the previous 30 completed JST days', async () => {
+  it('allows only the previous 30 completed UTC days', async () => {
     const now = new Date('2026-08-28T03:37:42.000Z');
     expect(dailyGenerationDateBounds(now)).toEqual({
       minimum: '2026-07-29',

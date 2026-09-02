@@ -25,10 +25,10 @@
 | 0:00–0:11.984 | Title／Value Slide | 監査者がSensor値を受け取らずにThreshold Resultを確認できるかを問い、BACCHIRIを検証可能な計測Layerとして紹介する。 |
 | 0:11.984–0:32.392 | Minimum Evidence説明Slide | 組織をまたぐ帳票共有の課題と、信頼に必要なEvidenceだけを共有する価値を説明する。 |
 | 0:32.392–0:48.816 | Device Workflow GUI、素材0:20.500–0:36.924 | User管理Account、Device Identity、計測前に紐付けたPolicyを示す。 |
-| 0:48.816–1:06.296 | Private Sensor Evidence説明Slide | Raw Reading、順序付き24 SlotのHourly MIN／MAX、明示的なSTOPPED Hourを説明する。このSceneではProof TX画面を出さない。 |
+| 0:48.816–1:06.296 | Private Sensor Evidence説明Slide | Raw Reading、順序付き24 SlotのHourly MIN／MAX、Canonicalな計測なし時間を説明する。このSceneではProof TX画面を出さない。 |
 | 1:06.296–1:22.216 | ZK Proof GUI、素材3:58.000–4:13.920 | Midnightへ事前登録したThresholdに対するProof生成を示す。 |
 | 1:22.216–1:39.864 | Device Approval GUI、素材4:58.000–5:15.648 | 正確なPayloadへのUser認可と、Service側のFee負担を分離して示す。 |
-| 1:39.864–1:58.664 | Third-party GUIとExplorer、素材5:54.000–6:12.800 | Private値を隠したまま、Public Policy、Result、Observed Hour、Commitment、Transaction Evidenceを示す。 |
+| 1:39.864–1:58.664 | Third-party GUIとExplorer、素材5:54.000–6:12.800 | TX hashを貼り付け、Private値を隠したままUTC日付、24個の時間帯別結果、適用Policy／有効期間、Device Commitment、Block、TX Evidenceを示す。 |
 | 1:58.664–2:18.040 | Exact Claim Boundary Slide | Midnightが証明する範囲を説明し、物理Sensor精度、完全なSampling、計測元側Aggregationの正しさを明示的に除外する。 |
 
 ## 正確なGUI操作順序
@@ -46,8 +46,8 @@
 11. ZKPを生成してTX送信をClickする。
 12. Confirmedまで待ち、短縮TX IDとResultをCaptureする。
 13. 日次ZKPを検証をClickする。
-14. Policy Bound、Observed / STOPPED、Commitment、Confirmed State、TX IDを見せる。
-15. Top Navigationから第三者検証を開き、Private Inputなしで同じPublic Resultを確認する。
+14. Policy Bound、24個のUTC時間帯別結果、Device Commitment、Confirmed State、TX IDを見せる。
+15. Top Navigationから第三者検証を開き、TX hashを貼り付け、Private Inputなしで同じUTC日付、時間帯別結果、Policy／有効期間、Device Commitment、Block、TXを確認する。
 
 ## 必須Shot
 
@@ -60,10 +60,10 @@
 | GUI-05 | Proof Requested | Proof Job ID、Admitted / Ready |
 | GUI-06 | Proof Generated | Proving / Proof-ready |
 | GUI-07 | Transaction Confirmed | Result、短縮TX ID |
-| GUI-08 | Public Verifier | Policy、Result、Observed / STOPPED、Commitment、TX |
+| GUI-08 | Public Verifier | TX hash検索、UTC日付、24個の時間帯別結果、Policy／有効期間、Device Commitment、Block、TX |
 | GUI-09 | Negative / Boundary | OUTSIDEまたは明示的Tamper Reject |
 | EVD-01 | Compile | 6 Circuit、submitDailyAttestation Rows |
-| EVD-02 | Test | 333成功 |
+| EVD-02 | Test | 339成功 |
 
 ## Fallback Policy
 

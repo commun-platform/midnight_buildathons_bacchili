@@ -2,7 +2,7 @@
 
 [Japanese](../ja/implementation/zk_circuit_spec.md)
 
-Status: implementation-aligned specification, 2026-08-30 JST
+Status: implementation-aligned specification, 2026-09-01 JST
 Contract: `midnight/contracts/sensor-registry/src/sensor-registry.compact`
 
 ## 1. Purpose and scope
@@ -23,6 +23,10 @@ The first five control who and what may participate. The sixth produces the dail
 claim. The compiler output confirms `proof: true` and one prover/verifier key pair for each of these
 six circuits.
 
+For the separate procedure that starts with a transaction hash and explains how a third-party viewer
+interprets the verified 24-hour public result, see the
+[transaction-hash verification specification](transaction_hash_verification.md).
+
 Three exported pure helpers—`deriveDeviceAuthority`, `deriveOperatorAuthority`, and
 `deriveAttestationId`—perform deterministic hashing but do not generate proofs or ledger
 transactions. The generated `daily-attestation-24/96/1440` profiles are development-only cost
@@ -42,12 +46,12 @@ flowchart LR
     REG --> DAILY
     POLICY --> DAILY
     ASSIGN --> DAILY
-    DAILY --> RESULT["Public WITHIN / OUTSIDE / STOPPED evidence"]
+    DAILY --> RESULT["Public 24-hour WITHIN / OUTSIDE / NO DATA evidence"]
 ```
 
 The administration circuits hide the Operator Authority secret while writing deliberate public
 configuration. The daily circuit hides the Device Authority secret, hourly minimums, hourly maximums,
-per-hour counts, and nonce while publishing the exact policy binding and one verified result.
+per-hour counts, and nonce while publishing the exact policy binding, 24 hourly results, and a daily summary.
 
 ## 3. Shared data boundary
 
@@ -56,7 +60,7 @@ per-hour counts, and nonce while publishing the exact policy binding and one ver
 | Operator witness | `privateOperatorSecret()` | Private; used by five administration circuits. |
 | Device witness | `privateDeviceSecret()` | Private; used by `submitDailyAttestation`. |
 | Daily witness | `privateDailyExtrema(commitment)`, `privateDailyNonce(commitment)` | Private; 24 extrema slots and one commitment nonce. |
-| Public call data | Device/Policy/Assignment IDs, period, presence bitmap, total count, result, versions | Public transaction input. |
+| Public call data | Device/Policy/Assignment IDs, UTC measurement day/period, presence bitmap, 24 hourly results, total count, daily summary, versions | Public transaction input. |
 | Public ledger data | Device status/authority hash, policies, assignments, attestations, counters | Public Midnight state. |
 | Never supplied to the circuit | Raw sensor time series, calibration records, firmware evidence | Outside the current proof claim. |
 
@@ -78,7 +82,7 @@ physical units or prove that a real sensor produced the encoded value.
 | `disableDevice` | Knowledge of Operator secret | Permanently mark one registered Device inactive in the current contract. |
 | `registerThresholdPolicy` | Knowledge of Operator secret | Store one immutable public threshold policy. |
 | `registerPolicyAssignment` | Knowledge of Operator secret | Bind one immutable policy and validity interval to one active Device. |
-| `submitDailyAttestation` | Knowledge of Device secret and the committed private daily input/nonce | Store a verified WITHIN or OUTSIDE result without storing extrema. |
+| `submitDailyAttestation` | Knowledge of Device secret and the committed private daily input/nonce | Store 24 verified hourly results and a daily summary without storing extrema. |
 
 ## 5. `registerDevice`
 
@@ -212,21 +216,21 @@ that governance rule is outside the current contract.
 ### What it achieves
 
 This is the customer-value circuit. It proves that the committed private hourly extrema produce the
-public WITHIN or OUTSIDE result under the policy registered for that Device, without revealing the
-extrema.
+public result for each UTC hour under the policy registered for that Device, without revealing the
+extrema. `thresholdSatisfied` remains as a daily summary.
 
 ```mermaid
 flowchart LR
     DSECRET["Private: Device secret"] --> DAUTH["Active Device and Authority check"]
     DAILY["Private: 24 hourly slots<br/>+ commitment nonce"] --> COMMIT["Recompute daily commitment"]
-    PUBLIC["Public: Device, group, assignment,<br/>24h period, presence, total count,<br/>result, schema/circuit versions"] --> BIND["Bind public and private metadata"]
+    PUBLIC["Public: Device, group, assignment,<br/>UTC day/period, presence, 24 results,<br/>total count, daily summary, versions"] --> BIND["Bind public and private metadata"]
     LEDGER["Ledger: Device, assignment, policy,<br/>existing attestation IDs"] --> DAUTH
     LEDGER --> BIND
     COMMIT --> HOURS["Validate 24 observed / STOPPED slots"]
     BIND --> HOURS
     DAUTH --> HOURS
     HOURS --> RANGE["Apply registered threshold to every observed slot"]
-    RANGE --> RESULT["Recompute and match public result"]
+    RANGE --> RESULT["Recompute and match 24 public results<br/>and daily summary"]
     RESULT --> WRITE["Store verified attestation<br/>without extrema or nonce"]
 ```
 
@@ -245,7 +249,8 @@ The witness selected by `attestationCommitment` contains:
 ### 10.2 Public input
 
 The transaction publishes the attestation commitment, Device Commitment, measurement-group ID,
-Assignment ID, period, 24-bit presence information, total sample count, Boolean result, and versions.
+Assignment ID, UTC measurement day and period, 24-bit presence information, 24 hourly results, total
+sample count, daily Boolean summary, and versions.
 The hourly minimums, hourly maximums, per-hour counts, and nonce are not public arguments or ledger
 fields.
 
@@ -254,18 +259,18 @@ fields.
 1. The Device is registered, active, and authorized by the private Device secret.
 2. `attestationId = H("vsp:daily-attestation-id:v1", deviceCommitment, measurementGroupId)` is unused.
 3. The Assignment exists, belongs to the same Device, and covers the complete period.
-4. The period is exactly 86,400 seconds.
+4. The period is exactly the UTC day identified by `measurementDay`: 00:00:00 through the next 00:00:00.
 5. `Commit(privateDailyInput, nonce)` equals the public attestation commitment.
 6. Domain, Device, group, Policy, Assignment, period, presence, and versions match across private input,
    public input, and ledger state.
-7. Schema version is `5` and circuit version is `3`.
+7. Schema version is `6` and circuit version is `4`.
 8. Every observed slot has `sampleCount > 0` and `minimum <= maximum`.
 9. Every STOPPED slot is the canonical `{present: false, minimum: 0, maximum: 0, sampleCount: 0}`.
 10. The sum of all private per-hour counts equals the public total sample count.
-11. The recomputed threshold result equals the public `thresholdSatisfied` value.
+11. Every recomputed hourly result equals the corresponding public `hourResults` value.
+12. The AND of all observed hourly results equals the public `thresholdSatisfied` summary.
 
-The application prepares JST periods, but the circuit itself proves an exact 86,400-second interval;
-it does not independently derive the time zone or calendar date.
+The circuit derives the period boundary from `measurementDay`, so non-UTC or partial-day periods fail.
 
 ### 10.4 Threshold rule
 
@@ -276,25 +281,29 @@ closedRange: minimum[h] >= policy.minimum AND maximum[h] <= policy.maximum
 upperBound:  maximum[h] <= policy.maximum
 lowerBound:  minimum[h] >= policy.minimum
 
-thresholdSatisfied = AND(result of every observed hour)
+hourResults[h] = WITHIN or OUTSIDE for an observed hour
+hourResults[h] = NO DATA for an absent hour
+thresholdSatisfied = AND(result of every observed hour) // daily summary
 ```
 
 STOPPED slots are excluded from the threshold comparison. A fully STOPPED day therefore computes
 `thresholdSatisfied = true`, but the application displays it as STOPPED because the circuit also
 publishes a recomputed `observedHourCount = 0`.
 
-Both public outcomes are valid proofs:
+All hourly public outcomes are valid proof results:
 
-- `true`: every observed private hourly minimum/maximum satisfies the assigned threshold;
-- `false`: at least one observed private hourly minimum/maximum is outside it.
+- WITHIN: that hour's private minimum/maximum satisfies the assigned threshold;
+- OUTSIDE: that hour's private minimum or maximum is outside it;
+- NO DATA: that hour is a canonical absent slot.
 
-The `false` result does not reveal which hour, which bound, or the private value.
+OUTSIDE reveals the hour, but not which bound was exceeded or the private value.
 
 ### 10.5 Ledger update
 
 On success, the circuit stores one `DailyAttestationPublicState` keyed by the derived Attestation ID.
-It includes commitment, group, Device, Policy, Assignment, period, presence, observed/total counts,
-versions, the Boolean result, and `verified: true`. It stores no hourly extrema or nonce.
+It includes commitment, group, Device, Policy, Assignment, UTC measurement day/period, presence,
+24 hourly results, observed/total counts, versions, the daily Boolean summary, and `verified: true`.
+It stores no hourly extrema or nonce.
 
 ## 11. Pure and internal helper circuits
 
@@ -346,8 +355,8 @@ Current compatibility:
 ```text
 Compact compiler/toolchain  0.31.1
 Compact language            0.23
-Daily schema                5
-Daily circuit               3
+Daily schema                6
+Daily circuit               4
 Operational proof circuits  6
 ```
 
@@ -373,7 +382,7 @@ presence tampering, duplicate measurement groups, wrong Device/Operator secrets,
 Assignment reuse, disabling, Authority rotation, and Authority reuse rejection.
 
 Current source/simulator validation and any previously deployed Preprod contract are separate evidence.
-A local compile or simulator pass does not establish that circuit version `3` is deployed or confirmed
+A local compile or simulator pass does not establish that circuit version `4` is deployed or confirmed
 on Preprod.
 
 Operator Authority rotation and Device-owner-authorized threshold replacement are planned contract

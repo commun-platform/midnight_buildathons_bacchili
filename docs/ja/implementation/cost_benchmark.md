@@ -519,12 +519,12 @@ npm run device:benchmark -- --samples 1440 --period-date YYYY-MM-DD --run-id cos
 - Single Attestation Transaction全体の時間
 - AttestationについてEdge Deviceから観測した`/check`／`/prove`のRequest Bytesと所要時間
 - Finalize後の正確なTransaction容量、およびspecksと整形済みDUSTの両方で表したFee
-- Public Attestation Commitment、Observed／STOPPED Count、Transaction ID／Hash／Block Height
+- Public Attestation Commitment、Observed／計測なしCount、時間帯別Status、Transaction ID／Hash／Block Height
 - Raw Reading、Private Hourly Extrema、Nonce、Wallet Recovery Data、Tokenは含めない。Public ThresholdはLedger Stateから記録する
 
 各ResultをWorkerの`proof_gateway_upstream` Logと突き合わせ、Request Bytesを検証し、Response BytesとContainer時間を取得します。表を完了扱いにする前に、Attestation TX 1件とPolicy AssignmentをMidnight Stateで確認します。
 
-同じ運用回路で正しいOUTSIDEを計測する場合だけ、管理されたRunへ`--outlier-value 40`を指定します。`--period-date`にはWorkerが受理する一意の完了済みJST日を指定します。
+同じ運用回路で正しいOUTSIDEを計測する場合だけ、管理されたRunへ`--outlier-value 40`を指定します。`--period-date`にはWorkerが受理する一意の完了済みUTC日を指定します。
 
 ## 価格式
 

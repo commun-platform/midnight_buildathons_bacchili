@@ -29,12 +29,12 @@ export {
 export const MERKLE_TREE_DEPTH = 11;
 export const TEMPERATURE_OFFSET_CENTI = 10_000;
 export const DATASET_SCHEMA_VERSION = 2;
-export const DAILY_EXTREMA_SCHEMA_VERSION = 5;
-export const DAILY_EXTREMA_CIRCUIT_VERSION = 3;
+export const DAILY_EXTREMA_SCHEMA_VERSION = 6;
+export const DAILY_EXTREMA_CIRCUIT_VERSION = 4;
 export const HOURS_PER_DAY = 24;
 export const DAILY_EXTREMA_COMMITMENT_DOMAIN = 'vsp:daily-extrema:v1';
 export const MEASUREMENT_GROUP_DOMAIN = 'vsp:measurement-group:v1';
-export const JST_OFFSET_MINUTES = 9 * 60;
+export const UTC_OFFSET_MINUTES = 0;
 
 export interface SensorRecord {
   deviceId: string;
@@ -90,6 +90,7 @@ export interface PreparedDataset {
 
 export type ThresholdPolicyMode = 'closed-range' | 'upper-bound' | 'lower-bound';
 export type DailyThresholdResult = 'within-threshold' | 'outside-threshold';
+export type HourThresholdResult = 'no-data' | DailyThresholdResult;
 
 export interface ThresholdPolicyDescriptor {
   policyId: string;
@@ -139,6 +140,7 @@ export interface PublicDailyExtremaAttestation {
   assignmentId: string;
   assignmentKey: string;
   periodDate: string;
+  measurementDay: number;
   periodStart: string;
   periodEnd: string;
   periodStartEpoch: string;
@@ -473,9 +475,9 @@ export async function prepareDailyExtremaAttestation(
   records: readonly SensorRecord[],
   options: PrepareDailyExtremaOptions = {},
 ): Promise<PreparedDailyExtremaAttestation> {
-  const offsetMinutes = options.timeZoneOffsetMinutes ?? JST_OFFSET_MINUTES;
-  if (offsetMinutes !== JST_OFFSET_MINUTES) {
-    throw new Error('Daily extrema periods are fixed to Asia/Tokyo (UTC+09:00)');
+  const offsetMinutes = options.timeZoneOffsetMinutes ?? UTC_OFFSET_MINUTES;
+  if (offsetMinutes !== UTC_OFFSET_MINUTES) {
+    throw new Error('Daily extrema periods are fixed to UTC (UTC+00:00)');
   }
   const first = records[0];
   const deviceId = requireSafeIdentifier(
@@ -490,6 +492,7 @@ export async function prepareDailyExtremaAttestation(
     ?? (Number.isFinite(firstTimestamp) ? localDateAtOffset(firstTimestamp, offsetMinutes) : '');
   const periodStart = periodStartForDate(periodDate, offsetMinutes);
   const periodEnd = new Date(periodStart.valueOf() + 86_400_000);
+  const measurementDay = Math.floor(periodStart.valueOf() / 86_400_000);
   const policyId = requireSafeIdentifier(options.policyId ?? 'temperature-v1', 'policyId');
   const assignmentId = requireSafeIdentifier(
     options.assignmentId ?? `${deviceId}-${policyId}-wave1`,
@@ -565,6 +568,7 @@ export async function prepareDailyExtremaAttestation(
       assignmentId,
       assignmentKey: privateData.assignmentKey,
       periodDate,
+      measurementDay,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
       periodStartEpoch: privateData.periodStartEpoch,
@@ -584,6 +588,15 @@ export function evaluatePreparedDailyExtremaLocally(
   attestation: PreparedDailyExtremaAttestation,
   policy: ThresholdPolicyDescriptor,
 ): DailyThresholdResult {
+  return evaluatePreparedDailyExtremaHoursLocally(attestation, policy).some(
+    (result) => result === 'outside-threshold',
+  ) ? 'outside-threshold' : 'within-threshold';
+}
+
+export function evaluatePreparedDailyExtremaHoursLocally(
+  attestation: PreparedDailyExtremaAttestation,
+  policy: ThresholdPolicyDescriptor,
+): HourThresholdResult[] {
   if (policy.policyId !== attestation.publicData.policyId) throw new Error('Threshold policy mismatch');
   const publicData = attestation.publicData;
   const privateData = attestation.privateData;
@@ -614,7 +627,7 @@ export function evaluatePreparedDailyExtremaLocally(
   }
   let sampleCount = 0;
   let observedHourCount = 0;
-  let thresholdSatisfied = true;
+  const hourResults: HourThresholdResult[] = [];
   for (const [index, hour] of privateData.hours.entries()) {
     if (hour.hourIndex !== index || hour.present !== publicData.hourPresence[index]) {
       throw new Error('Hourly presence mismatch');
@@ -624,6 +637,7 @@ export function evaluatePreparedDailyExtremaLocally(
       if (hour.sampleCount !== 0 || hour.minimum !== 0 || hour.maximum !== 0) {
         throw new Error('Stopped hour is not canonical');
       }
+      hourResults.push('no-data');
       continue;
     }
     observedHourCount += 1;
@@ -635,14 +649,16 @@ export function evaluatePreparedDailyExtremaLocally(
     ) throw new Error('Observed hourly extrema are invalid');
     encodeTemperature(hour.minimum);
     encodeTemperature(hour.maximum);
-    if (!policyAllows(policy, hour.minimum, hour.maximum)) thresholdSatisfied = false;
+    hourResults.push(policyAllows(policy, hour.minimum, hour.maximum)
+      ? 'within-threshold'
+      : 'outside-threshold');
   }
   if (
     sampleCount !== publicData.sampleCount
     || observedHourCount !== publicData.observedHourCount
     || HOURS_PER_DAY - observedHourCount !== publicData.stoppedHourCount
   ) throw new Error('Daily aggregate counts mismatch');
-  return thresholdSatisfied ? 'within-threshold' : 'outside-threshold';
+  return hourResults;
 }
 
 export function verifyPreparedDailyExtremaLocally(

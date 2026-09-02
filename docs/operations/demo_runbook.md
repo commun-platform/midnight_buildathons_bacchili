@@ -132,10 +132,9 @@ npm run development:admit-proof-job -- \
   --confirm-integration-test
 ```
 
-The contract proves the public result: WITHIN means all submitted extrema for observed hours are
-inside the registered public policy; OUTSIDE means at least one observed hour is outside it. Missing
-hours are public STOPPED status. The device does not submit bounds, and neither result reveals the
-extrema. The claim does not prove physical readings, completeness, or correct aggregation.
+The contract publishes one proved result per UTC hour: WITHIN, OUTSIDE, or NO DATA. The daily Boolean
+is only a summary. The device does not submit bounds, and no hourly result reveals the extrema. The
+claim does not prove physical readings, completeness, or correct aggregation.
 
 For the controlled standard-use-case cost run, generate one reading per minute for a completed day;
 the Device reduces the 1,440 values to 24 private hourly extrema slots before proving:
@@ -187,8 +186,10 @@ circuits; the Worker verifies Lace first and does not expose the Operator Author
 registration signature, and Device transaction approval remain explicit user confirmations.
 
 The **Administrator** route uses the same Device Session and displays only that Device's hourly
-summaries, anomaly transitions, and Proof/TX state. The **Third-Party Verification** route is public,
-newest-first, and contains no Device Session or private values.
+summaries, anomaly transitions, and Proof/TX state. The **Third-Party Verification** route is public
+and accepts a transaction hash. It shows the UTC measurement date, 24 hourly results, applied policy
+and validity, Device Commitment, block, and transaction evidence without a Device Session or private
+values.
 
 Review the stepper in order:
 

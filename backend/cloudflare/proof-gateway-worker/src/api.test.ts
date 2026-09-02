@@ -100,12 +100,14 @@ describe('Wave 1 API router', () => {
       sample_count: 24, threshold_policy_version: 'temperature-v1', status: 'confirmed',
       policy_key: '56'.repeat(32), assignment_id: 'edge-temp-001-temperature-v1-wave1',
       assignment_key: '78'.repeat(32), hour_presence: '101010101010101010101010',
-      observed_hour_count: 12, threshold_satisfied: 1, schema_version: 5, circuit_version: 3,
+      hour_results: '101010101010101010101010',
+      observed_hour_count: 12, threshold_satisfied: 1, schema_version: 6, circuit_version: 4,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, attest_tx_id: 'attest-tx', attest_tx_hash: 'attest-hash',
       block_height: '123', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
       policy_version: 1, assignment_version: 1,
+      valid_from: '2026-08-28T00:00:00.000Z', valid_until: null,
       last_error_code: null, created_at: '2026-08-28T17:00:00.000Z',
       updated_at: '2026-08-28T17:10:00.000Z',
     };
@@ -119,7 +121,7 @@ describe('Wave 1 API router', () => {
     expect(serialized).not.toContain('device-secret');
     expect(serialized).not.toContain('project-secret');
     expect(serialized).not.toContain(proofRow.assignment_id);
-    expect(serialized).not.toContain(proofRow.device_commitment);
+    expect(serialized).toContain(proofRow.device_commitment);
     expect(body).not.toHaveProperty('minimum');
     expect(body).not.toHaveProperty('maximum');
     expect(serialized).not.toContain('hourlyExtremaValues');
@@ -133,7 +135,12 @@ describe('Wave 1 API router', () => {
       contractAddress: 'cd'.repeat(32),
       observedHourCount: 12,
       stoppedHourCount: 12,
-      schemaVersion: 5,
+      schemaVersion: 6,
+      circuitVersion: 4,
+      deviceCommitment: '34'.repeat(32),
+      hourResults: Array.from({ length: 24 }, (_value, index) => (
+        index % 2 === 0 ? 'within-threshold' : 'no-data'
+      )),
       policy: {
         mode: 'closed-range', minimum: 10, maximum: 35,
         valueScale: 100, sensorType: 'temperature', unit: '°C', version: 1,
@@ -153,12 +160,14 @@ describe('Wave 1 API router', () => {
       threshold_policy_version: 'temperature-v1', status: 'confirmed',
       policy_key: '56'.repeat(32), assignment_id: 'private-assignment-id',
       assignment_key: '78'.repeat(32), hour_presence: '1'.repeat(24),
-      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 5, circuit_version: 3,
+      hour_results: `2${'1'.repeat(23)}`,
+      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 6, circuit_version: 4,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, attest_tx_id: 'attest-tx', attest_tx_hash: '81'.repeat(32),
       block_height: '123', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
-      policy_version: 1, assignment_version: 1, last_error_code: null,
+      policy_version: 1, assignment_version: 1,
+      valid_from: '2026-08-27T00:00:00.000Z', valid_until: null, last_error_code: null,
       created_at: '2026-08-28T17:00:00.000Z', updated_at: '2026-08-28T17:10:00.000Z',
     };
     const result = await response(
@@ -175,12 +184,33 @@ describe('Wave 1 API router', () => {
       midnightConfirmed: true,
       thresholdSatisfied: false,
       thresholdResult: 'outside-threshold',
+      hourResults: ['outside-threshold', ...Array(23).fill('within-threshold')],
       sampleCount: 1440,
     });
     expect(serialized).not.toContain('device-secret');
     expect(serialized).not.toContain('project-secret');
     expect(serialized).not.toContain('private-assignment-id');
-    expect(serialized).not.toContain(proofRow.device_commitment);
+  });
+
+  it('finds a confirmed public proof by Midnight transaction hash', async () => {
+    const transactionHash = '81'.repeat(32);
+    const proofRow = {
+      id: 'proof-public-list-001', status: 'confirmed',
+      attest_tx_id: 'attest-tx', attest_tx_hash: transactionHash, block_height: '123',
+    };
+    const result = await response(
+      new Request(`https://worker.test/api/v1/public/proofs/by-transaction/${transactionHash}`),
+      environment(database(proofRow)),
+    );
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ proofJobId: 'proof-public-list-001' });
+  });
+
+  it('rejects an invalid Midnight transaction hash lookup', async () => {
+    const result = await response(
+      new Request('https://worker.test/api/v1/public/proofs/by-transaction/not-a-hash'),
+    );
+    expect(result.status).toBe(400);
   });
 
   it('excludes unconfirmed or incomplete transaction records from the public verifier', async () => {
@@ -191,12 +221,14 @@ describe('Wave 1 API router', () => {
       device_commitment: '34'.repeat(32), sample_count: 1440,
       threshold_policy_version: 'temperature-v1', policy_key: '56'.repeat(32),
       assignment_id: 'private-assignment-id', assignment_key: '78'.repeat(32),
-      hour_presence: '1'.repeat(24), observed_hour_count: 24, threshold_satisfied: 1,
-      schema_version: 5, circuit_version: 3, attempt_count: 1,
+      hour_presence: '1'.repeat(24), hour_results: '1'.repeat(24),
+      observed_hour_count: 24, threshold_satisfied: 1,
+      schema_version: 6, circuit_version: 4, attempt_count: 1,
       available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C', policy_version: 1,
-      assignment_version: 1, last_error_code: null,
+      assignment_version: 1, valid_from: '2026-08-28T00:00:00.000Z', valid_until: null,
+      last_error_code: null,
       created_at: '2026-08-28T17:00:00.000Z', updated_at: '2026-08-28T17:10:00.000Z',
     };
     for (const proofRow of [
@@ -241,12 +273,14 @@ describe('Wave 1 API router', () => {
       threshold_policy_version: 'temperature-v1', status: 'confirmed',
       policy_key: '56'.repeat(32), assignment_id: 'private-assignment-id',
       assignment_key: '78'.repeat(32), hour_presence: '1'.repeat(24),
-      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 5, circuit_version: 3,
+      hour_results: `${'1'.repeat(7)}2${'1'.repeat(16)}`,
+      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 6, circuit_version: 4,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, attest_tx_id: 'outside-attest-tx', attest_tx_hash: '82'.repeat(32),
       block_height: '124', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
-      policy_version: 1, assignment_version: 1, last_error_code: null,
+      policy_version: 1, assignment_version: 1,
+      valid_from: '2026-08-27T00:00:00.000Z', valid_until: null, last_error_code: null,
       created_at: '2026-08-28T17:00:00.000Z', updated_at: '2026-08-28T17:10:00.000Z',
     };
     const result = await response(
@@ -262,7 +296,12 @@ describe('Wave 1 API router', () => {
       resultVerified: true,
       checks: { attestationVerified: true, midnightConfirmed: true },
     });
-    expect(body.claim).toContain('At least one');
+    expect(body.claim).toContain('Each UTC hourly slot');
+    expect(body.hourResults).toEqual([
+      ...Array(7).fill('within-threshold'),
+      'outside-threshold',
+      ...Array(16).fill('within-threshold'),
+    ]);
     expect(serialized).not.toContain('device-secret');
     expect(serialized).not.toContain('private-assignment-id');
     expect(serialized).not.toContain('hourlyExtremaValues');

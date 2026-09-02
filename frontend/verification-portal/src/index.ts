@@ -1,8 +1,15 @@
 import './polyfills.js';
 import { browserDeviceFlow } from './device-flow.js';
-import { verifyPublicAttestation } from './public-verifier.js';
+import {
+  loadPublicAttestationByTransactionHash,
+  verifyPublicAttestation,
+} from './public-verifier.js';
 
-export { browserDeviceFlow, verifyPublicAttestation };
+export {
+  browserDeviceFlow,
+  loadPublicAttestationByTransactionHash,
+  verifyPublicAttestation,
+};
 export type {
   BrowserDevice,
   DeviceHistory,
@@ -16,4 +23,5 @@ export type { SubmissionProgress } from './midnight-device.js';
 export type {
   PublicAttestationChecks,
   PublicAttestationRecord,
+  PublicChainProofRecord,
 } from './public-verifier.js';

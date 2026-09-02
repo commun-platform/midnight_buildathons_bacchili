@@ -5,6 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const isDeviceRelease = fs.existsSync(path.join(repoRoot, 'device-release-manifest.json'));
 
 function source(relativePath: string): string {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
@@ -63,7 +64,9 @@ test('device transaction path has no DUST synchronization, funding, or direct re
   assert.match(midnight, /sponsorProofTransaction/u);
 });
 
-test('development wallet recovery source is the backupable development env file', () => {
+test('development wallet recovery source is the backupable development env file', {
+  skip: isDeviceRelease,
+}, () => {
   const config = source('tools/midnight-operator/src/config.ts');
   const state = source('tools/midnight-operator/src/state.ts');
 

@@ -32,6 +32,7 @@ export interface ProofJobRow {
   assignment_id: string;
   assignment_key: string;
   hour_presence: string;
+  hour_results: string | null;
   observed_hour_count: number;
   threshold_satisfied: number;
   schema_version: number;

@@ -8,6 +8,12 @@ export enum ThresholdMode {
     lowerBound
 }
 
+export enum HourThresholdResult {
+    noData,
+    withinThreshold,
+    outsideThreshold
+}
+
 export struct RegisteredDevice {
     authority: Bytes<32>;
     active: Boolean;
@@ -58,9 +64,11 @@ export struct DailyAttestationPublicState {
     deviceCommitment: Bytes<32>;
     policyId: Bytes<32>;
     assignmentId: Bytes<32>;
+    measurementDay: Uint<32>;
     periodStart: Uint<64>;
     periodEnd: Uint<64>;
     hourPresence: Vector<24, Boolean>;
+    hourResults: Vector<24, HourThresholdResult>;
     observedHourCount: Uint<8>;
     sampleCount: Uint<32>;
     schemaVersion: Uint<32>;
@@ -270,9 +278,11 @@ export circuit submitDailyAttestation(
     deviceCommitment: Bytes<32>,
     measurementGroupId: Bytes<32>,
     assignmentId: Bytes<32>,
+    measurementDay: Uint<32>,
     periodStart: Uint<64>,
     periodEnd: Uint<64>,
     hourPresence: Vector<24, Boolean>,
+    hourResults: Vector<24, HourThresholdResult>,
     sampleCount: Uint<32>,
     thresholdSatisfied: Boolean,
     schemaVersion: Uint<32>,
@@ -283,6 +293,7 @@ export circuit submitDailyAttestation(
     const publicMeasurementGroupId = disclose(measurementGroupId);
     const publicAssignmentId = disclose(assignmentId);
     const publicPresence = disclose(hourPresence);
+    const publicHourResults = disclose(hourResults);
     const publicThresholdSatisfied = disclose(thresholdSatisfied);
     assertDeviceAuthorized(publicDeviceCommitment);
     assert(publicCommitment != pad(32, ""), "attestation commitment must not be empty");
@@ -293,6 +304,7 @@ export circuit submitDailyAttestation(
     );
     assert(!attestations.member(publicAttestationId), "measurement group already attested");
     assert(policyAssignments.member(publicAssignmentId), "policy assignment is not registered");
+    assert(periodStart == (measurementDay * 86400) as Uint<64>, "attestation period must start at UTC midnight");
     assert(periodStart < periodEnd, "attestation period is invalid");
     assert(periodEnd - periodStart == 86400, "attestation period must be exactly 24 hours");
 
@@ -319,8 +331,8 @@ export circuit submitDailyAttestation(
     assert(disclose(daily.periodEnd == periodEnd), "period end mismatch");
     assert(disclose(daily.schemaVersion == schemaVersion), "schema version mismatch");
     assert(disclose(daily.circuitVersion == circuitVersion), "circuit version mismatch");
-    assert(schemaVersion == 5, "unsupported schema version");
-    assert(circuitVersion == 3, "unsupported circuit version");
+    assert(schemaVersion == 6, "unsupported schema version");
+    assert(circuitVersion == 4, "unsupported circuit version");
 
     for (const hourIndex of 0..24) {
         const hour = daily.hours[hourIndex];
@@ -344,6 +356,21 @@ export circuit submitDailyAttestation(
                     hour.maximumCentiOffset == 0)
             ),
             "stopped hour must use the canonical empty representation"
+        );
+        const hourWithinThreshold =
+            hour.present &&
+            (policy.mode == ThresholdMode.upperBound ||
+                hour.minimumCentiOffset >= policy.minimumCentiOffset) &&
+            (policy.mode == ThresholdMode.lowerBound ||
+                hour.maximumCentiOffset <= policy.maximumCentiOffset);
+        const expectedHourResult = !hour.present
+            ? HourThresholdResult.noData
+            : hourWithinThreshold
+                ? HourThresholdResult.withinThreshold
+                : HourThresholdResult.outsideThreshold;
+        assert(
+            disclose(expectedHourResult == publicHourResults[hourIndex]),
+            "hour threshold result mismatch"
         );
     }
 
@@ -385,9 +412,11 @@ export circuit submitDailyAttestation(
             deviceCommitment: publicDeviceCommitment,
             policyId: assignment.policyId,
             assignmentId: publicAssignmentId,
+            measurementDay: measurementDay,
             periodStart: periodStart,
             periodEnd: periodEnd,
             hourPresence: publicPresence,
+            hourResults: publicHourResults,
             observedHourCount: observedHourCount,
             sampleCount: sampleCount,
             schemaVersion: schemaVersion,

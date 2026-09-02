@@ -135,15 +135,15 @@ function addCover(pptx, locale) {
     fontFace: ja ? 'Yu Gothic' : 'Aptos', fontSize: 10, bold: true, color: C.cyan,
     charSpacing: 0.7, margin: 0, fit: 'shrink',
   });
-  slide.addText(ja ? 'センサー値を開示せず、\nしきい値以内であることを示す' : 'Show threshold compliance.\nKeep sensor values private.', {
+  slide.addText(ja ? 'センサー値を開示せず、\n24時間の判定を示す' : 'Show all 24 hourly results.\nKeep sensor values private.', {
     x: 0.65, y: 1.03, w: 11.8, h: 1.55,
     fontFace: ja ? 'Yu Gothic' : 'Aptos Display',
     fontSize: ja ? 28 : 34, bold: true, color: C.white,
     margin: 0, breakLine: false, fit: 'shrink',
   });
   slide.addText(ja
-    ? '第三者が確認できるのは対象日・公開しきい値・判定結果。センサー値は見えない。'
-    : 'A third party can check the day, public threshold, and result. Sensor values remain hidden.', {
+    ? '第三者はUTC計測日・24時間の判定・適用しきい値・証明対象を確認。実値は見えない。'
+    : 'A third party checks the UTC day, 24 hourly results, applied threshold, and proof subject. Values stay hidden.', {
       x: 0.68, y: 2.82, w: 11.7, h: 0.52,
       fontFace: ja ? 'Yu Gothic' : 'Aptos',
       fontSize: ja ? 13 : 15, color: C.muted, margin: 0, fit: 'shrink',
@@ -152,12 +152,12 @@ function addCover(pptx, locale) {
   const values = ja
     ? [
       ['センサー値', 'エッジデバイス内だけ', C.cyan],
-      ['第三者が確認', '対象日・しきい値・判定', C.purple],
+      ['第三者が確認', 'UTC日・24時間判定・しきい値', C.purple],
       ['Wave 1', 'Midnight事前公開環境で確認済み', C.green],
     ]
     : [
       ['SENSOR VALUES', 'STAY ON EDGE DEVICE', C.cyan],
-      ['THIRD PARTY CHECKS', 'DAY · THRESHOLD · RESULT', C.purple],
+      ['THIRD PARTY CHECKS', 'UTC DAY · 24 RESULTS · POLICY', C.purple],
       ['WAVE 1', 'MIDNIGHT PREPRODUCTION\nNETWORK VERIFIED', C.green],
     ];
   values.forEach(([head, sub, accent], i) => {
@@ -221,13 +221,13 @@ function addGuiSlide(pptx, locale) {
   const points = ja
     ? [
       ['01', 'デバイスとしきい値の紐付け'],
-      ['02', '1日分を24時間枠で証明'],
+      ['02', '24時間ごとの判定を公開'],
       ['03', 'デバイスが署名したMidnight取引'],
       ['04', '最小値・最大値を見せない第三者画面'],
     ]
     : [
       ['01', 'Device-to-threshold binding'],
-      ['02', 'One day proved in 24 hourly slots'],
+      ['02', 'Publish one proved result per UTC hour'],
       ['03', 'Device-signed Midnight transaction'],
       ['04', 'Public view hides MIN / MAX values'],
     ];

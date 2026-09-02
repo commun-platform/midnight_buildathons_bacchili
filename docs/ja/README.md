@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-現行ソースは、6つの証明回路のコンパイル、333件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
+現行ソースは、6つの証明回路のコンパイル、339件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
 
 | 審査成果物 | 文書 |
 | --- | --- |
@@ -55,7 +55,16 @@ Wave 2の運用可視化、Wallet同期、処理件数、顧客UCのAPI証跡は
 
 本リポジトリは、Wave 1のCore Proof PoCを実装します。主要な審査経路では、ユーザーが認可したブラウザクライアントを疑似計測元として使い、疑似の日次計測データと、計測期間より前に登録した判定条件との関係を証明します。Midnightには元の値ではなく、公開判定条件、証明対象、判定結果、取引記録を残します。現場側Runtimeの補助実装も含みますが、長期間の自律運用はWave 2の目標であり、Wave 1の主要Claimではありません。
 
-運用コントラクト`sensor-registry`は、観測された全時間帯の最小値・最大値が、運用前にMidnightへ登録したしきい値の範囲内であるか、少なくとも1時間が範囲外であるかを、値を隠したまま証明します。公開される「範囲内／範囲外」の結果から測定値は分かりません。測定値がない時間は、合格や不正とは扱わず「停止（`STOPPED`）」として区別します。この証明だけでは、センサー自体の正確さ、連続して測定した事実、測定漏れがないこと、デバイス側の集計が正しいことまでは保証しません。
+運用コントラクト`sensor-registry`は、UTCの24個の時間帯それぞれに「しきい値以内／範囲外／計測なし」を公開し、その判定が非公開の最小値・最大値と一致することを証明します。日次の真偽値は総合結果として残します。実際の測定値は公開しません。この証明だけでは、センサー自体の正確さ、連続して測定した事実、測定漏れがないこと、デバイス側の集計が正しいことまでは保証しません。
+
+| 第三者に表示する項目 | 何を示すか |
+| --- | --- |
+| 計測日 | `YYYY-MM-DD`。UTCの00:00～24:00に固定します。 |
+| 時間帯別結果 | UTCの1時間ごとに、しきい値以内／範囲外／計測なしを表示します。 |
+| 適用しきい値 | 下限・上限・単位・スケール・バージョン・有効期間です。 |
+| 証明対象 | `deviceCommitment`。証明としきい値の適用設定を同じ仮名デバイスに結び付けます。 |
+
+TX hashを貼り付けると、Browserは成功したMidnight TX、そのBlock、該当BlockのContract State差分からこれらを取得します。この検証経路はD1、Wallet、Private Proof Inputを必要としません。
 
 ## 基本用語
 
@@ -67,7 +76,8 @@ Wave 2の運用可視化、Wallet同期、処理件数、顧客UCのAPI証跡は
 | エッジデバイス | センサー収集、API認証、Midnight取引への署名を行う現場側の実行環境です。 |
 | 生の測定値 | 日時、温度、湿度を含む個々の値です。Wave 1審査経路ではBrowser Privateな計測元に、補助的な現場経路ではLocalに保持します。 |
 | 1時間ごとの集計／状態変化 | 1時間単位の要約と、正常・異常が切り替わった時点の通知です。個々の測定値そのものではありません。 |
-| 1日分の非公開入力 | 観測済みまたは停止の24個の時間枠です。観測済みの枠には最小値、最大値、測定件数が入ります。 |
+| 1日分の非公開入力 | 観測済みまたは計測なしの24個の時間枠です。観測済みの枠には最小値、最大値、測定件数が入ります。 |
+| 時間帯別結果 | UTCの1時間に対する公開状態です。しきい値以内／範囲外／計測なしのいずれかで、最小値・最大値は公開しません。 |
 | コミットメント | 1日分の非公開入力と証明用乱数を、元の値を逆算できない形で結び付けた値です。 |
 | しきい値 | 判定方法、上下限、単位、センサー種別、版番号を含む公開設定です。運用開始前にMidnightへ登録し、証明時にデバイスが別の値へ変更することはできません。 |
 | デバイスへのしきい値設定 | どのデバイスにどのしきい値を適用するかと、その有効期間を運用開始前に登録したものです。 |
@@ -88,7 +98,7 @@ Wave 2の運用可視化、Wallet同期、処理件数、顧客UCのAPI証跡は
 | 2 | [Wave 1仕様](architecture/wave1_spec.md)、[3 Waveロードマップ](architecture/three_wave_roadmap.md)、[複数デバイスの登録](security/device_registry.md) | 現行PoC、将来到達点、On-chain Authority境界を分けて確認します。 |
 | 3 | [システム構成](architecture/system_architecture.md) | 各構成要素とデータ保存先を確認します。 |
 | 4 | [非公開情報の境界](security/private_spec.md) | 非公開入力、管理者向け情報、第三者への公開情報を区別します。 |
-| 5 | [仕様と実装の対応](implementation/implement_spec.md)、[GUI操作と処理場所](implementation/gui_action_reference.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、各画面操作の実行場所、各証明回路、DUSTだけを負担する権限を確認します。 |
+| 5 | [仕様と実装の対応](implementation/implement_spec.md)、[GUI操作と処理場所](implementation/gui_action_reference.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[TX hashによる第三者検証](implementation/transaction_hash_verification.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、非公開の24時間証明が公開時間帯別結果になる仕組み、D1に依存しないビューワの構築手順、DUSTだけを負担する権限を確認します。 |
 | 6 | [デバイス認証](security/device_authentication.md)と[デバイス用ソフトウェア](operations/device_firmware.md) | 初期登録、APIセッション、導入、復旧を理解します。 |
 | 7 | [開発環境](operations/development_environment.md)と[実演手順](operations/demo_runbook.md) | 準備後、順番に配備して動作確認します。 |
 | 8 | [費用実測](implementation/cost_benchmark.md) | 標準1,440件／日の実測と10,000台の計画値を確認します。 |
@@ -114,9 +124,9 @@ Wave 2の到達点です。
 
 ## Midnightとの連携
 
-運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の時間枠からなる非公開入力を検査し、範囲内または範囲外の結果をMidnightへ記録します。User管理Accountまたは現場Transaction Agentが取引内容を認可し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、認可済み内容を変更できません。
+運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の非公開時間枠を検査し、各時間帯の判定と日次の総合結果をMidnightへ記録します。User管理Accountまたは現場Transaction Agentが取引内容を認可し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、認可済み内容を変更できません。
 
-ブラウザには、ユーザー管理のMidnight Accountを使う疑似計測Workflow、運用者向けの処理状況、第三者向けの公開画面があります。公開画面は、コントラクトで確定した対象日・しきい値・判定結果・Midnight取引識別子を表示します。確定済みRecordを開くと、ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract LedgerからCommitment、Result、Policy、Device-bound Assignmentを照合します。Raw Sensor値やPrivate Openingは使いません。
+ブラウザには、ユーザー管理のMidnight Accountを使う疑似計測Workflow、運用者向けの処理状況、第三者向けの公開画面があります。TX hashを貼り付けると、確定済みRecordを特定し、Public Midnight Indexerへ直接問い合わせます。同じTX／BlockのContract LedgerからUTC計測日、24個の時間帯別結果、適用しきい値／有効期間、Device Commitmentを照合します。Raw Sensor値やPrivate Openingは使いません。Browser内でCompact Proof Verifierを再実行するのではなく、MidnightがTX受理時に検証した公開Stateを確認します。
 
 ## モノレポの境界
 
@@ -177,7 +187,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-期待結果は、運用する6つの証明回路のコンパイル、333件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用する6つの証明回路のコンパイル、339件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 

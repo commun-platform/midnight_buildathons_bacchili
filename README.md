@@ -10,7 +10,7 @@
 
 ## Judge review
 
-The current review tree compiles all 6 operational proof circuits and passes 333 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
+The current review tree compiles all 6 operational proof circuits and passes 339 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
 
 | Review artifact | Link |
 | --- | --- |
@@ -52,7 +52,18 @@ English slide figures are under [`docs/assets/review/`](docs/assets/review/) and
 
 This monorepo implements the Wave 1 core-proof PoC. Its primary review path uses a user-authorized browser client as a simulated measurement source, creates a synthetic daily record, and proves its relationship to a condition registered before the measurement period. Midnight records the public condition, proof subject, result, and transaction without publishing the underlying values. Supporting field-runtime code is included, but autonomous long-running field operation is a Wave 2 objective rather than the primary Wave 1 claim.
 
-The operational `sensor-registry` contract proves either that the private minimum and maximum values for all observed hours are within the public threshold registered on Midnight before operation, or that at least one observed hour is outside it. The public WITHIN / OUTSIDE result reveals none of those values. An hour without readings is `STOPPED`, not fraud or a threshold failure. The contract does not prove physical sensor integrity, continuous sampling, completeness, or correct Device-side aggregation.
+The operational `sensor-registry` contract proves a separate public result for each of the 24 UTC hours: WITHIN, OUTSIDE, or NO DATA. The private minimum and maximum values remain hidden. A daily Boolean is retained only as a summary: it is true when every observed hour is within the public threshold registered on Midnight before operation. The contract does not prove physical sensor integrity, continuous sampling, completeness, or correct Device-side aggregation.
+
+| What a third party sees | Meaning |
+| --- | --- |
+| Measurement date | `YYYY-MM-DD`, fixed to UTC 00:00–24:00. |
+| Hourly results | One of WITHIN, OUTSIDE, or NO DATA for each of the 24 UTC hours. |
+| Applied threshold | Lower/upper bounds, unit, scale, version, and validity interval. |
+| Proof subject | `deviceCommitment`, the pseudonymous Device bound to the proof and policy assignment. |
+
+Pasting a transaction hash makes the browser obtain these fields from the successful Midnight
+transaction, its block, and the Contract state transition at that block. This verification path does
+not require D1, a Wallet, or private proof input.
 
 ## Core terms
 
@@ -64,7 +75,8 @@ The operational `sensor-registry` contract proves either that the private minimu
 | Edge Device | The device runtime boundary containing the Edge Agent, Device Identity, and Wallet Agent. |
 | Raw sample | One timestamped temperature/humidity reading. In the Wave 1 review flow it remains in browser-private source state; the supporting field path retains it locally. |
 | Hourly summary / anomaly transition | An aggregate uploaded once per hour, and an immediate event when the sensor changes between normal and anomalous states. Neither is the raw sample stream. |
-| Daily private input | A fixed private object with 24 observed / STOPPED hourly slots. Each observed slot has a minimum, maximum, and reported reading count. |
+| Daily private input | A fixed private object with 24 observed or no-data hourly slots. Each observed slot has a minimum, maximum, and reported reading count. |
+| Hourly threshold result | The public status of one UTC hour: WITHIN, OUTSIDE, or NO DATA. It does not expose the hourly minimum or maximum. |
 | Commitment | A one-way binding to the complete private daily-extrema input using a nonce. |
 | Threshold policy | Immutable public Midnight state containing mode, bounds, scale, sensor/unit codes, and version. The device cannot provide alternate bounds at proof time. |
 | Policy assignment | Immutable policy binding and validity interval registered for the device before operation. |
@@ -85,7 +97,7 @@ The operational `sensor-registry` contract proves either that the private minimu
 | 2 | [Wave 1 specification](docs/architecture/wave1_spec.md), [three-wave roadmap](docs/architecture/three_wave_roadmap.md), and [Fleet Device Registry](docs/security/device_registry.md) | Separate the current PoC, future outcomes, and the on-chain authority boundary. |
 | 3 | [System architecture](docs/architecture/system_architecture.md) | See where each runtime component and data store runs. |
 | 4 | [Privacy boundary](docs/security/private_spec.md) | Distinguish private input, administrator data, and public evidence. |
-| 5 | [Implementation map](docs/implementation/implement_spec.md), [ZK circuit specification](docs/implementation/zk_circuit_spec.md), and [Midnight fee sponsorship](docs/implementation/fee_sponsorship.md) | Map the design to code, understand each proof circuit, and review the DUST fee-payer boundary. |
+| 5 | [Implementation map](docs/implementation/implement_spec.md), [ZK circuit specification](docs/implementation/zk_circuit_spec.md), [transaction-hash verification](docs/implementation/transaction_hash_verification.md), and [Midnight fee sponsorship](docs/implementation/fee_sponsorship.md) | Map the design to code, understand how the private 24-hour proof becomes public hourly results, rebuild the D1-free viewer, and review the DUST fee-payer boundary. |
 | 6 | [Device authentication](docs/security/device_authentication.md) and [device firmware](docs/operations/device_firmware.md) | Understand enrollment, Sessions, installation, and rollback. |
 | 7 | [Demo runbook](docs/operations/demo_runbook.md) | Deploy and exercise the system in order. |
 | 8 | [Cost benchmark](docs/implementation/cost_benchmark.md) | Review the standard 1,440-reading/day Cost measurement and 10,000-Device estimate. |
@@ -112,9 +124,9 @@ The detailed trust and data-flow model is in [System Architecture](docs/architec
 
 ## Midnight integration
 
-The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the verified WITHIN or OUTSIDE result on Midnight. A user-controlled account or field transaction agent authorizes and binds the contract call without fees; the dedicated Sponsor Wallet adds only DUST and submits it. The Sponsor cannot produce the Device Contract Authority proof or alter the bound call.
+The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the 24 verified hourly results plus a daily summary on Midnight. A user-controlled account or field transaction agent authorizes and binds the contract call without fees; the dedicated Sponsor Wallet adds only DUST and submits it. The Sponsor cannot produce the Device Contract Authority proof or alter the bound call.
 
-The browser includes a guided, user-authorized simulated measurement workflow, operator evidence, and the third-party public view. The third-party view displays the contract-confirmed result and Midnight identifiers; it does not independently execute the Compact verifier in the browser. Independent browser verification is part of the Wave 2 production hardening plan.
+The browser includes a guided, user-authorized simulated measurement workflow, operator evidence, and the third-party public view. After a transaction hash is pasted, the public view locates the confirmed record and compares the UTC date, 24 hourly results, applied policy/validity, Device Commitment, transaction, block, and Contract Ledger state directly with the public Midnight Indexer. It does not rerun the Compact proof verifier locally; Midnight performed that verification when accepting the transaction.
 
 ## Monorepo boundaries
 
@@ -175,7 +187,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-The expected review result is 6 compiled operational proof circuits, 333 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The expected review result is 6 compiled operational proof circuits, 339 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 

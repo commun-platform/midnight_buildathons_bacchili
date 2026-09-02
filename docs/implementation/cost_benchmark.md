@@ -557,13 +557,13 @@ Each result is written below `~/.midnight/midnight-cloudflare-demo/device-wallet
 - complete single attestation transaction duration;
 - Edge Device-observed `/check` and `/prove` request bytes and durations for the attestation;
 - exact finalized transaction size and DUST fee in both specks and formatted DUST;
-- public attestation commitment, observed/STOPPED counts, and transaction ID/hash/block height;
+- public attestation commitment, observed/no-data counts, hourly statuses, and transaction ID/hash/block height;
 - no raw readings, private hourly extrema, nonce, wallet recovery data, or tokens. Public thresholds are recorded from ledger state.
 
 Correlate each result with the Worker's `proof_gateway_upstream` logs to validate request bytes and obtain response bytes and Container durations. Confirm the one attestation transaction and its policy assignment in Midnight state before marking a row complete.
 
 Use `--outlier-value 40` on a controlled run to measure a truthful OUTSIDE result with the same
-operational circuit. `--period-date` must identify a unique completed JST day accepted by the Worker.
+operational circuit. `--period-date` must identify a unique completed UTC day accepted by the Worker.
 
 ## Pricing model
 

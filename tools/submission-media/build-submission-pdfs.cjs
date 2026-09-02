@@ -32,20 +32,20 @@ function svgText(lines, options) {
 function coverSvg(locale) {
   const ja = locale === 'ja';
   const title = ja
-    ? ['センサー値を開示せず、', 'しきい値以内であることを示す']
-    : ['Show threshold compliance.', 'Keep sensor values private.'];
+    ? ['センサー値を開示せず、', '24時間の判定を示す']
+    : ['Show all 24 hourly results.', 'Keep sensor values private.'];
   const sub = ja
-    ? '第三者が確認できるのは対象日・公開しきい値・判定結果。センサー値は見えない'
-    : 'A third party can check the day, public threshold, and result. Sensor values remain hidden.';
+    ? '第三者はUTC計測日・24時間の判定・適用しきい値・証明対象を確認。実値は見えない'
+    : 'A third party checks the UTC day, 24 hourly results, applied threshold, and proof subject. Values stay hidden.';
   const values = ja
     ? [
       ['センサー値', 'エッジデバイス内だけ', '38D6E8'],
-      ['第三者が確認', '対象日・しきい値・判定', 'A66CFF'],
+      ['第三者が確認', 'UTC日・24時間判定・しきい値', 'A66CFF'],
       ['Wave 1', 'Midnight事前公開環境で確認済み', '79D66A'],
     ]
     : [
       ['SENSOR VALUES', 'STAY ON EDGE DEVICE', '38D6E8'],
-      ['THIRD PARTY CHECKS', 'DAY · THRESHOLD · RESULT', 'A66CFF'],
+      ['THIRD PARTY CHECKS', 'UTC DAY · 24 RESULTS · POLICY', 'A66CFF'],
       ['WAVE 1', 'MIDNIGHT PREPRODUCTION\nNETWORK VERIFIED', '79D66A'],
     ];
   let svg = [
@@ -84,8 +84,8 @@ function guiSvg(locale) {
     ? '録画は画面完成後に実施。現時点では撮影枠と確認項目を固定する。'
     : 'Capture follows the completed GUI; required review evidence is fixed now.';
   const points = ja
-    ? ['デバイスとしきい値の紐付け', '1日分を24時間枠で証明', 'デバイスが署名したMidnight取引', '最小値・最大値を見せない第三者画面']
-    : ['Device-to-threshold binding', 'One day proved in 24 hourly slots', 'Device-signed Midnight transaction', 'Public view hides MIN / MAX values'];
+    ? ['デバイスとしきい値の紐付け', '24時間ごとの判定を公開', 'デバイスが署名したMidnight取引', '最小値・最大値を見せない第三者画面']
+    : ['Device-to-threshold binding', 'Publish one proved result per UTC hour', 'Device-signed Midnight transaction', 'Public view hides MIN / MAX values'];
   let svg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="1672" height="941" viewBox="0 0 1672 941">',
     '<rect width="1672" height="941" fill="#06111F"/>',

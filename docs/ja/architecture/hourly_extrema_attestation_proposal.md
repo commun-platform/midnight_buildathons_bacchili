@@ -2,8 +2,8 @@
 
 [English](../../architecture/hourly_extrema_attestation_proposal.md)
 
-状態：WITHIN／OUTSIDEともPreprod実装・検証完了。審査用動画は未作成。
-最終更新：2026-08-28 JST
+状態：現行ソースへ実装済み。過去のPreprod記録は旧Schemaのため時間帯別結果を含みません。
+最終更新：2026-09-01 JST
 
 本書は`midnight/contracts/sensor-registry`に実装した固定形状の日次Threshold Attestationを定義します。互換性のためファイル名には`proposal`が残っていますが、内容は提案ではなく確定仕様です。
 
@@ -11,12 +11,18 @@
 
 ## 1. 証明Claimと責任境界
 
-JSTの1日について、登録済みDeviceが24個の時間Slotを非公開で提出します。観測されたSlotにはMinimum、Maximum、申告Sample Countが入り、Transactionは公開Boolean `thresholdSatisfied`も提出します。Confirmed Midnight Transactionは次のどちらか一方を正確に証明します。
+UTCの00:00～24:00に固定した1日について、登録済みDeviceが24個の時間Slotを非公開で提出します。観測されたSlotにはMinimum、Maximum、申告Sample Countが入り、TransactionはUTCの各時間に対応する`hourResults`を公開します。
+
+- `withinThreshold`：その時間の提出済みExtremaが登録済み公開しきい値以内
+- `outsideThreshold`：その時間の提出済みExtremaの少なくとも一方がしきい値の範囲外
+- `noData`：Private Slotが正規化された欠測値
+
+公開Boolean `thresholdSatisfied`は日次の総合結果として残します。
 
 - `thresholdSatisfied = true`：観測された全時間帯について、提出された最小値／最大値が登録済みしきい値の範囲内
 - `thresholdSatisfied = false`：観測された少なくとも1時間について、提出された最小値または最大値が登録済みしきい値の範囲外
 
-Readingがない時間はSTOPPEDとしてThreshold計算から除外します。全時間STOPPEDの場合、観測違反は存在しないためLedger Booleanは`true`ですが、GUIは`observedHourCount = 0`からSTOPPEDを導出し、正常稼働日としては表示しません。OUTSIDEは有効なZK ClaimでありProof失敗ではありません。Commitment不整合、非Canonical Slot、虚偽Result、未認可Callは従来どおり失敗し、Attestationを記録しません。
+Readingがない時間はCanonicalなAbsent SlotとしてThreshold計算から除外します。全時間Absentの場合、観測違反は存在しないためLedger Booleanは`true`ですが、GUIは24時間すべてを「計測なし」と表示します。範囲外は有効なZK ClaimでありProof失敗ではありません。Commitment不整合、非Canonical Slot、虚偽Result、未認可Callは失敗し、Attestationを記録しません。
 
 物理的な測定の真実性、校正、連続稼働、完全性、Sampling頻度、Device側集計の正しさは証明しません。Sampling間に逸脱がなかったことも証明しません。これらはDevice、設置、Firmware、運用監査の責任範囲です。
 
@@ -66,6 +72,7 @@ DailyExtremaInput {
   measurementGroupId
   policyId
   assignmentId
+  measurementDay
   periodStart
   periodEnd
   hours[24]
@@ -76,7 +83,7 @@ DailyExtremaInput {
 
 観測Slotは`present = true`、`sampleCount > 0`、`minimum <= maximum`です。値がないSlotは自動的に`STOPPED`とし、正規表現を`present = false`、`sampleCount = 0`、`minimum = 0`、`maximum = 0`に固定します。STOPPEDは運用Statusであり、不正でもThreshold違反でもありません。工事は24時間稼働とは限らず日々の予定も変わるため、稼働時間の事前登録は要求しません。
 
-Wave 1の1日はJST 00:00～24:00です。回路はUnix秒を受け取り、正確に86,400秒の期間を要求します。JSTに夏時間がないため、DST対応はWave 1対象外です。
+Wave 1の1日はUTC 00:00～24:00です。回路はUTC Epoch DayとUnix秒を受け取り、`periodStart = measurementDay * 86,400`、`periodEnd = periodStart + 86,400`を要求します。Local Time Offsetや夏時間で証明期間は変わりません。
 
 Raw Sampling頻度が変わってもPrivate ZK Inputは同じです。
 
@@ -101,9 +108,11 @@ measurementGroupId
 deviceCommitment
 policyId
 assignmentId
+measurementDay
 periodStart
 periodEnd
 hourPresence[24]
+hourResults[24]
 observedHourCount
 sampleCount
 schemaVersion
@@ -112,7 +121,7 @@ thresholdSatisfied
 verified = true
 ```
 
-時間別Minimum／MaximumとCommitment Nonceは非公開です。Threshold、Mode、Unit／Type Code、Policy Version、Assignment、期間、Presence、Count、Commitment、WITHIN／OUTSIDE結果は公開です。
+時間別Minimum／MaximumとCommitment Nonceは非公開です。Threshold、Mode、Unit／Type Code、Policy Version、有効期間、Assignment、UTC日付／期間、Presence、Count、Commitment、24個の時間帯別結果は公開です。
 
 ## 5. 回路規則
 
@@ -121,12 +130,12 @@ verified = true
 1. Device Contract Authorityを検証
 2. 登録済みDevice CommitmentとMeasurement Group IDからAttestation IDを導出し、登録済みIDを拒否
 3. 上書き不可のAssignmentとPolicyをLedgerから取得
-4. 24時間の期間とAssignment有効期間を検証
+4. 正確なUTC日付、24時間の期間、Assignment有効期間を検証
 5. Private Daily CommitmentをOpenして再計算
 6. Measurement Group、Device、Policy、Assignment、期間、Schema、Circuit Version、PresenceをPublic StateへBinding
 7. STOPPED Slotの正規表現と、全Observed Slotの有効かつ順序の正しいExtremaを検証
-8. 全Observed Slotと登録済みLedger Policyから`allWithin`を計算
-9. `allWithin == thresholdSatisfied`を証明し、正しいWITHIN／OUTSIDEは受理し、虚偽Resultは拒否
+8. 各Private Slotと登録済みLedger Policyから時間帯別結果を計算し、対応するPublic `hourResults`と一致することを証明
+9. 全Observed Slotから`allWithin`を計算し、日次総合値`thresholdSatisfied`と一致することを証明
 10. 合計Sample CountとObserved Hour Countを再計算し、Public Attestationを記録
 
 Dataset登録用の別Transactionはありません。Policy登録はOperator Lifecycle操作であり、日次処理はDevice Attestation Transaction 1回です。
@@ -168,35 +177,30 @@ Migration `0010_hourly_extrema_policies.sql`／`0011_multi_device_registry.sql`�
 - `devices`：Fail-closedなMidnight Registry Status／Authority／Version／Contract Mirror
 - `daily_proof_jobs`：日次1件の冪等Job、ClaimしたThreshold結果、Transaction結果
 
-WorkerはQueue投入前にAuthenticated Device、D1 Policy／Assignment Mirror、Device Commitment、期間、Claim Result、Job Metadataの一致を検査します。Policy／Assignment IDは受け取りますがThreshold Boundは受け取りません。Claim Resultは対応Midnight TransactionがConfirmedになるまでEvidenceとして信用せず、回路がPrivate ExtremaとLedger Policyから再計算します。第三者GUIはConfirmed Jobと登録Policyを結合し、公開Bound、WITHIN／OUTSIDE／STOPPED結果、Observed／STOPPED時間、正確なClaim、Contract Address、Transaction参照を表示します。
+WorkerはQueue投入前にAuthenticated Device、D1 Policy／Assignment Mirror、Device Commitment、UTC日付／期間、時間帯別結果、日次総合値、Job Metadataの一致を検査します。Policy／Assignment IDは受け取りますがThreshold Boundは受け取りません。Claim Resultは対応Midnight TransactionがConfirmedになるまでEvidenceとして信用せず、回路がPrivate ExtremaとLedger Policyから再計算します。第三者GUIはConfirmed Jobと登録Policyを結合し、公開Bound／有効期間、24個のしきい値以内／範囲外／計測なし、Device Commitment、正確なClaim、Contract Address、Transaction参照を表示します。
 
 ## 8. Versionと移行
 
 - Compact Toolchain：`0.31.1`
 - Compact Language Pragma：`0.23`
 - Contract Schema Version：`3`
-- Daily Schema Version：`4`
-- Circuit Version：`2`
-- D1 Migration：`0013_daily_threshold_result.sql`まで
+- Daily Schema Version：`6`
+- Circuit Version：`4`
+- D1 Migration：`0025_hourly_threshold_results.sql`まで
 
-以前の選択Merkle Leaf ContractおよびWITHIN専用Fleet Registry ContractとはLedger互換性がありません。採用には新Contract Deploy、運用前Policy／Assignment登録、公開Contract Address更新、D1 Migration `0013`までの適用が必要です。旧24／96／1,440件`daily-attestation` Profileは開発用の回路Scaling Experimentとして残し、運用経路や価格根拠には使用しません。
+以前の選択Merkle Leaf Contractおよび旧日次SchemaとはLedger互換性がありません。採用には新Contract Deploy、運用前Policy／Assignment登録、公開Contract Address更新、D1 Migration `0025`までの適用が必要です。過去のSchema-5 TXは日次総合結果の履歴Evidenceとして有効ですが、24個の時間帯別結果を後付けできません。旧24／96／1,440件`daily-attestation` Profileは開発用の回路Scaling Experimentとして残し、運用経路や価格根拠には使用しません。
 
 ## 9. 実装済み検証Case
 
 自動Testは次を確認します。
 
-- Policy 1件、Assignment 1件、WITHIN／OUTSIDE日次Attestation TXの成功
+- Policy 1件、Assignment 1件、時間帯別のしきい値以内／範囲外／計測なしを含むAttestation TXの成功
 - 24、96、1,440 Sampleから同じ固定回路Inputを生成
 - 一部または全時間STOPPEDでも欠測を不正扱いしない
 - 下限未満／上限超過を正しいOUTSIDE Resultとして記録
-- 虚偽のWITHIN／OUTSIDE ResultとMinimum／Maximum逆転を拒否
+- 虚偽の時間帯別結果、虚偽の日次総合値、Minimum／Maximum逆転を拒否
 - Commitment、Presence、Device、Policy、AssignmentのBinding
 - Device AuthorityとOperator Authorityの分離
 - Public APIがPolicyは開示し、時間別Extrema／Nonceは開示しない
 
-Schema-3 ContractはPreprodへDeploy済みです。標準Device署名の1,440件／日、すなわち1分ごとのRaw値を
-Device内でPrivateな24時間分の時間別最小値・最大値Slotへ集約する経路がSchema `4`／Circuit `2`で
-確定しました。この標準経路のTransaction時間、Proof時間、Proving Key Size、Request Size、
-Transaction Size、DUST Fee、10,000 Device計画値を[Cost Benchmark](../implementation/cost_benchmark.md)へ
-記録しています。確定済み24／96件日は固定回路の同値性Evidenceとしてだけ保持します。旧Selected-leaf
-回路の実測値は本回路へ適用できません。
+過去のPreprod TXでは、1分ごとのRaw値1,440件を24個のPrivate Hourly Extrema Slotへ集約する旧日次総合設計を確認済みです。Transaction時間、Proof時間、Proving Key Size、Request Size、Transaction Size、DUST Fee、計画値は[Cost Benchmark](../implementation/cost_benchmark.md)へ履歴Evidenceとして残します。これらはSchema `6`／Circuit `4`の時間帯別公開結果を証明するものではなく、その確認には新Contract Deployと新しいTXが必要です。
