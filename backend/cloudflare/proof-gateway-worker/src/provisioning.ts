@@ -9,6 +9,10 @@ import {
   type BrowserProvisioningAuthorization,
   type BrowserWalletSignature,
 } from '@midnight-demo/shared/browser-provisioning';
+import {
+  utcDayStartMinute,
+  validateOperationalDayBoundary,
+} from '@midnight-demo/shared/runtime';
 
 import { sponsorWalletCanSubmit } from './sponsor-policy.js';
 import { sponsorContainerName } from './sponsor-container.js';
@@ -118,6 +122,9 @@ interface ExistingRegistrationRow {
   assignment_id: string | null;
   assignment_key: string | null;
   assignment_registered_tx_id: string | null;
+  time_zone_offset_minutes: number | null;
+  local_day_start_hour: number | null;
+  utc_day_start_minute: number | null;
   policy_id: string | null;
   policy_key: string | null;
   key_id: string | null;
@@ -140,7 +147,15 @@ interface ProjectRow {
   id: string;
   name: string;
   name_ja: string | null;
+  timezone: string;
+  time_zone_offset_minutes: number;
+  local_day_start_hour: number;
   created_at: string;
+}
+
+interface OperationalDayBoundaryRow {
+  time_zone_offset_minutes: number;
+  local_day_start_hour: number;
 }
 
 type PolicyOperationStage =
@@ -451,6 +466,23 @@ async function policy(
   return row;
 }
 
+async function operationalDayBoundary(
+  database: SqlDatabase,
+  projectId: string,
+): Promise<{ timeZoneOffsetMinutes: number; localDayStartHour: number; utcDayStartMinute: number }> {
+  const row = await database.first<OperationalDayBoundaryRow>(
+    `SELECT time_zone_offset_minutes, local_day_start_hour
+     FROM projects WHERE id = ?1`,
+    [projectId],
+  );
+  if (!row) throw new Error('Project operational-day configuration was not found');
+  const boundary = validateOperationalDayBoundary({
+    timeZoneOffsetMinutes: Number(row.time_zone_offset_minutes),
+    localDayStartHour: Number(row.local_day_start_hour),
+  });
+  return { ...boundary, utcDayStartMinute: utcDayStartMinute(boundary) };
+}
+
 function registrationView(row: ExistingRegistrationRow, contractAddress: string) {
   if (
     row.midnight_registry_status !== 'registered'
@@ -462,6 +494,9 @@ function registrationView(row: ExistingRegistrationRow, contractAddress: string)
     || !row.assignment_registered_tx_id
     || !row.policy_id
     || !row.policy_key
+    || row.time_zone_offset_minutes === null
+    || row.local_day_start_hour === null
+    || row.utc_day_start_minute === null
   ) return null;
   return {
     deviceId: row.id,
@@ -472,6 +507,9 @@ function registrationView(row: ExistingRegistrationRow, contractAddress: string)
     policyKey: row.policy_key,
     assignmentId: row.assignment_id,
     assignmentKey: row.assignment_key,
+    timeZoneOffsetMinutes: row.time_zone_offset_minutes,
+    localDayStartHour: row.local_day_start_hour,
+    utcDayStartMinute: row.utc_day_start_minute,
     registeredTxId: row.midnight_registered_tx_id,
     assignmentTxId: row.assignment_registered_tx_id,
   };
@@ -487,6 +525,7 @@ async function existingRegistration(
             d.midnight_device_commitment, d.midnight_device_authority,
             d.midnight_registered_tx_id, a.assignment_id, a.assignment_key,
             a.registered_tx_id AS assignment_registered_tx_id,
+            a.time_zone_offset_minutes, a.local_day_start_hour, a.utc_day_start_minute,
             p.policy_id, p.policy_key, k.key_id
      FROM devices d
      LEFT JOIN policy_assignments a ON a.device_id = d.id AND a.project_id = d.project_id
@@ -673,6 +712,7 @@ async function completeProvisioningOperation(
   enrollment: Enrollment,
   contractAddress: string,
   result: OperatorRegistrationResult,
+  boundary: { timeZoneOffsetMinutes: number; localDayStartHour: number; utcDayStartMinute: number },
 ): Promise<void> {
   const registeredAt = new Date().toISOString();
   await database.batch([
@@ -706,8 +746,9 @@ async function completeProvisioningOperation(
       sql: `INSERT INTO policy_assignments (
               assignment_id, assignment_key, policy_id, project_id, device_id,
               valid_from, valid_until, assignment_version, status, device_commitment,
-              contract_address, registered_tx_id, registered_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, NULL, NULL, 1, 'registered', ?6, ?7, ?8, ?9)`,
+              contract_address, registered_tx_id, registered_at,
+              time_zone_offset_minutes, local_day_start_hour, utc_day_start_minute
+            ) VALUES (?1, ?2, ?3, ?4, ?5, NULL, NULL, 1, 'registered', ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
       parameters: [
         operation.assignment_id,
         result.assignmentKey,
@@ -718,6 +759,9 @@ async function completeProvisioningOperation(
         contractAddress,
         result.assignmentTxId,
         registeredAt,
+        boundary.timeZoneOffsetMinutes,
+        boundary.localDayStartHour,
+        boundary.utcDayStartMinute,
       ],
     },
     {
@@ -1011,6 +1055,7 @@ export async function processBrowserProvisioningQueueMessage(
       contractAddress,
       operation.project_id,
     );
+    const boundary = await operationalDayBoundary(database, operation.project_id);
     const { sponsorWalletHealth } = await import('./sponsor.js');
     const health = await sponsorWalletHealth(env);
     if (!sponsorWalletCanSubmit(health)) {
@@ -1031,6 +1076,7 @@ export async function processBrowserProvisioningQueueMessage(
         assignmentId: operation.assignment_id,
         deviceRegistrationVersion: 1,
         assignmentVersion: 1,
+        ...boundary,
         validFromEpoch: '0',
         validUntilEpoch: '0',
         knownDeviceTxId: operation.device_tx_id ?? undefined,
@@ -1046,7 +1092,14 @@ export async function processBrowserProvisioningQueueMessage(
     if (!validOperatorResult(result, selectedPolicy.policy_key)) {
       throw new Error('Operator Wallet registration response is invalid');
     }
-    await completeProvisioningOperation(database, operation, enrollment, contractAddress, result);
+    await completeProvisioningOperation(
+      database,
+      operation,
+      enrollment,
+      contractAddress,
+      result,
+      boundary,
+    );
     message.ack();
   } catch (error) {
     const failedAt = new Date().toISOString();
@@ -1165,13 +1218,21 @@ function projectView(row: ProjectRow) {
     projectId: row.id,
     name: row.name,
     nameJa: row.name_ja,
+    timeZone: row.timezone,
+    timeZoneOffsetMinutes: Number(row.time_zone_offset_minutes),
+    localDayStartHour: Number(row.local_day_start_hour),
+    utcDayStartMinute: utcDayStartMinute({
+      timeZoneOffsetMinutes: Number(row.time_zone_offset_minutes),
+      localDayStartHour: Number(row.local_day_start_hour),
+    }),
     createdAt: row.created_at,
   };
 }
 
 async function walletProjects(database: SqlDatabase, walletKeySha256: string): Promise<ProjectRow[]> {
   return database.all<ProjectRow>(
-    `SELECT p.id, p.name, p.name_ja, wp.created_at
+    `SELECT p.id, p.name, p.name_ja, p.timezone,
+            p.time_zone_offset_minutes, p.local_day_start_hour, wp.created_at
      FROM browser_wallet_projects wp
      INNER JOIN projects p ON p.id = wp.project_id
      WHERE wp.wallet_key_sha256 = ?1
@@ -1315,6 +1376,17 @@ async function createProject(request: Request, env: Env): Promise<Response> {
   if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/u.test(name)) {
     throw new Error('Project name must contain 1-80 printable characters');
   }
+  const boundary = validateOperationalDayBoundary({
+    timeZoneOffsetMinutes: body.timeZoneOffsetMinutes === undefined
+      ? 0
+      : Number(body.timeZoneOffsetMinutes),
+    localDayStartHour: body.localDayStartHour === undefined
+      ? 0
+      : Number(body.localDayStartHour),
+  });
+  const sign = boundary.timeZoneOffsetMinutes < 0 ? '-' : '+';
+  const absoluteOffset = Math.abs(boundary.timeZoneOffsetMinutes);
+  const timeZone = `UTC${sign}${String(Math.floor(absoluteOffset / 60)).padStart(2, '0')}:${String(absoluteOffset % 60).padStart(2, '0')}`;
   const current = await walletProjects(database, session.wallet_key_sha256);
   if (current.length >= maximumProjectsPerWallet) {
     throw new HttpError(409, `A Midnight Wallet can own up to ${maximumProjectsPerWallet} Projects`);
@@ -1325,9 +1397,16 @@ async function createProject(request: Request, env: Env): Promise<Response> {
     await database.batch([
       {
         sql: `INSERT INTO projects (
-                id, name, organization, timezone, expected_interval_minutes, name_ja, organization_ja
-              ) VALUES (?1, ?2, ?2, 'Asia/Tokyo', 1, NULL, NULL)`,
-        parameters: [selectedProjectId, name],
+                id, name, organization, timezone, expected_interval_minutes, name_ja, organization_ja,
+                time_zone_offset_minutes, local_day_start_hour
+              ) VALUES (?1, ?2, ?2, ?3, 1, NULL, NULL, ?4, ?5)`,
+        parameters: [
+          selectedProjectId,
+          name,
+          timeZone,
+          boundary.timeZoneOffsetMinutes,
+          boundary.localDayStartHour,
+        ],
       },
       {
         sql: `INSERT INTO browser_wallet_projects (wallet_key_sha256, project_id, created_at)
@@ -1346,6 +1425,9 @@ async function createProject(request: Request, env: Env): Promise<Response> {
       projectId: selectedProjectId,
       name,
       nameJa: null,
+      timeZone,
+      ...boundary,
+      utcDayStartMinute: utcDayStartMinute(boundary),
       createdAt,
     },
     projectCount: current.length + 1,
@@ -1675,11 +1757,13 @@ async function configuration(request: Request, env: Env): Promise<Response> {
      ORDER BY p.policy_version DESC`,
     [selectedProjectId, contractAddress],
   );
+  const boundary = await operationalDayBoundary(database, selectedProjectId);
   return json(200, {
     network: 'preprod',
     projectId: selectedProjectId,
     contractAddress,
     serviceUrl: new URL(request.url).origin,
+    operationalDay: boundary,
     policies: rows.map((row) => ({
       policyId: row.policy_id,
       name: row.name ?? row.policy_id,

@@ -81,19 +81,32 @@ function networkFromArgs(): NetworkConfig {
   return resolveNetwork(flag('network'));
 }
 
-async function loadPreparedAttestation(): Promise<PreparedDailyExtremaAttestation> {
+async function loadPreparedAttestation(
+  configuration?: DeviceOperationConfiguration,
+): Promise<PreparedDailyExtremaAttestation> {
   const input = flag('input');
   if (!input) throw new Error('--input is required; generated sensor data is not accepted');
   const inputPath = path.isAbsolute(input) ? input : path.resolve(repoRoot, input);
   const parsed = JSON.parse(fs.readFileSync(inputPath, 'utf8')) as
     PreparedDailyExtremaAttestation | SensorRecord[];
-  if (!Array.isArray(parsed) && parsed.publicData && parsed.privateData) return parsed;
+  if (!Array.isArray(parsed) && parsed.publicData && parsed.privateData) {
+    if (configuration && (
+      parsed.publicData.timeZoneOffsetMinutes !== configuration.assignment.timeZoneOffsetMinutes
+      || parsed.publicData.localDayStartHour !== configuration.assignment.localDayStartHour
+      || parsed.publicData.utcDayStartMinute !== configuration.assignment.utcDayStartMinute
+    )) throw new Error('Prepared attestation does not match the registered operational-day boundary');
+    return parsed;
+  }
   if (Array.isArray(parsed)) {
     return prepareDailyExtremaAttestation(parsed, {
       deviceId: process.env.SENSOR_DEVICE_ID?.trim() || 'edge-temp-001',
       periodDate: flag('period-date'),
       policyId: flag('policy') ?? process.env.THRESHOLD_POLICY_VERSION?.trim(),
       assignmentId: flag('assignment') ?? process.env.POLICY_ASSIGNMENT_ID?.trim(),
+      timeZoneOffsetMinutes: configuration?.assignment.timeZoneOffsetMinutes
+        ?? Number(process.env.TIME_ZONE_OFFSET_MINUTES ?? 0),
+      localDayStartHour: configuration?.assignment.localDayStartHour
+        ?? Number(process.env.LOCAL_DAY_START_HOUR ?? 0),
     });
   }
   throw new Error('Input must be a PreparedDailyExtremaAttestation or SensorRecord array');
@@ -257,6 +270,8 @@ async function runSyntheticBenchmark(
       : numericFlag('outlier-value', 40),
     policyId: flag('policy') ?? process.env.THRESHOLD_POLICY_VERSION?.trim(),
     assignmentId: flag('assignment') ?? process.env.POLICY_ASSIGNMENT_ID?.trim(),
+    timeZoneOffsetMinutes: configuration?.assignment.timeZoneOffsetMinutes,
+    localDayStartHour: configuration?.assignment.localDayStartHour,
   });
   const datasetPreparationMs = Math.round(performance.now() - preparationStarted);
   const submissionStarted = performance.now();
@@ -406,7 +421,7 @@ async function main(): Promise<void> {
     return withWalletExecutionLock(command, async () => {
       const transactions = await runSubmit(
         network,
-        await loadPreparedAttestation(),
+        await loadPreparedAttestation(operationConfiguration),
         operationConfiguration,
       );
       process.stdout.write(`${JSON.stringify(transactions, null, 2)}\n`);

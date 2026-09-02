@@ -69,10 +69,11 @@ const tableSpecs = [
     key: 'id',
     columns: [
       'id', 'name', 'organization', 'timezone', 'expected_interval_minutes', 'created_at',
-      'name_ja', 'organization_ja',
+      'name_ja', 'organization_ja', 'time_zone_offset_minutes', 'local_day_start_hour',
     ],
     query: `SELECT id, name, organization, timezone, expected_interval_minutes, created_at,
-      name_ja, organization_ja FROM projects WHERE id = '${projectId}'`,
+      name_ja, organization_ja, time_zone_offset_minutes, local_day_start_hour
+      FROM projects WHERE id = '${projectId}'`,
   },
   {
     table: 'devices',
@@ -154,11 +155,13 @@ const tableSpecs = [
     columns: [
       'assignment_id', 'assignment_key', 'policy_id', 'project_id', 'device_id',
       'valid_from', 'valid_until', 'assignment_version', 'status', 'contract_address',
-      'registered_tx_id', 'registered_at',
+      'registered_tx_id', 'registered_at', 'time_zone_offset_minutes',
+      'local_day_start_hour', 'utc_day_start_minute',
     ],
     query: `SELECT assignment_id, assignment_key, policy_id, project_id, device_id,
       valid_from, valid_until, assignment_version, status, contract_address,
-      registered_tx_id, registered_at FROM policy_assignments
+      registered_tx_id, registered_at, time_zone_offset_minutes,
+      local_day_start_hour, utc_day_start_minute FROM policy_assignments
       WHERE project_id = '${projectId}'`,
   },
   {

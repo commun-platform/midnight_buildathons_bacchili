@@ -4,6 +4,11 @@ import { authorizeLocalAdministrator } from './admin-auth.js';
 import type { ProofJobRow } from './jobs.js';
 import { readSponsorQuota } from './sponsor-quota.js';
 import { createSqlDatabase } from './storage/index.js';
+import {
+  operationalPeriodStart,
+  utcDayStartMinute,
+  validateOperationalDayBoundary,
+} from '@midnight-demo/shared/runtime';
 
 const maxBodyBytes = 64 * 1024;
 
@@ -82,6 +87,9 @@ interface RegisteredPolicyAssignmentRow {
   valid_from: string | null;
   valid_until: string | null;
   assignment_version: number;
+  time_zone_offset_minutes: number;
+  local_day_start_hour: number;
+  utc_day_start_minute: number;
   device_commitment: string;
   policy_id: string;
   policy_key: string;
@@ -119,6 +127,9 @@ interface PublicProofRow extends ProofJobRow {
   unit: string;
   policy_version: number;
   assignment_version: number;
+  time_zone_offset_minutes: number;
+  local_day_start_hour: number;
+  utc_day_start_minute: number;
   valid_from: string | null;
   valid_until: string | null;
 }
@@ -222,6 +233,19 @@ function nonnegativeInteger(body: Record<string, unknown>, key: string, maximum 
   const value = body[key];
   if (!Number.isSafeInteger(value) || Number(value) < 0 || Number(value) > maximum) {
     throw new Error(`${key} must be a non-negative integer up to ${maximum}`);
+  }
+  return Number(value);
+}
+
+function signedInteger(
+  body: Record<string, unknown>,
+  key: string,
+  minimum: number,
+  maximum: number,
+): number {
+  const value = body[key];
+  if (!Number.isSafeInteger(value) || Number(value) < minimum || Number(value) > maximum) {
+    throw new Error(`${key} must be an integer from ${minimum} through ${maximum}`);
   }
   return Number(value);
 }
@@ -353,6 +377,7 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
          d.operation_configuration_version, d.operation_configuration_updated_at,
          w.wallet_key_sha256 AS provisioning_wallet_key_sha256,
          a.assignment_id, a.assignment_key, a.valid_from, a.valid_until,
+         a.time_zone_offset_minutes, a.local_day_start_hour, a.utc_day_start_minute,
          a.assignment_version, a.device_commitment,
          a.registered_tx_id AS assignment_registered_tx_id,
          p.policy_id, p.policy_key, p.mode, p.minimum, p.maximum,
@@ -398,7 +423,7 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
       || normalizedContractAddress(row.midnight_contract_address) !== configuredAddress
     ) return json(409, { error: 'Device operational configuration is not synchronized' });
     return json(200, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       configurationVersion: row.operation_configuration_version,
       updatedAt: row.operation_configuration_updated_at,
       device: {
@@ -412,7 +437,7 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
       midnight: {
         network,
         contractAddress: configuredAddress,
-        contractSchemaVersion: 3,
+        contractSchemaVersion: 4,
         registrationVersion: row.midnight_registration_version,
       },
       policy: {
@@ -430,6 +455,9 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
         id: row.assignment_id,
         key: row.assignment_key,
         version: row.assignment_version,
+        timeZoneOffsetMinutes: row.time_zone_offset_minutes,
+        localDayStartHour: row.local_day_start_hour,
+        utcDayStartMinute: row.utc_day_start_minute,
         validFrom: row.valid_from,
         validUntil: row.valid_until,
       },
@@ -768,13 +796,21 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     const assignmentId = identifier(body, 'assignmentId');
     const assignmentKey = publicCommitment(body, 'assignmentKey');
     const measurementDay = nonnegativeInteger(body, 'measurementDay', 0xffff_ffff);
+    const submittedTimeZoneOffsetMinutes = signedInteger(
+      body,
+      'timeZoneOffsetMinutes',
+      -840,
+      840,
+    );
+    const submittedLocalDayStartHour = nonnegativeInteger(body, 'localDayStartHour', 23);
+    const submittedUtcDayStartMinute = nonnegativeInteger(body, 'utcDayStartMinute', 1439);
     const presence = hourPresence(body);
     const hourlyResults = hourThresholdResults(body);
     const observedHourCount = nonnegativeInteger(body, 'observedHourCount', 24);
     const thresholdSatisfied = requiredBoolean(body, 'thresholdSatisfied');
     const schemaVersion = positiveInteger(body, 'schemaVersion', 65_535);
     const circuitVersion = positiveInteger(body, 'circuitVersion', 65_535);
-    if (schemaVersion !== 6 || circuitVersion !== 4) {
+    if (schemaVersion !== 7 || circuitVersion !== 5) {
       throw new Error('Unsupported daily attestation schema or circuit version');
     }
     if (presence.values.filter(Boolean).length !== observedHourCount) {
@@ -795,7 +831,8 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     const assignment = await database.first<RegisteredPolicyAssignmentRow>(
       `SELECT
          a.assignment_id, a.assignment_key, a.valid_from, a.valid_until, a.assignment_version,
-         a.device_commitment,
+         a.device_commitment, a.time_zone_offset_minutes, a.local_day_start_hour,
+         a.utc_day_start_minute,
          p.policy_id, p.policy_key, p.mode, p.minimum, p.maximum, p.value_scale,
          p.sensor_type_code, p.unit_code, p.policy_version
        FROM policy_assignments a
@@ -810,6 +847,9 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
       || assignment.policy_id !== thresholdPolicyVersion
       || assignment.policy_key !== policyKey
       || assignment.device_commitment !== device.midnight_device_commitment
+      || assignment.time_zone_offset_minutes !== submittedTimeZoneOffsetMinutes
+      || assignment.local_day_start_hour !== submittedLocalDayStartHour
+      || assignment.utc_day_start_minute !== submittedUtcDayStartMinute
     ) return json(400, { error: 'Registered on-chain policy assignment does not match the Proof Job' });
     const expectedDeviceCommitment = await sha256Hex(`vsp:sensor-device:v1\n${deviceId}`);
     if (
@@ -818,12 +858,18 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     ) {
       return json(400, { error: 'Device commitment does not match the authenticated device' });
     }
-    const periodStart = Date.parse(`${periodDate}T00:00:00.000Z`);
+    const boundary = validateOperationalDayBoundary({
+      timeZoneOffsetMinutes: assignment.time_zone_offset_minutes,
+      localDayStartHour: assignment.local_day_start_hour,
+    });
+    if (utcDayStartMinute(boundary) !== assignment.utc_day_start_minute) {
+      return json(500, { error: 'Registered policy assignment has an inconsistent day boundary' });
+    }
+    const periodStart = operationalPeriodStart(periodDate, boundary).valueOf();
     const periodEnd = periodStart + 86_400_000;
     if (
       !Number.isFinite(periodStart)
-      || new Date(periodStart).toISOString().slice(0, 10) !== periodDate
-      || measurementDay !== periodStart / 86_400_000
+      || measurementDay !== Math.floor(periodStart / 86_400_000)
       || (assignment.valid_from && periodStart < Date.parse(assignment.valid_from))
       || (assignment.valid_until && periodEnd > Date.parse(assignment.valid_until))
     ) return json(400, { error: 'Proof period is outside the registered policy assignment' });
@@ -1318,7 +1364,8 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
     `SELECT
        j.*,
        p.mode, p.minimum, p.maximum, p.value_scale, p.sensor_type, p.unit,
-       p.policy_version, a.assignment_version, a.valid_from, a.valid_until
+       p.policy_version, a.assignment_version, a.valid_from, a.valid_until,
+       a.time_zone_offset_minutes, a.local_day_start_hour, a.utc_day_start_minute
      FROM daily_proof_jobs j
      JOIN threshold_policies p ON p.policy_key = j.policy_key
      JOIN policy_assignments a ON a.assignment_key = j.assignment_key
@@ -1341,8 +1388,8 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
   const thresholdSatisfied = row.threshold_satisfied === 1;
   const hourResults = decodedHourResults(row.hour_results);
   const hourlyResultsAvailable = hourResults !== null
-    && row.schema_version === 6
-    && row.circuit_version === 4;
+    && row.schema_version === 7
+    && row.circuit_version === 5;
   const thresholdResult = row.observed_hour_count === 0
     ? 'stopped'
     : thresholdSatisfied ? 'within-threshold' : 'outside-threshold';
@@ -1350,12 +1397,12 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
     ? 'This legacy record contains only the aggregate daily threshold result; hourly results are unavailable.'
     : thresholdResult === 'stopped'
     ? 'No hourly extrema were submitted for this day; all 24 hours are reported as NO DATA.'
-    : 'Each UTC hourly slot is publicly reported as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.';
+    : 'Each operational-hour slot is publicly reported as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.';
   const verifiedClaimJa = hourResults === null
     ? 'この旧形式の記録には日次の集約判定しかなく、時間帯別の判定結果は確認できません。'
     : thresholdResult === 'stopped'
     ? 'この日は時間別の最小値・最大値が提出されておらず、24時間すべてが計測なしとして記録されています。'
-    : 'UTCの各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。';
+    : '運用日の各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。';
   return json(200, {
     proofJobId: row.id,
     periodDate: row.period_date,
@@ -1384,6 +1431,11 @@ async function publicProof(env: Env, proofJobId: string): Promise<Response> {
     assignmentVersion: row.assignment_version,
     assignmentValidFrom: row.valid_from,
     assignmentValidUntil: row.valid_until,
+    operationalDay: {
+      timeZoneOffsetMinutes: row.time_zone_offset_minutes,
+      localDayStartHour: row.local_day_start_hour,
+      utcDayStartMinute: row.utc_day_start_minute,
+    },
     measurementGroupId: row.measurement_group_id,
     attestationCommitment: row.attestation_commitment,
     schemaVersion: row.schema_version,
@@ -1427,7 +1479,8 @@ async function listPublicProofs(env: Env, url: URL): Promise<Response> {
     `SELECT
        j.*,
        p.mode, p.minimum, p.maximum, p.value_scale, p.sensor_type, p.unit,
-       p.policy_version, a.assignment_version, a.valid_from, a.valid_until
+       p.policy_version, a.assignment_version, a.valid_from, a.valid_until,
+       a.time_zone_offset_minutes, a.local_day_start_hour, a.utc_day_start_minute
      FROM daily_proof_jobs j
      JOIN threshold_policies p ON p.policy_key = j.policy_key
      JOIN policy_assignments a ON a.assignment_key = j.assignment_key
@@ -1454,6 +1507,11 @@ async function listPublicProofs(env: Env, url: URL): Promise<Response> {
         ? 'stopped'
         : row.threshold_satisfied === 1 ? 'within-threshold' : 'outside-threshold',
       thresholdPolicyVersion: row.threshold_policy_version,
+      operationalDay: {
+        timeZoneOffsetMinutes: row.time_zone_offset_minutes,
+        localDayStartHour: row.local_day_start_hour,
+        utcDayStartMinute: row.utc_day_start_minute,
+      },
       policy: {
         mode: row.mode,
         minimum: row.minimum,

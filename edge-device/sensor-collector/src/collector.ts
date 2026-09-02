@@ -9,6 +9,7 @@ import {
   createMeasurementWindow,
   evaluateAnomaly,
   finalizeMeasurementWindow,
+  hourBounds,
   initialAnomalyState,
   type AnomalyState,
   type MeasurementWindowState,
@@ -292,10 +293,9 @@ export function seedSyntheticDemoWindow(
   ) {
     throw new Error('Synthetic demo seed refuses to overwrite existing collector state, outbox, or raw data');
   }
-  const currentStart = new Date(now);
-  currentStart.setUTCMinutes(0, 0, 0);
-  const previousStartMs = currentStart.valueOf() - 60 * 60 * 1_000;
-  let window = createMeasurementWindow(new Date(previousStartMs));
+  const currentStartMs = Date.parse(hourBounds(now, config.utcDayStartMinute).start);
+  const previousStartMs = currentStartMs - 60 * 60 * 1_000;
+  let window = createMeasurementWindow(new Date(previousStartMs), config.utcDayStartMinute);
   for (let index = 0; index < sampleCount; index += 1) {
     const offsetMs = Math.floor(((index + 0.5) * 60 * 60 * 1_000) / sampleCount);
     const measuredAt = new Date(previousStartMs + offsetMs);
@@ -345,7 +345,7 @@ async function collectOne(
     }
     window = null;
   }
-  window ??= createMeasurementWindow(measuredAt);
+  window ??= createMeasurementWindow(measuredAt, config.utcDayStartMinute);
   window = addMeasurement(window, temperature, measuredAt);
   const evaluated = evaluateAnomaly({
     state: persistent.anomaly,

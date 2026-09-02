@@ -107,6 +107,9 @@ const managedOperationKeys = [
   'THRESHOLD_POLICY_KEY',
   'POLICY_ASSIGNMENT_ID',
   'POLICY_ASSIGNMENT_KEY',
+  'TIME_ZONE_OFFSET_MINUTES',
+  'LOCAL_DAY_START_HOUR',
+  'UTC_DAY_START_MINUTE',
   'DEVICE_CONFIGURATION_VERSION',
   'DEVICE_CONFIGURATION_UPDATED_AT',
   'DEVICE_CONFIGURATION_FINGERPRINT',
@@ -134,6 +137,9 @@ function operationConfigurationFingerprint(configuration: DeviceOperationConfigu
     configuration.assignment.id,
     configuration.assignment.key,
     String(configuration.assignment.version),
+    String(configuration.assignment.timeZoneOffsetMinutes),
+    String(configuration.assignment.localDayStartHour),
+    String(configuration.assignment.utcDayStartMinute),
   ].join('\n')).digest('hex');
 }
 
@@ -206,6 +212,9 @@ export function applyDeviceOperationConfiguration(
     THRESHOLD_POLICY_KEY: configuration.policy.key,
     POLICY_ASSIGNMENT_ID: configuration.assignment.id,
     POLICY_ASSIGNMENT_KEY: configuration.assignment.key,
+    TIME_ZONE_OFFSET_MINUTES: String(configuration.assignment.timeZoneOffsetMinutes),
+    LOCAL_DAY_START_HOUR: String(configuration.assignment.localDayStartHour),
+    UTC_DAY_START_MINUTE: String(configuration.assignment.utcDayStartMinute),
     DEVICE_CONFIGURATION_VERSION: String(configuration.configurationVersion),
     DEVICE_CONFIGURATION_UPDATED_AT: configuration.updatedAt,
     DEVICE_CONFIGURATION_FINGERPRINT: fingerprint,

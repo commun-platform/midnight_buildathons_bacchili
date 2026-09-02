@@ -43,6 +43,7 @@ test('quarantines a power-loss-corrupted state file and starts from a safe empty
     anomalyDebounceSamples: 3,
     anomalyCooldownSeconds: 300,
     thresholdPolicyVersion: 'temperature-v1',
+    utcDayStartMinute: 0,
   };
   const stateFile = path.join(dataDirectory, 'collector-state.json');
   fs.writeFileSync(stateFile, Buffer.alloc(354), { mode: 0o600 });
@@ -83,6 +84,12 @@ test('rolls local samples into one privacy-preserving hourly window', () => {
   assert.equal(window.average, 22);
   assert.match(window.commitment, /^[A-Za-z0-9_-]{43}$/);
   assert.equal('values' in window, false);
+});
+
+test('aligns hourly windows to a registered half-hour UTC boundary', () => {
+  const state = createMeasurementWindow(new Date('2026-08-28T01:45:00.000Z'), 1_230);
+  assert.equal(state.periodStart, '2026-08-28T01:30:00.000Z');
+  assert.equal(state.periodEnd, '2026-08-28T02:30:00.000Z');
 });
 
 test('emits only debounced anomaly-open and recovered transitions', () => {
@@ -150,6 +157,7 @@ test('seeds one prior synthetic hour without overwriting collector data', () => 
     anomalyDebounceSamples: 3,
     anomalyCooldownSeconds: 300,
     thresholdPolicyVersion: 'temperature-v1',
+    utcDayStartMinute: 0,
   };
   try {
     const seeded = seedSyntheticDemoWindow(config, 24, new Date('2026-08-28T03:15:00.000Z'));

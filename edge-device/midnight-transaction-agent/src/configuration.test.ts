@@ -10,7 +10,7 @@ import { applyDeviceOperationConfiguration } from './config.js';
 
 function configuration(version = 1, address = 'ab'.repeat(32)): DeviceOperationConfiguration {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     configurationVersion: version,
     updatedAt: `2026-08-${String(27 + version).padStart(2, '0')}T00:00:00.000Z`,
     device: {
@@ -22,7 +22,7 @@ function configuration(version = 1, address = 'ab'.repeat(32)): DeviceOperationC
     midnight: {
       network: 'preprod',
       contractAddress: address,
-      contractSchemaVersion: 3,
+      contractSchemaVersion: 4,
       registrationVersion: 1,
     },
     policy: {
@@ -40,6 +40,9 @@ function configuration(version = 1, address = 'ab'.repeat(32)): DeviceOperationC
       id: 'edge-test-001-temperature-v1',
       key: 'ef'.repeat(32),
       version: 1,
+      timeZoneOffsetMinutes: 540,
+      localDayStartHour: 6,
+      utcDayStartMinute: 1260,
       validFrom: null,
       validUntil: null,
     },
@@ -72,6 +75,9 @@ test('atomically installs authenticated public operation configuration', () => {
     assert.match(installed, /DEVICE_CONFIGURATION_VERSION=1/u);
     assert.match(installed, /THRESHOLD_POLICY_VERSION=temperature-v1/u);
     assert.match(installed, /POLICY_ASSIGNMENT_ID=edge-test-001-temperature-v1/u);
+    assert.match(installed, /TIME_ZONE_OFFSET_MINUTES=540/u);
+    assert.match(installed, /LOCAL_DAY_START_HOUR=6/u);
+    assert.match(installed, /UTC_DAY_START_MINUTE=1260/u);
     assert.equal(fs.statSync(envFile).mode & 0o777, 0o600);
 
     const second = applyDeviceOperationConfiguration(configuration(2, '12'.repeat(32)), envFile);

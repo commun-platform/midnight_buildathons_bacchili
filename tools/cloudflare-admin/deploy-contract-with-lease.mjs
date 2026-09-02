@@ -59,6 +59,8 @@ const policyFlags = [
   'unit-code',
   'policy-version',
   'assignment-version',
+  'time-zone-offset-minutes',
+  'local-day-start-hour',
   'valid-from',
   'valid-until',
 ];
@@ -112,7 +114,7 @@ function syncPolicyMirror() {
   const network = process.env.MIDNIGHT_NETWORK?.trim() || 'preprod';
   const deploymentPath = path.join(repoRoot, '.state', 'development', `deployment-${network}.json`);
   const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-  if (deployment.contractSchemaVersion !== 3) {
+  if (deployment.contractSchemaVersion !== 4) {
     throw new Error('Refusing to sync an incompatible single-device deployment record');
   }
   const initialDevice = deployment.devices?.[0];
@@ -158,7 +160,8 @@ function syncPolicyMirror() {
     `INSERT INTO policy_assignments (
        assignment_id, assignment_key, policy_id, project_id, device_id,
        valid_from, valid_until, assignment_version, status, device_commitment,
-       contract_address, registered_tx_id, registered_at
+       contract_address, registered_tx_id, registered_at,
+       time_zone_offset_minutes, local_day_start_hour, utc_day_start_minute
      ) VALUES (
        ${sqlString(deployment.assignmentId)}, ${sqlString(deployment.assignmentKey)},
        ${sqlString(deployment.policyId)}, 'measurement-authenticity-01',
@@ -167,7 +170,8 @@ function syncPolicyMirror() {
        ${deployment.validUntil ? sqlString(deployment.validUntil) : 'NULL'},
        ${Number(deployment.assignmentVersion)}, 'registered', ${sqlString(deployment.deviceCommitment)},
        ${sqlString(deployment.contractAddress)}, ${sqlString(initialDevice.assignmentRegisteredTxId)},
-       ${sqlString(deployment.deployedAt)}
+       ${sqlString(deployment.deployedAt)}, ${Number(deployment.timeZoneOffsetMinutes)},
+       ${Number(deployment.localDayStartHour)}, ${Number(deployment.utcDayStartMinute)}
      )
      ON CONFLICT(assignment_id) DO UPDATE SET
        assignment_key = excluded.assignment_key,
@@ -175,6 +179,9 @@ function syncPolicyMirror() {
        valid_from = excluded.valid_from,
        valid_until = excluded.valid_until,
        assignment_version = excluded.assignment_version,
+       time_zone_offset_minutes = excluded.time_zone_offset_minutes,
+       local_day_start_hour = excluded.local_day_start_hour,
+       utc_day_start_minute = excluded.utc_day_start_minute,
        device_commitment = excluded.device_commitment,
        status = 'registered',
        contract_address = excluded.contract_address,

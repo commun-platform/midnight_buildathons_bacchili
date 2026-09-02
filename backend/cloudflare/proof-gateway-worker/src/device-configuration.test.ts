@@ -82,6 +82,9 @@ function database(options: TestDatabaseOptions = {}): {
               valid_from: null,
               valid_until: null,
               assignment_version: 1,
+              time_zone_offset_minutes: 540,
+              local_day_start_hour: 6,
+              utc_day_start_minute: 1260,
               device_commitment: '01'.repeat(32),
               assignment_registered_tx_id: 'assignment-registration-tx',
               policy_id: 'temperature-v1',
@@ -164,7 +167,7 @@ describe('authenticated Device operation configuration', () => {
       'measurement-authenticity-01',
     ]);
     expect(await result?.json()).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       configurationVersion: 4,
       device: {
         deviceId: 'edge-temp-001',
@@ -175,10 +178,15 @@ describe('authenticated Device operation configuration', () => {
       midnight: {
         network: 'preprod',
         contractAddress: 'ab'.repeat(32),
-        contractSchemaVersion: 3,
+        contractSchemaVersion: 4,
       },
       policy: { id: 'temperature-v1', minimum: 10, maximum: 35 },
-      assignment: { id: 'edge-temp-001-temperature-v1-wave1' },
+      assignment: {
+        id: 'edge-temp-001-temperature-v1-wave1',
+        timeZoneOffsetMinutes: 540,
+        localDayStartHour: 6,
+        utcDayStartMinute: 1260,
+      },
     });
   });
 

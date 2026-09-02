@@ -101,12 +101,13 @@ describe('Wave 1 API router', () => {
       policy_key: '56'.repeat(32), assignment_id: 'edge-temp-001-temperature-v1-wave1',
       assignment_key: '78'.repeat(32), hour_presence: '101010101010101010101010',
       hour_results: '101010101010101010101010',
-      observed_hour_count: 12, threshold_satisfied: 1, schema_version: 6, circuit_version: 4,
+      observed_hour_count: 12, threshold_satisfied: 1, schema_version: 7, circuit_version: 5,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, attest_tx_id: 'attest-tx', attest_tx_hash: 'attest-hash',
       block_height: '123', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
       policy_version: 1, assignment_version: 1,
+      time_zone_offset_minutes: 0, local_day_start_hour: 0, utc_day_start_minute: 0,
       valid_from: '2026-08-28T00:00:00.000Z', valid_until: null,
       last_error_code: null, created_at: '2026-08-28T17:00:00.000Z',
       updated_at: '2026-08-28T17:10:00.000Z',
@@ -135,8 +136,8 @@ describe('Wave 1 API router', () => {
       contractAddress: 'cd'.repeat(32),
       observedHourCount: 12,
       stoppedHourCount: 12,
-      schemaVersion: 6,
-      circuitVersion: 4,
+      schemaVersion: 7,
+      circuitVersion: 5,
       deviceCommitment: '34'.repeat(32),
       hourResults: Array.from({ length: 24 }, (_value, index) => (
         index % 2 === 0 ? 'within-threshold' : 'no-data'
@@ -161,12 +162,13 @@ describe('Wave 1 API router', () => {
       policy_key: '56'.repeat(32), assignment_id: 'private-assignment-id',
       assignment_key: '78'.repeat(32), hour_presence: '1'.repeat(24),
       hour_results: `2${'1'.repeat(23)}`,
-      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 6, circuit_version: 4,
+      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 7, circuit_version: 5,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, attest_tx_id: 'attest-tx', attest_tx_hash: '81'.repeat(32),
       block_height: '123', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
       policy_version: 1, assignment_version: 1,
+      time_zone_offset_minutes: 0, local_day_start_hour: 0, utc_day_start_minute: 0,
       valid_from: '2026-08-27T00:00:00.000Z', valid_until: null, last_error_code: null,
       created_at: '2026-08-28T17:00:00.000Z', updated_at: '2026-08-28T17:10:00.000Z',
     };
@@ -223,11 +225,12 @@ describe('Wave 1 API router', () => {
       assignment_id: 'private-assignment-id', assignment_key: '78'.repeat(32),
       hour_presence: '1'.repeat(24), hour_results: '1'.repeat(24),
       observed_hour_count: 24, threshold_satisfied: 1,
-      schema_version: 6, circuit_version: 4, attempt_count: 1,
+      schema_version: 7, circuit_version: 5, attempt_count: 1,
       available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C', policy_version: 1,
       assignment_version: 1, valid_from: '2026-08-28T00:00:00.000Z', valid_until: null,
+      time_zone_offset_minutes: 0, local_day_start_hour: 0, utc_day_start_minute: 0,
       last_error_code: null,
       created_at: '2026-08-28T17:00:00.000Z', updated_at: '2026-08-28T17:10:00.000Z',
     };
@@ -274,12 +277,13 @@ describe('Wave 1 API router', () => {
       policy_key: '56'.repeat(32), assignment_id: 'private-assignment-id',
       assignment_key: '78'.repeat(32), hour_presence: '1'.repeat(24),
       hour_results: `${'1'.repeat(7)}2${'1'.repeat(16)}`,
-      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 6, circuit_version: 4,
+      observed_hour_count: 24, threshold_satisfied: 0, schema_version: 7, circuit_version: 5,
       attempt_count: 1, available_after: '2026-08-28T17:00:00.000Z', lease_expires_at: null,
       proof_artifact_key: null, attest_tx_id: 'outside-attest-tx', attest_tx_hash: '82'.repeat(32),
       block_height: '124', mode: 'closed-range', minimum: 10, maximum: 35,
       value_scale: 100, sensor_type: 'temperature', unit: '°C',
       policy_version: 1, assignment_version: 1,
+      time_zone_offset_minutes: 0, local_day_start_hour: 0, utc_day_start_minute: 0,
       valid_from: '2026-08-27T00:00:00.000Z', valid_until: null, last_error_code: null,
       created_at: '2026-08-28T17:00:00.000Z', updated_at: '2026-08-28T17:10:00.000Z',
     };
@@ -296,7 +300,7 @@ describe('Wave 1 API router', () => {
       resultVerified: true,
       checks: { attestationVerified: true, midnightConfirmed: true },
     });
-    expect(body.claim).toContain('Each UTC hourly slot');
+    expect(body.claim).toContain('Each operational-hour slot');
     expect(body.hourResults).toEqual([
       ...Array(7).fill('within-threshold'),
       'outside-threshold',

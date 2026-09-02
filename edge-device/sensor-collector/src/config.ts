@@ -20,6 +20,7 @@ export interface EdgeConfig {
   anomalyDebounceSamples: number;
   anomalyCooldownSeconds: number;
   thresholdPolicyVersion: string;
+  utcDayStartMinute: number;
 }
 
 const deviceHome = path.join(os.homedir(), '.midnight', 'midnight-cloudflare-demo');
@@ -42,6 +43,14 @@ function positiveInteger(name: string, fallback: number, maximum: number): numbe
 function finiteNumber(name: string, fallback: number): number {
   const value = Number(process.env[name] ?? fallback);
   if (!Number.isFinite(value)) throw new Error(`${name} must be a finite number`);
+  return value;
+}
+
+function nonnegativeInteger(name: string, fallback: number, maximum: number): number {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isSafeInteger(value) || value < 0 || value > maximum) {
+    throw new Error(`${name} must be an integer between 0 and ${maximum}`);
+  }
   return value;
 }
 
@@ -83,5 +92,6 @@ export function loadEdgeConfig(): EdgeConfig {
     anomalyDebounceSamples: positiveInteger('ANOMALY_DEBOUNCE_SAMPLES', 3, 1_000),
     anomalyCooldownSeconds: positiveInteger('ANOMALY_COOLDOWN_SECONDS', 300, 86_400),
     thresholdPolicyVersion: process.env.THRESHOLD_POLICY_VERSION?.trim() || 'temperature-v1',
+    utcDayStartMinute: nonnegativeInteger('UTC_DAY_START_MINUTE', 0, 1439),
   };
 }

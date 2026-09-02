@@ -249,7 +249,7 @@ test('fetches configuration with a reusable Device Session and rejects another D
       requestedUrl = String(input);
       authorization = new Headers(init?.headers).get('Authorization') ?? '';
       return Response.json({
-        schemaVersion: 1,
+        schemaVersion: 2,
         configurationVersion: 1,
         updatedAt: '2026-08-28T00:00:00.000Z',
         device: {
@@ -258,7 +258,7 @@ test('fetches configuration with a reusable Device Session and rejects another D
         },
         midnight: {
           network: 'preprod', contractAddress: 'ab'.repeat(32),
-          contractSchemaVersion: 3, registrationVersion: 1,
+          contractSchemaVersion: 4, registrationVersion: 1,
         },
         policy: {
           id: 'temperature-v1', key: 'cd'.repeat(32), mode: 'closed-range',
@@ -267,6 +267,7 @@ test('fetches configuration with a reusable Device Session and rejects another D
         },
         assignment: {
           id: 'edge-test-001-temperature-v1', key: 'ef'.repeat(32), version: 1,
+          timeZoneOffsetMinutes: 540, localDayStartHour: 6, utcDayStartMinute: 1260,
           validFrom: null, validUntil: null,
         },
         evidence: {

@@ -1,5 +1,6 @@
 import {
   generateSensorRecords,
+  operationalPeriodStart,
   prepareDailyExtremaAttestation,
   type PreparedDailyExtremaAttestation,
 } from '@midnight-demo/shared';
@@ -15,6 +16,8 @@ export interface SyntheticBenchmarkOptions {
   outlierValue?: number;
   policyId?: string;
   assignmentId?: string;
+  timeZoneOffsetMinutes?: number;
+  localDayStartHour?: number;
 }
 
 export async function prepareSyntheticBenchmarkDataset(
@@ -36,8 +39,11 @@ export async function prepareSyntheticBenchmarkDataset(
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(periodDate)) {
     throw new Error('Synthetic benchmark period date must be YYYY-MM-DD');
   }
-  const periodStart = new Date(`${periodDate}T00:00:00.000Z`);
-  if (Number.isNaN(periodStart.valueOf())) throw new Error('Synthetic benchmark period date is invalid');
+  const boundary = {
+    timeZoneOffsetMinutes: options.timeZoneOffsetMinutes ?? 0,
+    localDayStartHour: options.localDayStartHour ?? 0,
+  };
+  const periodStart = operationalPeriodStart(periodDate, boundary);
   if (options.outlierValue !== undefined && !Number.isFinite(options.outlierValue)) {
     throw new Error('Synthetic benchmark outlier value must be finite');
   }
@@ -57,6 +63,7 @@ export async function prepareSyntheticBenchmarkDataset(
     periodDate,
     policyId: options.policyId,
     assignmentId: options.assignmentId,
+    ...boundary,
     nonceSeed: `synthetic-cost-benchmark:${options.sampleCount}:${options.runId}:${seed}`,
   });
 }

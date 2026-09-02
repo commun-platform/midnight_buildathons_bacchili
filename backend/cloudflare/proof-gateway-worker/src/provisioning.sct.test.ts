@@ -122,6 +122,9 @@ function admissionDatabase(input: {
               registered_tx_id: 'policy-tx',
             } as T;
           }
+          if (query.includes('FROM projects WHERE id')) {
+            return { time_zone_offset_minutes: 0, local_day_start_hour: 0 } as T;
+          }
           if (query.includes('FROM browser_wallet_devices')) return null as T | null;
           if (query.includes('FROM devices d')) return null as T | null;
           if (query.includes('FROM browser_provisioning_operations')) {
@@ -207,6 +210,9 @@ function database(
               policy_version: 1,
               registered_tx_id: 'policy-tx',
             } as T;
+          }
+          if (query.includes('FROM projects WHERE id')) {
+            return { time_zone_offset_minutes: 0, local_day_start_hour: 0 } as T;
           }
           return null as T | null;
         },

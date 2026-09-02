@@ -55,7 +55,7 @@ export interface DeviceAuthConfig {
 }
 
 export interface DeviceOperationConfiguration {
-  schemaVersion: 1;
+  schemaVersion: 2;
   configurationVersion: number;
   updatedAt: string;
   device: {
@@ -67,7 +67,7 @@ export interface DeviceOperationConfiguration {
   midnight: {
     network: 'preview' | 'preprod';
     contractAddress: string;
-    contractSchemaVersion: 3;
+    contractSchemaVersion: 4;
     registrationVersion: number;
   };
   policy: {
@@ -85,6 +85,9 @@ export interface DeviceOperationConfiguration {
     id: string;
     key: string;
     version: number;
+    timeZoneOffsetMinutes: number;
+    localDayStartHour: number;
+    utcDayStartMinute: number;
     validFrom: string | null;
     validUntil: string | null;
   };
@@ -534,7 +537,7 @@ function validOperationConfiguration(
     && /^(?:[0-9a-f]{2}){32}$/u.test(input);
   const validIdentifier = (input: unknown) => typeof input === 'string'
     && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(input);
-  return candidate.schemaVersion === 1
+  return candidate.schemaVersion === 2
     && validPositiveInteger(candidate.configurationVersion)
     && validDate(candidate.updatedAt)
     && device?.deviceId === config.deviceId
@@ -545,7 +548,7 @@ function validOperationConfiguration(
     && Boolean(device.unit)
     && (midnight?.network === 'preview' || midnight?.network === 'preprod')
     && validHex32(midnight.contractAddress)
-    && midnight.contractSchemaVersion === 3
+    && midnight.contractSchemaVersion === 4
     && validPositiveInteger(midnight.registrationVersion)
     && policy !== undefined
     && validIdentifier(policy.id)
@@ -561,6 +564,17 @@ function validOperationConfiguration(
     && validIdentifier(assignment.id)
     && validHex32(assignment.key)
     && validPositiveInteger(assignment.version)
+    && Number.isSafeInteger(assignment.timeZoneOffsetMinutes)
+    && assignment.timeZoneOffsetMinutes >= -840
+    && assignment.timeZoneOffsetMinutes <= 840
+    && Number.isSafeInteger(assignment.localDayStartHour)
+    && assignment.localDayStartHour >= 0
+    && assignment.localDayStartHour <= 23
+    && Number.isSafeInteger(assignment.utcDayStartMinute)
+    && assignment.utcDayStartMinute >= 0
+    && assignment.utcDayStartMinute <= 1439
+    && ((assignment.localDayStartHour * 60 - assignment.timeZoneOffsetMinutes) % 1440 + 1440) % 1440
+      === assignment.utcDayStartMinute
     && validOptionalDate(assignment.validFrom)
     && validOptionalDate(assignment.validUntil)
     && typeof evidence?.deviceRegisteredTxId === 'string'

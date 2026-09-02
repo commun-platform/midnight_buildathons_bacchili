@@ -50,9 +50,17 @@ function rounded(value: number): number {
   return Number(value.toFixed(3));
 }
 
-export function hourBounds(measuredAt: Date): { start: string; end: string } {
-  const start = new Date(measuredAt);
-  start.setUTCMinutes(0, 0, 0);
+export function hourBounds(
+  measuredAt: Date,
+  utcDayStartMinute = 0,
+): { start: string; end: string } {
+  if (!Number.isSafeInteger(utcDayStartMinute) || utcDayStartMinute < 0 || utcDayStartMinute > 1439) {
+    throw new Error('utcDayStartMinute must be an integer from 0 through 1439');
+  }
+  const hourMilliseconds = 60 * 60 * 1000;
+  const anchor = utcDayStartMinute * 60_000;
+  const start = new Date(Math.floor((measuredAt.valueOf() - anchor) / hourMilliseconds)
+    * hourMilliseconds + anchor);
   const end = new Date(start.valueOf() + 60 * 60 * 1000);
   return { start: start.toISOString(), end: end.toISOString() };
 }
@@ -67,8 +75,11 @@ function nextHash(previous: string, measuredAt: string, value: number): string {
     .digest('base64url');
 }
 
-export function createMeasurementWindow(measuredAt: Date): MeasurementWindowState {
-  const bounds = hourBounds(measuredAt);
+export function createMeasurementWindow(
+  measuredAt: Date,
+  utcDayStartMinute = 0,
+): MeasurementWindowState {
+  const bounds = hourBounds(measuredAt, utcDayStartMinute);
   return {
     periodStart: bounds.start,
     periodEnd: bounds.end,

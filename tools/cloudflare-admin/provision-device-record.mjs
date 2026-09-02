@@ -66,7 +66,7 @@ const deploymentPath = path.join(repoRoot, '.state', 'development', `deployment-
 if (!fs.existsSync(deploymentPath)) throw new Error(`Fleet Registry deployment record was not found for ${network}`);
 const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
 if (
-  deployment.contractSchemaVersion !== 3
+  deployment.contractSchemaVersion !== 4
   || typeof deployment.contractAddress !== 'string'
   || !deployment.contractAddress
 ) throw new Error(`Compatible Fleet Registry deployment record was not found for ${network}`);

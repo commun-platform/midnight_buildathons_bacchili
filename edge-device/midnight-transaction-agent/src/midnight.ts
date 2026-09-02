@@ -65,6 +65,9 @@ interface LoadedContract {
       policyAssignments: Iterable<[Uint8Array, {
         policyId: Uint8Array;
         deviceCommitment: Uint8Array;
+        timeZoneOffsetMinutesBias: bigint;
+        localDayStartHour: bigint;
+        utcDayStartMinute: bigint;
         validFrom: bigint;
         validUntil: bigint;
         version: bigint;
@@ -510,6 +513,9 @@ export async function queryRegistry(network: NetworkConfig, contractAddress: str
       assignmentKey: bytesToHex(assignmentId),
       policyKey: bytesToHex(assignment.policyId),
       deviceCommitment: bytesToHex(assignment.deviceCommitment),
+      timeZoneOffsetMinutes: Number(assignment.timeZoneOffsetMinutesBias) - 840,
+      localDayStartHour: Number(assignment.localDayStartHour),
+      utcDayStartMinute: Number(assignment.utcDayStartMinute),
       validFrom: new Date(Number(assignment.validFrom) * 1000).toISOString(),
       validUntil: assignment.validUntil === 0n
         ? null

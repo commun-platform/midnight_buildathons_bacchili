@@ -20,7 +20,13 @@ interface MemoryState {
     consumed_at: number | null;
   }>;
   sessions: Map<string, { wallet_key_sha256: string; expires_at: number }>;
-  projects: Map<string, { name: string; name_ja: string | null }>;
+  projects: Map<string, {
+    name: string;
+    name_ja: string | null;
+    timezone?: string;
+    time_zone_offset_minutes?: number;
+    local_day_start_hour?: number;
+  }>;
   walletProjects: Array<{
     wallet_key_sha256: string;
     project_id: string;
@@ -117,6 +123,9 @@ function memoryDatabase(state: MemoryState): D1Database {
                 id: item.project_id,
                 name: state.projects.get(item.project_id)?.name ?? item.project_id,
                 name_ja: state.projects.get(item.project_id)?.name_ja ?? null,
+                timezone: state.projects.get(item.project_id)?.timezone ?? 'UTC',
+                time_zone_offset_minutes: state.projects.get(item.project_id)?.time_zone_offset_minutes ?? 0,
+                local_day_start_hour: state.projects.get(item.project_id)?.local_day_start_hour ?? 0,
                 created_at: item.created_at,
               })) as T[];
             return { success: true, results, meta: { changes: 0 } } as D1Result<T>;
@@ -158,6 +167,9 @@ function memoryDatabase(state: MemoryState): D1Database {
             state.projects.set(String(parameters[0]), {
               name: String(parameters[1]),
               name_ja: null,
+              timezone: String(parameters[2]),
+              time_zone_offset_minutes: Number(parameters[3]),
+              local_day_start_hour: Number(parameters[4]),
             });
           } else if (query.includes('INSERT INTO browser_policy_challenges')) {
             state.policyChallenges.set(String(parameters[0]), {
@@ -297,7 +309,11 @@ describe('SCT: Wallet-owned Browser Projects', () => {
           Authorization: `Bearer ${session.accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: 'Second construction site' }),
+        body: JSON.stringify({
+          name: 'Second construction site',
+          timeZoneOffsetMinutes: 540,
+          localDayStartHour: 6,
+        }),
       },
     ), env);
 
@@ -306,6 +322,10 @@ describe('SCT: Wallet-owned Browser Projects', () => {
       project: {
         projectId: expect.stringMatching(/^project-[0-9a-f-]+$/u),
         name: 'Second construction site',
+        timeZone: 'UTC+09:00',
+        timeZoneOffsetMinutes: 540,
+        localDayStartHour: 6,
+        utcDayStartMinute: 1260,
       },
       projectCount: 2,
       maximumProjects: 10,

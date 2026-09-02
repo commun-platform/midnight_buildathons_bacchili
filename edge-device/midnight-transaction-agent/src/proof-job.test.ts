@@ -35,6 +35,9 @@ function attestation(
       assignmentKey: 'ef'.repeat(32),
       periodDate: '2026-08-28',
       measurementDay: 20_693,
+      timeZoneOffsetMinutes: 0,
+      localDayStartHour: 0,
+      utcDayStartMinute: 0,
       periodStart: '2026-08-28T00:00:00.000Z',
       periodEnd: '2026-08-29T00:00:00.000Z',
       periodStartEpoch: '1787875200',
@@ -43,8 +46,8 @@ function attestation(
       observedHourCount: 0,
       stoppedHourCount: 24,
       sampleCount: 0,
-      schemaVersion: 6,
-      circuitVersion: 4,
+      schemaVersion: 7,
+      circuitVersion: 5,
     },
     privateData: {
       attestationCommitment: commitment,
@@ -57,8 +60,8 @@ function attestation(
       periodEndEpoch: '1787961600',
       hours,
       nonceHex: '11'.repeat(32),
-      schemaVersion: 6,
-      circuitVersion: 4,
+      schemaVersion: 7,
+      circuitVersion: 5,
     },
   };
 }
