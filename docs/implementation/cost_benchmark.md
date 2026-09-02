@@ -408,7 +408,39 @@ The replacement Cloudflare deployment uses:
 
 ### Standard 1,440-reading Preprod E2E and cost measurement
 
-#### Current Sponsor-funded schema-5 measurement
+#### Current operational-day measurement
+
+On 2026-09-02 JST, installed Device release
+`0.1.0-operational-day-e2e-20260902.1` generated 1,440 synthetic one-minute readings on the actual
+Edge Device. The Device reduced them to 24 private hourly extrema slots for operational date
+`2026-09-01`, using the registered JST boundary (UTC+09:00, local day start 00:00), and submitted one
+WITHIN attestation against the public 10-35 °C Policy. The Proof Server generated the ZK proof, the
+Sponsor Wallet added the DUST fee, and Midnight Preprod confirmed the transaction. Only the input
+readings were synthetic; Device authentication, aggregation, proving, sponsorship, submission, and
+public-chain verification used the deployed operational path.
+
+| Readings/day | Complete submission | Proof ready | Private state | Contract connection | Attestation TX | `/prove` | Sponsor processing | Device TX | Sponsored TX | Fee |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1,440 | 252.818 s | 4.579 s | 1.551 s | 4.953 s | 195.419 s | 46.730 s | 80.026 s | 6,162 B | 9,348 B | 0.636020000000001 DUST |
+
+| Evidence | Value |
+| --- | --- |
+| Proof Job | `proof-d40390164cae2ba601b7d2cc9d9f733fb6faae05fa88ebb0` |
+| Contract | `0abb6d408a5b8fedbdab9e0fff59f1a5570d3c94af0059bf44b36b3669ee9ddd` |
+| Transaction hash | [`92569ab4d9c49661dcca78253b785c2a154672285231244cae14c4a0caf604a3`](https://preprod.midnightexplorer.com/transactions/92569ab4d9c49661dcca78253b785c2a154672285231244cae14c4a0caf604a3) |
+| Block height | 2,369,094 |
+| Attestation commitment | `6c0691cf5cdae3753d086e08558525149b13a804d1bfa1f254f0c2a8bf6f14cf` |
+| Public result | 24 observed / 0 STOPPED; all 24 hourly results WITHIN |
+| TX-hash-only verification | `dailyAttestationRecorded=true`, `committedHourlyExtrema=true`, `attestationVerified=true`, `midnightConfirmed=true`; no D1-backed API request |
+| Relevant software | Compact toolchain `0.31.1`; Proof Server `8.1.0`; Wallet SDK `1.2.0`; Midnight.js `4.1.1`; Wrangler `4.127.0`; Device Node.js `24.13.1` / npm `11.10.0`; Chrome `149.0.7827.200` |
+
+The Device archive build completed in **30.29 seconds wall time** (`7.61 s` user, `4.62 s` system,
+667,796 KiB maximum RSS). Installation and Device-only regression checks completed in approximately
+52 seconds; maximum RSS was unavailable because the Device does not provide `/usr/bin/time`. The
+deployed English verification capture used the transaction hash directly, completed without a D1
+API request, and produced 99 frames at 5 fps.
+
+#### Previous Sponsor-funded schema-5 measurement
 
 On 2026-08-30 JST, firmware `0.1.0-wave1.20260830.1` generated one completed WITHIN day from
 1,440 one-minute private readings on the installed Edge Device. The readings were reduced locally

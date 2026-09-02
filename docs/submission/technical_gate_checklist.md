@@ -2,16 +2,16 @@
 
 [日本語版](../ja/submission/technical_gate_checklist.md)
 
-Last local check: 2026-09-01 JST
+Last local check: 2026-09-02 JST
 
 | Gate | Status | Evidence / action |
 | --- | --- | --- |
 | Operational Compact contract exists | PASS | midnight/contracts/sensor-registry/src/sensor-registry.compact |
 | Compact compilation | PASS | 6 circuits compiled; submitDailyAttestation 28,699 rows, k=15 |
-| Repository tests | PASS | 339 / 339 passed across nine workspaces |
+| Repository tests | PASS | 345 / 345 passed across nine workspaces |
 | Type checking | PASS | All configured workspaces |
 | Production builds | PASS | Dashboard, CLI, Device workspaces |
-| Cloudflare package validation | PASS | Wrangler deploy dry-run and deployed Worker version `486db124-ae9f-4bbc-9303-329999538c13` |
+| Cloudflare package validation | PASS | Wrangler deploy dry-run and deployed Worker version `2018890e-bb60-42c7-aba6-8cc16233a3a3` |
 | Source portability | PASS | No machine-specific source paths or deployment values |
 | Apache License 2.0 text | PASS | Root LICENSE added from the official Apache 2.0 text |
 | Midnight attribution | PASS | README and submission materials identify Compact, Midnight, and the proof boundary |

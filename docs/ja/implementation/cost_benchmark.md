@@ -385,7 +385,37 @@ Proof Gatewayが受け付けるProof Requestは最大95 MiBです。96件の実�
 
 ### 標準1,440件Preprod E2E・Cost実測
 
-#### 現行Sponsor負担Schema-5実測
+#### 現行運用日起点の実測
+
+2026-09-02 JST、導入済みDevice Release
+`0.1.0-operational-day-e2e-20260902.1`が、実際のEdge Device上で1分ごとの疑似Reading 1,440件を
+生成しました。Deviceは登録済みのJST境界（UTC+09:00、Local Day Start 00:00）を使い、運用日
+`2026-09-01`のPrivateな24時間別Extrema Slotへ集約し、公開10～35 °C Policyに対するWITHIN
+Attestationを1件送信しました。Proof ServerがZK Proofを生成し、Sponsor WalletがDUST手数料を付与し、
+Midnight PreprodでTransactionが確定しました。疑似なのは入力Readingだけであり、Device認証、集約、
+Proof生成、Sponsor送信、Chain確定、第三者検証はDeploy済みの運用経路を使用しています。
+
+| 件数/日 | Submit全体 | Proof Ready | Private State | Contract接続 | Attestation TX | `/prove` | Sponsor処理 | Device TX | Sponsor TX | Fee |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1,440 | 252.818 s | 4.579 s | 1.551 s | 4.953 s | 195.419 s | 46.730 s | 80.026 s | 6,162 B | 9,348 B | 0.636020000000001 DUST |
+
+| Evidence | 値 |
+| --- | --- |
+| Proof Job | `proof-d40390164cae2ba601b7d2cc9d9f733fb6faae05fa88ebb0` |
+| Contract | `0abb6d408a5b8fedbdab9e0fff59f1a5570d3c94af0059bf44b36b3669ee9ddd` |
+| Transaction Hash | [`92569ab4d9c49661dcca78253b785c2a154672285231244cae14c4a0caf604a3`](https://preprod.midnightexplorer.com/transactions/92569ab4d9c49661dcca78253b785c2a154672285231244cae14c4a0caf604a3) |
+| Block高 | 2,369,094 |
+| Attestation Commitment | `6c0691cf5cdae3753d086e08558525149b13a804d1bfa1f254f0c2a8bf6f14cf` |
+| 公開結果 | Observed 24／STOPPED 0、24時間すべてWITHIN |
+| TX Hash単独の第三者検証 | `dailyAttestationRecorded=true`、`committedHourlyExtrema=true`、`attestationVerified=true`、`midnightConfirmed=true`。D1 API Requestなし |
+| 関連Software | Compact Toolchain `0.31.1`、Proof Server `8.1.0`、Wallet SDK `1.2.0`、Midnight.js `4.1.1`、Wrangler `4.127.0`、Device Node.js `24.13.1`／npm `11.10.0`、Chrome `149.0.7827.200` |
+
+Device Archive Buildは**30.29秒 wall time**（user `7.61 s`、system `4.62 s`、最大RSS
+667,796 KiB）でした。InstallとDevice専用Regression Testは約52秒で完了しました。Deviceに
+`/usr/bin/time`がないためInstall時の最大RSSは取得していません。Deploy済み英語版GUIの検証Captureは
+TX Hashを直接使い、D1 API Requestなしで完了し、5 fps・99 framesを生成しました。
+
+#### 以前のSponsor負担Schema-5実測
 
 2026-08-30 JST、導入済みEdge DeviceのFirmware `0.1.0-wave1.20260830.1`で、1分ごとのPrivate
 Reading 1,440件から完了済みのWITHIN日を生成しました。Device内で固定24時間分のPrivate Extrema
