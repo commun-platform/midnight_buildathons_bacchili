@@ -516,9 +516,11 @@ available. It accepts a pasted transaction hash or a selected list row, then pre
 
 The detail also shows the commitment, network, contract, transaction hash, and block height. Hourly
 extrema and nonce remain private. For a pasted hash, the browser queries the public Midnight Indexer,
-confirms the successful transaction and block, derives the called Contract, and decodes the state
-difference from the preceding block. This path does not use D1. The optional newest-first D1 list is a
-navigation convenience and is not chain evidence.
+confirms the successful transaction and block, selects its `submitDailyAttestation` Contract action,
+and decodes that action's state. The action state's `lastAttestationCommitment` identifies the single
+Attestation written by that action even when the Contract already contains older records. This path
+does not use D1. The optional newest-first D1 list is a navigation convenience and is not chain
+evidence.
 
 The normative trust anchors, ledger-field meanings, per-hour ZK relation, fail-closed verification
 algorithm, and real Preprod conformance vector are defined in the
@@ -535,12 +537,12 @@ Policy result, Midnight confirmation, and completion of all third-party checks. 
 returns witness data, raw readings, hourly extrema, nonce, proof bytes, or Proof Server internals.
 
 For a pasted hash, the browser queries the public Midnight Indexer for the successful transaction and
-block, reads its Contract actions, and decodes the Fleet Registry ledger at that block and the
-preceding block. It requires exactly one newly added Attestation, then obtains its commitment,
-verified flag, UTC measurement day, 24-hour presence/result vectors, counts, Policy, validity
-interval, and Device-bound Assignment. A mismatch, zero/multiple additions, or lookup failure is not
-shown as verified. This bounded lookup uses a visible progress indicator and requires no D1, Wallet,
-or private input.
+block, selects its `submitDailyAttestation` Contract action, and decodes the action-specific Fleet
+Registry ledger state. It requires `lastAttestationCommitment` to identify exactly one Attestation,
+then obtains its commitment, verified flag, operational measurement day, 24-hour presence/result
+vectors, counts, Policy, validity interval, and Device-bound Assignment. A mismatch, zero/multiple
+matches, or lookup failure is not shown as verified. This bounded lookup uses a visible progress
+indicator and requires no D1, Wallet, or private input.
 
 Contract address, transaction hash, and numeric block height link to the network-specific Midnight
 Explorer when the corresponding public value is available. A Browser Device records the finalized

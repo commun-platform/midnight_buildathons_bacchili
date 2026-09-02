@@ -415,7 +415,7 @@ Framework-free GUIをReview／撮影用にLocal Hostでき、Workerからも配�
 | 適用しきい値 | 下限、上限、単位、スケール、Policy Version、Assignmentの有効期間です。 |
 | 証明対象 | `deviceCommitment`。AttestationとAssignmentが同じ仮名Deviceに対することを結び付けます。 |
 
-詳細にはCommitment、Network、Contract、TX hash、Block Heightも表示します。Hourly ExtremaとNonceは非公開のままです。貼り付けたHashについて、BrowserはPublic Midnight Indexerから成功TX／Blockを確認し、呼び出したContractを導出して直前Blockとの差分をDecodeします。この経路はD1を使いません。最新順のD1 Listは任意のNavigation補助であり、Chain Evidenceではありません。
+詳細にはCommitment、Network、Contract、TX hash、Block Heightも表示します。Hourly ExtremaとNonceは非公開のままです。貼り付けたHashについて、BrowserはPublic Midnight Indexerから成功TX／Blockを確認し、TX内の`submitDailyAttestation` Contract Actionを選択して、そのAction固有のStateをDecodeします。Action Stateの`lastAttestationCommitment`により、Contractに過去の記録がある場合も、そのActionが記録したAttestationを1件だけ特定します。この経路はD1を使いません。最新順のD1 Listは任意のNavigation補助であり、Chain Evidenceではありません。
 
 必要なTrust Anchor、Ledger項目の意味、時間ごとのZK制約、安全側に失敗する検証手順、実Preprod適合確認値は、
 [TX hashによる第三者検証仕様](../implementation/transaction_hash_verification.md)で定めます。TX hashは検索キーであり、
@@ -428,7 +428,7 @@ Framework-free GUIをReview／撮影用にLocal Hostでき、Workerからも配�
 証明の照合、ZK証明の正しさ、判定結果と公開しきい値の照合、Midnightへの記録、第三者による確認完了だけを
 可視化します。Witness、元の値、時間別最小・最大、Nonce、Proof Byte、Proof Server内部処理は可視化も返却もしません。
 
-BrowserはTX hashから同じTransaction／Blockの成功をPublic Midnight Indexerへ問い合わせます。TXに含まれるContract Actionを取得し、その正確なBlockと直前BlockのFleet Registry LedgerをDecodeします。新規Attestationを1件だけ特定し、Attestation Commitment、Verified Flag、UTC Measurement Day、24時間のPresence／Result VectorとCount、Policy／有効期間、DeviceにBindingされたAssignmentを独立に取得します。矛盾、0件、複数件、Public Lookup失敗時は確認済みにしません。時間がかかる直接照合は、D1、Wallet、Private Inputを使わず、時間上限とIndeterminate Progress Indicator付きで実行します。
+BrowserはTX hashから同じTransaction／Blockの成功をPublic Midnight Indexerへ問い合わせます。TX内の`submitDailyAttestation` Contract Actionを選択し、Action固有のFleet Registry Ledger StateをDecodeします。`lastAttestationCommitment`に一致するAttestationを1件だけ特定し、Attestation Commitment、Verified Flag、運用上の計測日、24時間のPresence／Result VectorとCount、Policy／有効期間、DeviceにBindingされたAssignmentを独立に取得します。矛盾、0件、複数件、Public Lookup失敗時は確認済みにしません。時間がかかる直接照合は、D1、Wallet、Private Inputを使わず、時間上限とIndeterminate Progress Indicator付きで実行します。
 
 公開値が存在する場合、コントラクトアドレス、トランザクションハッシュ、数値のブロック番号をネットワーク別の
 Midnight Explorerへのリンクにします。ブラウザ上のデバイスはMidnightの取引データから確定トランザクションハッシュを

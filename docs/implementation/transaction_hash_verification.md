@@ -108,6 +108,8 @@ Given a normalized 64-character hexadecimal transaction hash, obtain:
 | `identifiers[]` | Transaction identifiers; one is used to wait for the finalized transaction result. |
 | `block.height` | The confirmed block containing the transaction. |
 | `contractActions[].address` | Contracts affected by the transaction. A sponsored TX can contain unrelated actions. |
+| `contractActions[].entryPoint` | Called Contract entry point. The viewer selects `submitDailyAttestation`. |
+| `contractActions[].state` | Action-specific post-state serialized by Midnight. |
 
 The current implementation uses this GraphQL shape:
 
@@ -118,7 +120,11 @@ query PublicProofTransaction($offset: TransactionOffset!) {
     block { height }
     ... on RegularTransaction {
       identifiers
-      contractActions { address }
+      contractActions {
+        address
+        state
+        ... on ContractCall { entryPoint }
+      }
     }
   }
 }
@@ -129,27 +135,26 @@ The verifier **MUST** confirm all of the following:
 - the returned hash equals the normalized input hash;
 - the finalized transaction status is `SucceedEntirely`;
 - the finalized transaction hash and block height match the lookup result;
-- at least one usable transaction identifier and one approved Contract action exist.
+- at least one usable transaction identifier and one approved `submitDailyAttestation` Contract action exist.
 
-### 5.2 Contract state lookup
+### 5.2 Contract action state lookup
 
-For the approved Contract action, obtain and decode the contract state at:
+For each approved `submitDailyAttestation` Contract action, decode the exact action-specific
+post-state returned by the transaction lookup. Do not infer this state by asking for a Contract state
+at `blockHeight - 1`: the Indexer lookup addresses Contract-action blocks and can return no state when
+that immediately preceding block contains no action for the Contract.
 
-- the confirmed block height; and
-- the preceding block height.
-
-The current profile finds keys added to `attestations` between those two states and accepts exactly one
-schema-7 attestation. If zero or multiple attestations were added, the result is indeterminate and the
-viewer **MUST NOT** display it as verified.
+The action post-state can contain older Attestations. The viewer therefore compares each Attestation's
+`attestationCommitment` with the decoded state's `lastAttestationCommitment` and accepts exactly one
+schema-7 match. If zero or multiple Attestations match, the result is indeterminate and the viewer
+**MUST NOT** display it as verified.
 
 The 24-hour values are the `hourPresence[0..23]` and `hourResults[0..23]` fields of the
 `DailyAttestationPublicState` identified by this procedure. The transaction hash is the lookup key for
 that public state transition.
 
-This preceding-block method is deliberately fail-closed, but it can reject an otherwise valid
-transaction when multiple attestation transactions for the same contract are included in one block.
-A future transaction-action state-delta API can remove that ambiguity. An implementation **MUST NOT**
-silently select one of multiple additions.
+This transaction-action method remains fail-closed. An implementation **MUST NOT** select an
+arbitrary Attestation when the latest commitment does not identify exactly one record.
 
 ## 6. Public ledger data and meaning
 
@@ -215,8 +220,8 @@ A conforming chain-anchored verifier **MUST** perform these steps in order:
 2. Query the configured Midnight network for the transaction.
 3. Require successful final status and exact TX-hash/block-height agreement.
 4. Extract Contract action addresses and reject every address that is not an approved deployment.
-5. Decode the approved contract's current and previous-block ledger state with the exact schema decoder.
-6. Require exactly one new daily attestation attributable by the fail-closed block-delta rule.
+5. Select `submitDailyAttestation` actions and decode each action-specific state with the exact schema decoder.
+6. Require `lastAttestationCommitment` to identify exactly one daily Attestation in exactly one approved action.
 7. Require `schemaVersion == 7`, `circuitVersion == 5`, and `verified == true`.
 8. Load the referenced Policy and Assignment from the same decoded state.
 9. Require Assignment Policy, Device, version, validity, and operational-day boundary to match the Attestation.

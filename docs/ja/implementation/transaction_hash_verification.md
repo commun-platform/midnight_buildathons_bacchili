@@ -102,6 +102,8 @@ Buildから公開した各CircuitのVerifier Key Fingerprintと、On-chain Verif
 | `identifiers[]` | TX Identifier。一つを使って確定結果を取得します。 |
 | `block.height` | TXを含む確定Block。 |
 | `contractActions[].address` | TXが作用したContract。Sponsor TXには無関係なActionも含まれ得ます。 |
+| `contractActions[].entryPoint` | 呼び出したEntry Point。Viewerは`submitDailyAttestation`を選択します。 |
+| `contractActions[].state` | Midnightが返すAction固有の実行後State。 |
 
 現行実装のGraphQL形状は次の通りです。
 
@@ -112,7 +114,11 @@ query PublicProofTransaction($offset: TransactionOffset!) {
     block { height }
     ... on RegularTransaction {
       identifiers
-      contractActions { address }
+      contractActions {
+        address
+        state
+        ... on ContractCall { entryPoint }
+      }
     }
   }
 }
@@ -123,24 +129,23 @@ query PublicProofTransaction($offset: TransactionOffset!) {
 - 返されたHashが入力Hashと一致する。
 - 確定Statusが`SucceedEntirely`である。
 - 確定TXのHashとBlock Heightが検索結果と一致する。
-- 使用可能なTX Identifierと、承認済みContract Actionが1つ以上ある。
+- 使用可能なTX Identifierと、承認済み`submitDailyAttestation` Contract Actionが1つ以上ある。
 
-### 5.2 Contract Stateの取得
+### 5.2 Contract Action Stateの取得
 
-承認済みContract Actionについて、次のStateを取得してDecodeします。
+承認済み`submitDailyAttestation` Contract Actionごとに、TX検索結果が返したAction固有の実行後Stateを
+Decodeします。`blockHeight - 1`のContract Stateを問い合わせて推定してはいけません。Indexerの検索対象は
+Contract ActionがあるBlockであり、直前Blockに当該ContractのActionがない場合はStateを返さないためです。
 
-- TX確定Block HeightのContract State
-- 1つ前のBlock HeightのContract State
-
-現行Profileは、2つのState間で`attestations`へ追加されたKeyを調べ、Schema 7のAttestationが
-正確に1件ある場合だけ受理します。0件または複数件なら結果不定とし、検証済み表示にしません。
+Actionの実行後Stateには過去のAttestationも含まれ得ます。そのため、各Attestationの
+`attestationCommitment`とStateの`lastAttestationCommitment`を比較し、Schema 7の一致が正確に1件の場合だけ
+受理します。0件または複数件なら結果不定とし、検証済み表示にしません。
 
 24時間分の取得値は、この手順で特定した`DailyAttestationPublicState`の
 `hourPresence[0..23]`と`hourResults[0..23]`です。TX hashは、この公開State遷移を特定する検索Keyです。
 
-この前Block比較は安全側に失敗しますが、同じContractに対する複数Attestation TXが1Blockへ入ると、
-正しいTXも判定不能になることがあります。将来、Transaction Action単位のState Deltaを取得できれば
-この曖昧さを除去できます。複数追加から任意の1件を選んではいけません。
+このTransaction Action方式も安全側に失敗します。最新Commitmentが正確に1件を特定できない場合、
+任意のAttestationを選んではいけません。
 
 ## 6. 公開Ledger項目と意味
 
@@ -206,8 +211,8 @@ Chain準拠ビューワは次を順番に実行します。
 2. 設定済みMidnight NetworkからTXを検索する。
 3. TX全体の成功・確定と、TX Hash／Block Heightの完全一致を確認する。
 4. Contract Actionを抽出し、承認済みDeployment以外を拒否する。
-5. 正確なSchema Decoderで、承認済みContractの当該Blockと前BlockをDecodeする。
-6. 安全側のBlock差分規則により、新規日次Attestationが正確に1件あることを確認する。
+5. `submitDailyAttestation` Actionを選び、正確なSchema DecoderでAction固有のStateをDecodeする。
+6. `lastAttestationCommitment`が、承認済みAction 1件の中のAttestation 1件だけを特定することを確認する。
 7. `schemaVersion == 7`、`circuitVersion == 5`、`verified == true`を確認する。
 8. 同じStateから参照先PolicyとAssignmentを取得する。
 9. AssignmentのPolicy、Device、Version、有効期間、運用日境界がAttestationと一致することを確認する。

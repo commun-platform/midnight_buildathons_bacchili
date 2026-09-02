@@ -15,6 +15,7 @@ import {
 import type { HourThresholdResult } from '@midnight-demo/shared';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { ContractState } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { SucceedEntirely } from '@midnight-ntwrk/midnight-js-types';
 import WebSocketImplementation from 'isomorphic-ws';
 
@@ -92,7 +93,11 @@ export interface PublicChainProofRecord extends PublicAttestationRecord {
 interface ChainTransactionLookup {
   readonly hash: string;
   readonly identifiers: readonly string[];
-  readonly contractActions: readonly { readonly address: string }[];
+  readonly contractActions: readonly {
+    readonly address: string;
+    readonly state: string;
+    readonly entryPoint?: string;
+  }[];
   readonly block: { readonly height: number };
 }
 
@@ -173,13 +178,27 @@ export function publicAttestationFromLedgerTransition(
   previousState: Ledger | null,
   transaction: { txId: string; txHash: string; blockHeight: number },
 ): PublicChainProofRecord {
-  const additions = [...state.attestations].filter(([key]) => (
+  const currentAttestations = [...state.attestations];
+  const previousAttestationCount = previousState === null ? 0 : [...previousState.attestations].length;
+  const additions = currentAttestations.filter(([key]) => (
     previousState === null || !previousState.attestations.member(key)
   ));
-  if (additions.length !== 1) {
-    throw new Error('The transaction does not add exactly one daily attestation');
+  const transactionAttestations = additions.length === 1
+    ? additions
+    : previousState === null
+      ? currentAttestations.filter(([, attestation]) => sameBytes(
+          attestation.attestationCommitment,
+          state.lastAttestationCommitment,
+        ))
+      : additions;
+  if (transactionAttestations.length !== 1) {
+    throw new Error(
+      `The transaction does not identify exactly one daily attestation (`
+      + `${transactionAttestations.length} matched; ${additions.length} added; `
+      + `${currentAttestations.length} current; ${previousAttestationCount} previous)`,
+    );
   }
-  const [, attestation] = additions[0]!;
+  const [, attestation] = transactionAttestations[0]!;
   if (attestation.schemaVersion !== 7n || attestation.circuitVersion !== 5n) {
     throw new Error('This transaction predates the public hourly-result schema');
   }
@@ -442,7 +461,11 @@ async function transactionByHash(transactionHash: string): Promise<ChainTransact
           block { height }
           ... on RegularTransaction {
             identifiers
-            contractActions { address }
+            contractActions {
+              address
+              state
+              ... on ContractCall { entryPoint }
+            }
           }
         }
       }`,
@@ -465,6 +488,11 @@ async function transactionByHash(transactionHash: string): Promise<ChainTransact
     typeof transaction.hash !== 'string'
     || !Array.isArray(transaction.identifiers)
     || !Array.isArray(transaction.contractActions)
+    || transaction.contractActions.some((action) => (
+      typeof action.address !== 'string'
+      || typeof action.state !== 'string'
+      || (action.entryPoint !== undefined && typeof action.entryPoint !== 'string')
+    ))
     || !Number.isSafeInteger(transaction.block?.height)
   ) throw new Error('The Midnight Indexer returned an incomplete transaction record');
   return transaction;
@@ -496,46 +524,38 @@ export async function loadPublicAttestationByTransactionHash(
     || lookup.hash.toLowerCase() !== transactionHash
     || finalized.blockHeight !== lookup.block.height
   ) throw new Error('The transaction is not a successful confirmed Midnight transaction');
-  const addresses = [...new Set(lookup.contractActions
-    .map((action) => action.address.replace(/^0x/iu, '').toLowerCase())
-    .filter((address) => /^[a-f\d]{64}$/u.test(address)))];
-  if (addresses.length === 0) throw new Error('The transaction has no public Contract action');
+  const actions = lookup.contractActions.filter((action) => (
+    action.entryPoint === 'submitDailyAttestation'
+    && /^[a-f\d]{64}$/u.test(action.address.replace(/^0x/iu, '').toLowerCase())
+  ));
+  if (actions.length === 0) throw new Error('The transaction has no daily-attestation Contract action');
   const candidates: PublicChainProofRecord[] = [];
-  for (const address of addresses) {
+  const rejectedCandidates: string[] = [];
+  for (const action of actions) {
     try {
-      const [current, previous] = await Promise.all([
-        withTimeout(provider.queryContractState(address, {
-          type: 'blockHeight',
-          blockHeight: finalized.blockHeight,
-        }), 'Midnight Contract state lookup'),
-        finalized.blockHeight === 0
-          ? Promise.resolve(null)
-          : withTimeout(provider.queryContractState(address, {
-            type: 'blockHeight',
-            blockHeight: finalized.blockHeight - 1,
-          }), 'Previous Midnight Contract state lookup'),
-      ]);
-      if (!current) continue;
-      const state = decodeLedger(current.data);
-      const previousState = previous ? decodeLedger(previous.data) : null;
+      const address = action.address.replace(/^0x/iu, '').toLowerCase();
+      const state = decodeLedger(ContractState.deserialize(hexToBytes(action.state)).data);
       candidates.push(publicAttestationFromLedgerTransition(
         address,
         state,
-        previousState,
+        null,
         {
           txId: finalized.txId,
           txHash: finalized.txHash,
           blockHeight: finalized.blockHeight,
         },
       ));
-    } catch {
+    } catch (error) {
       // Sponsored transactions can contain unrelated actions. Only a state transition
       // that decodes as the current sensor-registry schema is a viewer candidate.
+      rejectedCandidates.push(error instanceof Error ? error.message : String(error));
     }
   }
   if (candidates.length !== 1) {
     throw new Error(candidates.length === 0
-      ? 'No schema-7 daily attestation was found in this transaction'
+      ? `No schema-7 daily attestation was found in this transaction${
+          rejectedCandidates.length > 0 ? `: ${rejectedCandidates.join('; ')}` : ''
+        }`
       : 'The transaction contains multiple daily attestations');
   }
   return candidates[0]!;

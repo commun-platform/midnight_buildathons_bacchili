@@ -89,6 +89,24 @@ function emptyMap<T>() {
   };
 }
 
+function mapEntries<T>(entries: Array<[string, T]>) {
+  return {
+    member(candidate: Uint8Array) {
+      const key = Buffer.from(candidate).toString('hex');
+      return entries.some(([entryKey]) => entryKey === key);
+    },
+    lookup(candidate: Uint8Array) {
+      const key = Buffer.from(candidate).toString('hex');
+      const entry = entries.find(([entryKey]) => entryKey === key);
+      if (!entry) throw new Error('missing map value');
+      return entry[1];
+    },
+    *[Symbol.iterator]() {
+      for (const [key, value] of entries) yield [hexToBytes(key), value] as [Uint8Array, T];
+    },
+  };
+}
+
 function ledger(overrides: Record<string, unknown> = {}): Ledger {
   return {
     attestations: map(Buffer.from(attestationId).toString('hex'), {
@@ -207,6 +225,32 @@ describe('public Midnight attestation verification', () => {
     });
   });
 
+  it('uses the transaction action latest commitment when prior action state is unavailable', () => {
+    const base = ledger();
+    const [targetKey, target] = [...base.attestations][0]!;
+    const unrelatedKey = '99'.repeat(32);
+    const unrelatedCommitment = hexToBytes('aa'.repeat(32));
+    const current = ledger({
+      attestations: mapEntries([
+        [unrelatedKey, { ...target, attestationCommitment: unrelatedCommitment }],
+        [Buffer.from(targetKey).toString('hex'), target],
+      ]),
+      lastAttestationCommitment: hexToBytes(commitment),
+    });
+    const record = publicAttestationFromLedgerTransition(
+      '55'.repeat(32),
+      current,
+      null,
+      {
+        txId: '66'.repeat(32),
+        txHash: '77'.repeat(32),
+        blockHeight: 2_315_165,
+      },
+    );
+    expect(record.attestationCommitment).toBe(commitment);
+    expect(record.periodDate).toBe('2026-08-28');
+  });
+
   it('rejects a transaction that did not add a new attestation', () => {
     expect(() => publicAttestationFromLedgerTransition(
       '55'.repeat(32),
@@ -217,6 +261,6 @@ describe('public Midnight attestation verification', () => {
         txHash: '77'.repeat(32),
         blockHeight: 2_315_165,
       },
-    )).toThrow('does not add exactly one daily attestation');
+    )).toThrow('does not identify exactly one daily attestation');
   });
 });
