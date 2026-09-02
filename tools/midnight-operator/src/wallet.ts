@@ -28,6 +28,7 @@ import {
   type NetworkConfig,
   type NetworkId,
 } from './config.js';
+import { isTransactionSyncComplete } from './sync-progress.js';
 
 globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
 
@@ -213,9 +214,11 @@ export async function syncWallet(context: WalletContext, network: NetworkId) {
           `dust=${dust.appliedIndex}/${dust.highestRelevantWalletIndex}\n`,
         );
       }),
-      Rx.filter(
-        (next) => next.unshielded.progress.isStrictlyComplete(),
-      ),
+      Rx.filter((next) => isTransactionSyncComplete({
+        shielded: next.shielded.progress,
+        unshielded: next.unshielded.progress,
+        dust: next.dust.progress,
+      })),
       Rx.timeout({
         first: timeoutMs,
         with: () => Rx.throwError(() => new Error(`Wallet sync timed out after ${timeoutMs}ms`)),
@@ -267,9 +270,11 @@ export async function ensureDust(context: WalletContext, faucet: string): Promis
   process.stdout.write('Checking NIGHT registration and DUST balance...\n');
   const state = await Rx.firstValueFrom(
     context.wallet.state().pipe(
-      Rx.filter(
-        (next) => next.unshielded.progress.isStrictlyComplete(),
-      ),
+      Rx.filter((next) => isTransactionSyncComplete({
+        shielded: next.shielded.progress,
+        unshielded: next.unshielded.progress,
+        dust: next.dust.progress,
+      })),
     ),
   );
   const balance = walletBalances(state);
