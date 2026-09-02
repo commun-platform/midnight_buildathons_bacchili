@@ -750,6 +750,14 @@ try {
   assert.equal(await evaluate(`[...document.querySelectorAll('.data-table')].some((table) => table.querySelector('thead')?.textContent.includes('ZKP generated at') && table.querySelector('tbody tr td:nth-child(8)')?.textContent.trim() !== '—')`), true);
   await pass('10-administrator', 'Administrator stepper, hourly history, anomaly, and TX state are complete');
 
+  await cdp.send('Page.reload');
+  await waitFor(`document.readyState === 'complete' && document.querySelector('#admin-access-gate') && !document.querySelector('.error-window')`);
+  assert.equal(await evaluate(`document.body.textContent.includes('Could not load the requested view.')`), false);
+  await click('#wallet-connect-button');
+  await waitFor(`document.querySelectorAll('.admin-anomalies tbody tr').length === 1`);
+  assert.equal(await evaluate(`Boolean(document.querySelector('#admin-access-gate'))`), false);
+  await pass('10-administrator-reconnect', 'Administrator reload shows an access gate and Wallet reconnect restores the view without a manual retry');
+
   await evaluate(`location.hash = '#/verify'`);
   await waitFor(`document.querySelectorAll('.verifier-form tbody tr').length === 3`);
   assert.equal(await evaluate(`document.querySelector('.verifier-form tbody tr:first-child')?.textContent.includes('2026-08-28')`), true);

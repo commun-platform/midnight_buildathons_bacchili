@@ -86,6 +86,10 @@ const copy = {
     walletFailureStage: 'Failed stage',
     walletRequiredTitle: 'Midnight Wallet required',
     walletRequiredBody: 'Connect your Midnight Wallet from the button in the upper-right corner. The Device Workflow appears after the connection is authorized.',
+    adminWalletRequiredBody: 'Connect your Midnight Wallet to identify the Device whose sensor history you administer.',
+    adminDeviceRequiredTitle: 'Device registration required',
+    adminDeviceRequiredBody: 'Register this Wallet-derived Device before opening its sensor history and proof processing records.',
+    openDeviceWorkflow: 'Open Device Workflow',
     project: 'Project', projectSelect: 'Select Project', projectAdd: '+ New Project',
     projectName: 'Project name', projectCreate: 'Create Project', projectCancel: 'Cancel',
     projectTimeZone: 'Fixed UTC offset', projectDayStart: 'Operational day starts',
@@ -246,6 +250,10 @@ const copy = {
     walletFailureStage: '失敗した段階',
     walletRequiredTitle: 'Midnight Walletの接続が必要です',
     walletRequiredBody: '画面右上のボタンからMidnight Walletを接続してください。接続を承認するとデバイス操作画面が表示されます。',
+    adminWalletRequiredBody: '管理対象のデバイスを識別するため、画面右上からMidnight Walletを接続してください。',
+    adminDeviceRequiredTitle: 'デバイス登録が必要です',
+    adminDeviceRequiredBody: 'センサー履歴と証明処理を確認する前に、このWalletから導出されたデバイスを登録してください。',
+    openDeviceWorkflow: 'デバイス登録画面を開く',
     project: 'プロジェクト', projectSelect: 'プロジェクトを選択', projectAdd: '＋ 新規追加',
     projectName: 'プロジェクト名', projectCreate: 'プロジェクトを作成', projectCancel: 'キャンセル',
     projectTimeZone: '固定UTCオフセット', projectDayStart: '運用日の開始時刻',
@@ -1325,6 +1333,8 @@ async function deviceAction(actionId, message, operation, preparedFlow = null) {
     if (route().name === 'device') {
       if (fullRender) renderDeviceScreen();
       else refreshDeviceDynamicComponents();
+    } else if (completed && fullRender && route().name === 'admin') {
+      await render({ showLoading: false });
     }
   }
 }
@@ -1723,6 +1733,23 @@ function adminView(data) {
     )}</div></section>`;
 }
 
+function administratorAccessGate() {
+  const walletConnected = Boolean(deviceState.wallet);
+  const title = walletConnected ? t('adminDeviceRequiredTitle') : t('walletRequiredTitle');
+  const body = walletConnected ? t('adminDeviceRequiredBody') : t('adminWalletRequiredBody');
+  return `
+    <div class="project-heading"><div><h2>${escapeHtml(t('admin'))}</h2>
+      <p>${escapeHtml(t('adminIntro'))}</p></div><span class="network-label">${escapeHtml(t('adminBadge'))}</span></div>
+    <section class="window wallet-gate" id="admin-access-gate" aria-labelledby="admin-access-gate-title">
+      <div class="window-title" id="admin-access-gate-title">${escapeHtml(title)}</div>
+      <div class="window-body wallet-gate-body"><div class="wallet-gate-icon" aria-hidden="true">${walletConnected ? 'D' : 'W'}</div>
+        <div><p>${escapeHtml(body)}</p>${walletConnected
+          ? `<a class="button-link next-action" id="admin-open-device" href="#/device">${escapeHtml(t('openDeviceWorkflow'))}</a>`
+          : '<span class="network-label">MIDNIGHT / PREPROD</span>'}</div>
+      </div>
+    </section>`;
+}
+
 function attachAdminActions() {
   document.querySelectorAll('.admin-day-nav').forEach((button) => button.addEventListener('click', () => {
     const periodDate = button.dataset.periodDate || '';
@@ -1986,12 +2013,17 @@ async function render({ showLoading = true } = {}) {
       footerSource.textContent = `${t('source')}: Device / Cloudflare / Midnight`;
       renderDeviceScreen();
     } else if (current.name === 'admin') {
-      const flow = await loadDeviceModule();
-      const data = await flow.loadAdministratorDashboard();
-      adminData = data;
-      footerSource.textContent = `${t('source')}: ${data.source}`;
-      main.innerHTML = adminView(data);
-      attachAdminActions();
+      if (!deviceState.wallet || !deviceState.provisioned) {
+        footerSource.textContent = `${t('source')}: Device Session`;
+        main.innerHTML = administratorAccessGate();
+      } else {
+        const flow = await loadDeviceModule();
+        const data = await flow.loadAdministratorDashboard();
+        adminData = data;
+        footerSource.textContent = `${t('source')}: ${data.source}`;
+        main.innerHTML = adminView(data);
+        attachAdminActions();
+      }
     } else if (current.txHash) {
       main.innerHTML = `<section class="window"><div class="window-title">${escapeHtml(t('checking'))}</div><div class="window-body">
         <div class="dashboard-sync-state syncing"><div><strong>${escapeHtml(t('chainCheckInProgress'))}</strong><span>${escapeHtml(t('chainCheckInProgressDetail'))}</span></div></div>
