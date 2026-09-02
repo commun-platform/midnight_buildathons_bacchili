@@ -335,7 +335,7 @@ The Worker verifies the authenticated device/project, sensor metadata, policy ve
 ordered values, period, count, commitment format, and unique `batchId`. D1 stores the hourly aggregate,
 not each raw sample.
 
-For review, a browser Device generates 1,440 one-minute samples for a selected completed UTC day from
+For review, a browser Device generates 1,440 one-minute samples for a selected completed operational day from
 the previous 30 days. The generated raw values and private opening remain in that browser's
 IndexedDB; only up to 24 hourly windows are uploaded. Today and future dates are excluded, so every
 generated dataset is a complete daily claim. Threshold-compliant and outlier modes both support a
@@ -403,7 +403,7 @@ without a new circuit; automated overlap governance remains outside Wave 1.
 
 ![Local readings reduced into 24 hourly extrema slots and checked without disclosing the values](../assets/review/hourly-extrema-zkp-en.png)
 
-The Wallet Agent groups readings into UTC hours 0–23. Missing hours are automatically canonical
+The Wallet Agent groups readings into 24 slots from the registered operational-day boundary. Missing hours are automatically canonical
 STOPPED slots. No operating schedule is registered.
 
 The private `DailyExtremaInput` contains measurement-group/device/policy/assignment binding, a UTC
@@ -429,7 +429,7 @@ not change the circuit or proving key. The reported count is bound but remains d
 The default Proof Server admission window is 02:00–06:00 JST. Ingestion and anomaly alerts continue
 outside the window.
 
-1. The device closes the UTC day and prepares the private 24-slot attestation.
+1. The device closes the registered operational day and prepares the private 24-slot attestation.
 2. It creates and persists `proofJobId` as `zjb_<UUIDv7>`, then posts only public metadata. A retry
    reuses that ID.
 3. The Worker checks the D1 policy/assignment mirror and stores one `daily_proof_jobs` row as `pending`.
@@ -509,7 +509,7 @@ available. It accepts a pasted transaction hash or a selected list row, then pre
 
 | Viewer field | Meaning |
 | --- | --- |
-| Measurement date | `YYYY-MM-DD`, fixed to UTC 00:00–24:00. |
+| Operational date | `YYYY-MM-DD`, derived from the Project's registered fixed UTC offset and start hour. |
 | Hourly results | Exactly 24 rows, one per UTC hour, each showing WITHIN, OUTSIDE, or NO DATA. |
 | Applied threshold | Lower bound, upper bound, unit, scale, policy version, and assignment validity interval. |
 | Proof subject | `deviceCommitment`, which binds the attestation and assignment to the same pseudonymous Device. |
@@ -619,16 +619,16 @@ Current compatibility pair:
 ```text
 Compact toolchain 0.31.1
 Compact language  0.23
-daily schema      6
-circuit           4
-contract schema   3
-D1 migrations     through 0025_hourly_threshold_results.sql
+daily schema      7
+circuit           5
+contract schema   4
+D1 migrations     through 0026_operational_day_boundary.sql
 ```
 
 The prior selected-Merkle-leaf, singleton, and WITHIN-only Fleet Registry ledgers are incompatible.
 Adoption requires a new Fleet
 Registry deployment, Operator-only Device/Policy/Device-bound Assignment transactions before
-operation, D1 migrations through `0025`/mirror sync with administration TX evidence, and public contract-address
+operation, D1 migrations through `0026`/mirror sync with administration TX evidence, and public contract-address
 update. The old fixed 24/96/1,440 `daily-attestation` profiles are development-only benchmarks.
 
 Wave 1 is accepted when the review-oriented PoC demonstrates that:
@@ -645,7 +645,7 @@ Wave 1 is accepted when the review-oriented PoC demonstrates that:
 - policy, assignment, device, period, presence, count, and commitment tampering fail;
 - user-authorized, service-funded Preprod attestation transactions are confirmed and shown in the
   public verifier;
-- the public verifier reveals the UTC day, 24 hourly statuses, applied policy and Device Commitment,
+- the public verifier reveals the operational date, registered boundary, 24 hourly statuses, applied policy and Device Commitment,
   but no hourly extrema or nonce; and
 - measured cost/version records are added to the benchmark documentation.
 

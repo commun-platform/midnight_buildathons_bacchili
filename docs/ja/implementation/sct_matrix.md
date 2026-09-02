@@ -20,7 +20,7 @@ npm run sct
 | Anomaly Transition | 認証済みAnomaly、Dashboard分離 | 管理者画面のAnomaly Row、6段階完了 |
 | Proof Admission／生成 | 営業時間、認可、Result Validation、Proof Server境界 | Admit済みJobからZKP／TX Actionが有効化 |
 | Sponsored TX | Quota、同一Byte冪等性、R2／Queue、Wallet Ready、Intent Allow-list、Checkpoint、Retry、Replay Protection時の送信結果回収、Backend所有Indexer確定 | History再読込後もSponsor TX／Fee Evidence表示 |
-| Public検証／Privacy | ConfirmedかつTX ID／Hash／Block完備のみのHash検索、正しい24時間別結果、Private Field拒否 | TX hash検索、UTC日付、24個のしきい値以内／範囲外／計測なし、適用しきい値／有効期間、Device Commitment、Indexer進捗、Explorer Link、Private Extrema非表示 |
+| Public検証／Privacy | ConfirmedかつTX ID／Hash／Block完備のみのHash検索、正しい24時間別結果、Private Field拒否 | TX hash検索、運用日／境界、24個のしきい値以内／範囲外／計測なし、適用しきい値／有効期間、Device Commitment、Indexer進捗、Explorer Link、Private Extrema非表示 |
 
 GUI SCTは本番SPA Assetを配信し、外部Wallet／Preprod Responseだけを決定的Test Doubleへ置換します。Cleanな
 Headless Chrome Profileを使い、Git対象外の`.sct-output/dashboard/`へEvidenceを保存します。SCT成功だけでは

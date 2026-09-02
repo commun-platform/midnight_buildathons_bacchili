@@ -21,8 +21,8 @@ Planned contract changes and later operational work are tracked in the
 | --- | --- | --- |
 | Device registration | The operator calls `registerDevice` before activation. | Device Commitment, derived Authority, status, and version are public ledger state. |
 | Policy registration | The development operator calls `registerThresholdPolicy` with the Operator Authority. | Mode, bounds, scale, sensor/unit codes, and version are public ledger state. |
-| Assignment | The operator calls `registerPolicyAssignment` before operation. | Policy key, Device Commitment, assignment key, validity interval, and version are public. |
-| Prepare | The Wallet Agent assigns a stable `measurementGroupId`, rolls the UTC day into 24 ordered hourly slots, and commits the complete `DailyExtremaInput` with one nonce. | Hourly extrema and nonce remain private. Group ID, commitment, UTC day/period, presence, and counts are public. |
+| Assignment | The operator calls `registerPolicyAssignment` before operation. | Policy key, Device Commitment, assignment key, fixed UTC offset, local start hour, UTC boundary, validity interval, and version are public. |
+| Prepare | The Wallet Agent assigns a stable `measurementGroupId`, rolls the registered operational day into 24 ordered hourly slots, and commits the complete `DailyExtremaInput` with one nonce. | Hourly extrema and nonce remain private. Group ID, commitment, operational period, presence, and counts are public. |
 | Attest | `submitDailyAttestation` loads the assigned ledger policy, recomputes all 24 hourly results from private slots, and proves equality with public `hourResults` and the daily `thresholdSatisfied` summary. | Verified hourly WITHIN/OUTSIDE/NO DATA results, policy/assignment, and transaction evidence are public. |
 
 There is one operational transaction per daily attestation. The device never supplies threshold bounds
@@ -36,19 +36,19 @@ operator lifecycle operation.
 | `operatorAuthority` | Hash derived from the private Operator Authority. | Separate from the deployment wallet; it authorizes Device lifecycle and policy/assignment administration. |
 | `devices` | Map from public Device Commitment to `{authority, active, version}`. | Supports multiple Devices; public pseudonymous binding, not hardware attestation. |
 | `policies` | Immutable map from 32-byte policy key to mode, encoded bounds, scale, type/unit codes, and version. | Policy values are deliberately public. |
-| `policyAssignments` | Immutable map from assignment key to policy key, Device Commitment, validity interval, and version. | Cross-Device reuse is rejected in circuit; overlap governance is deferred. |
+| `policyAssignments` | Immutable map from assignment key to policy key, Device Commitment, operational-day boundary, validity interval, and version. | Cross-Device reuse and alternate day boundaries are rejected in circuit; overlap governance is deferred. |
 | `attestations` | Map from `persistentHash(domain, deviceCommitment, measurementGroupId)` to `DailyAttestationPublicState`. | Duplicate groups are rejected; the value contains the commitment but no hourly minimum, maximum, or nonce. |
-| `measurementDay` | UTC epoch-day number bound to `periodStart` and `periodEnd`. | Makes UTC 00:00–24:00 enforceable in the circuit. |
+| `measurementDay` | UTC epoch-day number containing `periodStart`, bound with the Assignment's `utcDayStartMinute`. | Makes the registered 24-hour boundary enforceable in the circuit. |
 | `hourPresence[24]` | Public observed/STOPPED bitmap. | `true` proves a private slot was supplied and checked; it does not prove a physical reading existed. |
-| `hourResults[24]` | Public `withinThreshold` / `outsideThreshold` / `noData` result for each UTC hour. | Reveals which hour is outside, but not the extrema or exceeded bound. |
+| `hourResults[24]` | Public `withinThreshold` / `outsideThreshold` / `noData` result for each operational-hour slot. | Reveals which slot is outside, but not the extrema or exceeded bound. |
 | `observedHourCount` | Number of `true` presence slots recomputed in circuit. | Not scheduled operating time. |
 | `sampleCount` | Sum of private hourly reported counts recomputed in circuit. | Device-reported, not proof of physical completeness. |
-| `schemaVersion` / `circuitVersion` | Public compatibility identifiers bound to the private input. | Version `6` / `4` is the current operational pair. |
+| `schemaVersion` / `circuitVersion` | Public compatibility identifiers bound to the private input. | Version `7` / `5` is the current operational pair. |
 | `thresholdSatisfied` | Circuit-computed public outcome stored per attestation. | `true` proves all observed slots are within; `false` proves at least one observed slot is outside. It never exposes the extrema. |
 | `verified` | The submitted result was proven and recorded; malformed or false claims revert. | Verification success is distinct from the threshold outcome. |
 | `deviceCount`, `disabledDeviceCount`, `policyCount`, `assignmentCount`, `attestationCount` | Successful lifecycle operations and attestations. | Global contract counters, not device availability metrics. |
 
-Each public hourly result is the exact successful claim for that UTC hour. The daily Boolean is only
+Each public hourly result is the exact successful claim for that operational-hour slot. The daily Boolean is only
 the AND summary of observed hours. A fully absent day is displayed as NO DATA from its zero observed
 count.
 
@@ -60,16 +60,16 @@ count.
 | Device enrollment | Operator CLI registers the Device and Device-bound Assignment on Midnight; `sync-midnight-device.mjs` mirrors it; only then does `register-device-key.mjs` activate P-256 in D1. |
 | Device Session | `backend/cloudflare/proof-gateway-worker/src/device-auth.ts` implements five-minute one-time challenges and 24-hour opaque Sessions; D1 stores token hashes only. |
 | Collection | `edge-device/sensor-collector/` retains raw samples locally, uploads hourly aggregate windows, and emits debounced anomaly transitions. The review GUI creates 1,440 one-minute private samples for a browser Device day and uploads no more than 24 hourly windows. |
-| Daily preparation | `prepareDailyExtremaAttestation` in `shared/measurement-protocol` creates 24 UTC slots, canonical no-data slots, public metadata, and the private commitment opening. |
+| Daily preparation | `prepareDailyExtremaAttestation` in `shared/measurement-protocol` creates 24 slots from the registered Project/Assignment boundary, canonical no-data slots, public metadata, and the private commitment opening. |
 | Fleet administration | `tools/midnight-operator/src/operator-authority.ts` keeps an owner-only Operator Authority and exposes Operator-only register/rotate/disable commands. |
 | Compact circuit | `midnight/contracts/sensor-registry/src/sensor-registry.compact` defines the multi-Device Registry, Device-bound immutable assignments, and one-call daily attestation. |
-| D1 schema | Migrations `0010`–`0025` add policy/job data, the fail-closed Fleet Registry mirror, Device operation-configuration revisions, daily and hourly claimed threshold results, asynchronous sponsored-submission state, stable measurement-group idempotency, idempotent JST-day Sponsor reservations, contract history, Wallet-owned Projects, Project-scoped Policy operations, browser enrollment state, actual ZKP generation time, and durable provisioning progress. |
+| D1 schema | Migrations `0010`–`0026` add policy/job data, the fail-closed Fleet Registry mirror, Device operation-configuration revisions, daily and hourly claimed threshold results, asynchronous sponsored-submission state, stable measurement-group idempotency, idempotent JST-day Sponsor reservations, contract history, Wallet-owned Projects, Project-scoped Policy operations, browser enrollment state, actual ZKP generation time, durable provisioning progress, and Project/Assignment operational-day boundaries. |
 | Proof admission | `POST /api/v1/proof-jobs` validates authenticated device, registered assignment metadata, and the claimed Boolean result, but accepts no threshold bounds. Cron admits jobs during 02:00–06:00 JST. |
 | Proof generation | The Wallet Agent streams private proving requests through authenticated Worker routes to the Container; bodies are not persisted. |
 | Device transaction binding | The field transaction identity, or a compatible Browser Wallet with `payFees: false`, binds the proved `submitDailyAttestation` call without NIGHT or DUST. |
 | Sponsored submission | `POST /api/v1/proof-jobs/:proofJobId/sponsor` atomically reserves quota, binds one TX hash, stores its private bytes in R2, records `awaiting_sponsor`, enqueues only the Job ID, and returns `202`. Identical retries are stopped before quota, R2, Queue, or Wallet work and return the existing state; conflicting reuse returns `409`. After Wallet synchronization, the Sponsor consumer revalidates the artifact, adds only DUST, submits, and persists status for Device polling. The Device client polls and can resume from its retained identical bytes. |
-| Administrator GUI | The Device-Session-protected dashboard groups that Device's hourly operational aggregates by UTC date, marks threshold outliers, shows the explicit current normal/anomaly state, and provides the matching daily Proof action and Proof/TX state. |
-| Third-party GUI | A transaction hash opens a confirmed proof and shows the UTC date, all 24 WITHIN/OUTSIDE/NO DATA results, applied threshold and validity, Device Commitment, exact claim, network, contract, block, and attestation TX without extrema. |
+| Administrator GUI | The Device-Session-protected dashboard groups that Device's hourly operational aggregates by operational date, marks threshold outliers, shows the explicit current normal/anomaly state, and provides the matching daily Proof action and Proof/TX state. |
+| Third-party GUI | A transaction hash opens a confirmed proof and shows the operational date/boundary, all 24 WITHIN/OUTSIDE/NO DATA results, applied threshold and validity, Device Commitment, exact claim, network, contract, block, and attestation TX without extrema. |
 
 Legacy `proof_jobs`, reading-based Attestation tables/endpoints, and shared Merkle helper tests remain for
 migration or development compatibility. The operational Worker and Wallet path writes

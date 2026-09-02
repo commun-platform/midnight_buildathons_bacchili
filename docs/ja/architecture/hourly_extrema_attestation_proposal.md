@@ -11,7 +11,7 @@
 
 ## 1. 証明Claimと責任境界
 
-UTCの00:00～24:00に固定した1日について、登録済みDeviceが24個の時間Slotを非公開で提出します。観測されたSlotにはMinimum、Maximum、申告Sample Countが入り、TransactionはUTCの各時間に対応する`hourResults`を公開します。
+Projectへ事前登録した境界から始まる24時間について、登録済みDeviceが24個の時間Slotを非公開で提出します。観測されたSlotにはMinimum、Maximum、申告Sample Countが入り、Transactionは運用日の各時間に対応する`hourResults`を公開します。
 
 - `withinThreshold`：その時間の提出済みExtremaが登録済み公開しきい値以内
 - `outsideThreshold`：その時間の提出済みExtremaの少なくとも一方がしきい値の範囲外
@@ -83,7 +83,7 @@ DailyExtremaInput {
 
 観測Slotは`present = true`、`sampleCount > 0`、`minimum <= maximum`です。値がないSlotは自動的に`STOPPED`とし、正規表現を`present = false`、`sampleCount = 0`、`minimum = 0`、`maximum = 0`に固定します。STOPPEDは運用Statusであり、不正でもThreshold違反でもありません。工事は24時間稼働とは限らず日々の予定も変わるため、稼働時間の事前登録は要求しません。
 
-Wave 1の1日はUTC 00:00～24:00です。回路はUTC Epoch DayとUnix秒を受け取り、`periodStart = measurementDay * 86,400`、`periodEnd = periodStart + 86,400`を要求します。Local Time Offsetや夏時間で証明期間は変わりません。
+ProjectはDevice運用前に固定UTC Offsetとローカル開始時を登録し、その値を変更不能なDevice-bound Assignmentへコピーします。回路はUTC Epoch DayとUnix秒を受け取り、`periodStart = measurementDay * 86,400 + utcDayStartMinute * 60`、`periodEnd = periodStart + 86,400`を要求します。24 Slotの形状は変わりません。Wave 1では固定Offsetを使い、Assignment内で夏時間を自動適用しません。規範仕様は[運用日の境界](operational_day_boundary.md)を参照してください。
 
 Raw Sampling頻度が変わってもPrivate ZK Inputは同じです。
 
@@ -121,7 +121,7 @@ thresholdSatisfied
 verified = true
 ```
 
-時間別Minimum／MaximumとCommitment Nonceは非公開です。Threshold、Mode、Unit／Type Code、Policy Version、有効期間、Assignment、UTC日付／期間、Presence、Count、Commitment、24個の時間帯別結果は公開です。
+時間別Minimum／MaximumとCommitment Nonceは非公開です。Threshold、Mode、Unit／Type Code、Policy Version、有効期間、Assignment、運用日／境界、UTC期間、Presence、Count、Commitment、24個の時間帯別結果は公開です。
 
 ## 5. 回路規則
 
@@ -130,7 +130,7 @@ verified = true
 1. Device Contract Authorityを検証
 2. 登録済みDevice CommitmentとMeasurement Group IDからAttestation IDを導出し、登録済みIDを拒否
 3. 上書き不可のAssignmentとPolicyをLedgerから取得
-4. 正確なUTC日付、24時間の期間、Assignment有効期間を検証
+4. 正確な登録済み運用日境界、24時間の期間、Assignment有効期間を検証
 5. Private Daily CommitmentをOpenして再計算
 6. Measurement Group、Device、Policy、Assignment、期間、Schema、Circuit Version、PresenceをPublic StateへBinding
 7. STOPPED Slotの正規表現と、全Observed Slotの有効かつ順序の正しいExtremaを検証
@@ -177,18 +177,18 @@ Migration `0010_hourly_extrema_policies.sql`／`0011_multi_device_registry.sql`�
 - `devices`：Fail-closedなMidnight Registry Status／Authority／Version／Contract Mirror
 - `daily_proof_jobs`：日次1件の冪等Job、ClaimしたThreshold結果、Transaction結果
 
-WorkerはQueue投入前にAuthenticated Device、D1 Policy／Assignment Mirror、Device Commitment、UTC日付／期間、時間帯別結果、日次総合値、Job Metadataの一致を検査します。Policy／Assignment IDは受け取りますがThreshold Boundは受け取りません。Claim Resultは対応Midnight TransactionがConfirmedになるまでEvidenceとして信用せず、回路がPrivate ExtremaとLedger Policyから再計算します。第三者GUIはConfirmed Jobと登録Policyを結合し、公開Bound／有効期間、24個のしきい値以内／範囲外／計測なし、Device Commitment、正確なClaim、Contract Address、Transaction参照を表示します。
+WorkerはQueue投入前にAuthenticated Device、D1 Policy／Assignment Mirror、Device Commitment、運用日／期間、時間帯別結果、日次総合値、Job Metadataの一致を検査します。Policy／Assignment IDは受け取りますがThreshold Boundは受け取りません。Claim Resultは対応Midnight TransactionがConfirmedになるまでEvidenceとして信用せず、回路がPrivate ExtremaとLedger Policyから再計算します。第三者GUIはConfirmed Jobと登録Policyを結合し、公開Bound／有効期間、24個のしきい値以内／範囲外／計測なし、Device Commitment、正確なClaim、Contract Address、Transaction参照を表示します。
 
 ## 8. Versionと移行
 
 - Compact Toolchain：`0.31.1`
 - Compact Language Pragma：`0.23`
-- Contract Schema Version：`3`
-- Daily Schema Version：`6`
-- Circuit Version：`4`
-- D1 Migration：`0025_hourly_threshold_results.sql`まで
+- Contract Schema Version：`4`
+- Daily Schema Version：`7`
+- Circuit Version：`5`
+- D1 Migration：`0026_operational_day_boundary.sql`まで
 
-以前の選択Merkle Leaf Contractおよび旧日次SchemaとはLedger互換性がありません。採用には新Contract Deploy、運用前Policy／Assignment登録、公開Contract Address更新、D1 Migration `0025`までの適用が必要です。過去のSchema-5 TXは日次総合結果の履歴Evidenceとして有効ですが、24個の時間帯別結果を後付けできません。旧24／96／1,440件`daily-attestation` Profileは開発用の回路Scaling Experimentとして残し、運用経路や価格根拠には使用しません。
+以前の選択Merkle Leaf Contractおよび旧日次SchemaとはLedger互換性がありません。採用には新Contract Deploy、運用前Policy／Assignment登録、公開Contract Address更新、D1 Migration `0026`までの適用が必要です。過去のSchema-5／6 TXは履歴Evidenceとして有効ですが、設定可能な運用日境界を後付けできません。旧24／96／1,440件`daily-attestation` Profileは開発用の回路Scaling Experimentとして残し、運用経路や価格根拠には使用しません。
 
 ## 9. 実装済み検証Case
 
@@ -203,4 +203,4 @@ WorkerはQueue投入前にAuthenticated Device、D1 Policy／Assignment Mirror�
 - Device AuthorityとOperator Authorityの分離
 - Public APIがPolicyは開示し、時間別Extrema／Nonceは開示しない
 
-過去のPreprod TXでは、1分ごとのRaw値1,440件を24個のPrivate Hourly Extrema Slotへ集約する旧日次総合設計を確認済みです。Transaction時間、Proof時間、Proving Key Size、Request Size、Transaction Size、DUST Fee、計画値は[Cost Benchmark](../implementation/cost_benchmark.md)へ履歴Evidenceとして残します。これらはSchema `6`／Circuit `4`の時間帯別公開結果を証明するものではなく、その確認には新Contract Deployと新しいTXが必要です。
+過去のPreprod TXでは、1分ごとのRaw値1,440件を24個のPrivate Hourly Extrema Slotへ集約する旧設計を確認済みです。Transaction時間、Proof時間、Proving Key Size、Request Size、Transaction Size、DUST Fee、計画値は[Cost Benchmark](../implementation/cost_benchmark.md)へ履歴Evidenceとして残します。これらはSchema `7`／Circuit `5`の設定可能な運用日境界を証明するものではなく、その確認には新Contract Deployと新しいTXが必要です。

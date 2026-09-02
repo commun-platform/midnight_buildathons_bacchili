@@ -4,7 +4,7 @@
 
 Status: normative third-party interoperability target with current implementation notes, 2026-09-01 JST
 Network profile: Midnight Preprod
-Contract profile: `sensor-registry`, attestation schema `6`, circuit version `4`
+Contract profile: `sensor-registry`, attestation schema `7`, circuit version `5`
 
 ## 1. Purpose
 
@@ -16,7 +16,7 @@ The viewer answers these questions:
 
 1. Is this a successful, confirmed Midnight transaction?
 2. Did the transaction add exactly one daily attestation to an approved `sensor-registry` contract?
-3. Which UTC measurement day, Device Commitment, policy, assignment, and hourly results were recorded?
+3. Which operational date, registered day boundary, Device Commitment, policy, assignment, and hourly results were recorded?
 4. Are the public fields internally consistent with the contract schema?
 
 Midnight verifies the contract-call proof when accepting the transaction. The viewer verifies the
@@ -30,8 +30,9 @@ each index `h`, the circuit computes `expectedResult[h]` from the private hourly
 public policy, then proves that it equals `hourResults[h]`. After a successful transaction, the Contract
 stores the same vector in public ledger state.
 
-The viewer reads that stored vector, maps index `h` to UTC `h:00`–`h+1:00`, and maps each enum value to
-a display label. `hourPresence[24]` is a Boolean vector indicating whether each hour was observed.
+The viewer reads that stored vector, maps index `h` relative to the Assignment's registered local start
+hour, and maps each enum value to a display label. `hourPresence[24]` is a Boolean vector indicating
+whether each operational hour was observed.
 `hourResults[24]` is not Boolean; it is a three-value enum: `noData`, `withinThreshold`, or
 `outsideThreshold`.
 
@@ -46,7 +47,7 @@ flowchart LR
     LEDGER --> VIEWER["Third-party viewer reads<br/>and labels the 24 entries"]
 ```
 
-For every UTC hour `h` from `0` through `23`:
+For every operational-hour slot `h` from `0` through `23`:
 
 ```text
 if present[h] == false:
@@ -138,7 +139,7 @@ For the approved Contract action, obtain and decode the contract state at:
 - the preceding block height.
 
 The current profile finds keys added to `attestations` between those two states and accepts exactly one
-schema-6 attestation. If zero or multiple attestations were added, the result is indeterminate and the
+schema-7 attestation. If zero or multiple attestations were added, the result is indeterminate and the
 viewer **MUST NOT** display it as verified.
 
 The 24-hour values are the `hourPresence[0..23]` and `hourResults[0..23]` fields of the
@@ -161,14 +162,14 @@ silently select one of multiple additions.
 | `deviceCommitment` | Pseudonymous proof subject. It must equal the Device in the applied Assignment. |
 | `policyId` | Key of the immutable public threshold used by the proof. |
 | `assignmentId` | Key of the immutable Device-to-policy assignment. |
-| `measurementDay` | UTC day number since Unix epoch. `periodStart` must equal `measurementDay × 86,400`. |
-| `periodStart` / `periodEnd` | Unix seconds. The interval must be exactly one UTC day: `[00:00, next 00:00)`. |
-| `hourPresence[24]` | `Boolean[24]`. Whether each UTC hour contains an observed private slot. Index `0` means 00:00–01:00 UTC. |
+| `measurementDay` | UTC day number containing `periodStart`. `periodStart` must equal `measurementDay × 86,400 + utcDayStartMinute × 60`. |
+| `periodStart` / `periodEnd` | Unix seconds. The interval must start at the Assignment boundary and be exactly 86,400 seconds. |
+| `hourPresence[24]` | `Boolean[24]`. Whether each operational-hour slot contains an observed private slot. Index `0` starts at `localDayStartHour`. |
 | `hourResults[24]` | `HourThresholdResult[24]`. Code `0` is `noData`, `1` is `withinThreshold`, and `2` is `outsideThreshold`. |
 | `observedHourCount` | Number of `true` entries in `hourPresence`. |
 | `sampleCount` | Total private per-hour counts, proven equal inside the circuit. Per-hour counts are not public. |
-| `schemaVersion` | Must equal `6` for this profile. |
-| `circuitVersion` | Must equal `4` for this profile. |
+| `schemaVersion` | Must equal `7` for this profile. |
+| `circuitVersion` | Must equal `5` for this profile. |
 | `thresholdSatisfied` | Daily summary. True when no observed hour is `OUTSIDE`; missing hours are ignored. |
 | `verified` | Set to `true` by the successful approved circuit. It is not sufficient without contract-identity and TX-success checks. |
 
@@ -197,6 +198,9 @@ The viewer **SHOULD** label an unknown sensor or unit code rather than interpret
 | --- | --- |
 | `policyId` | Must equal the attestation's Policy key. |
 | `deviceCommitment` | Must equal the attestation's proof subject. |
+| `timeZoneOffsetMinutesBias` | Fixed UTC offset encoded as `offset + 840`; decoded range is -840 through +840 minutes. |
+| `localDayStartHour` | Local operational-day start from 0 through 23; minutes and seconds are zero. |
+| `utcDayStartMinute` | Derived UTC minute-of-day. It must equal `modulo(localDayStartHour × 60 - offset, 1440)`. |
 | `validFrom` | Inclusive Unix-second start. |
 | `validUntil` | Maximum permitted `periodEnd`; `0` means no expiry. |
 | `version` | Immutable assignment version; must be positive. |
@@ -213,10 +217,10 @@ A conforming chain-anchored verifier **MUST** perform these steps in order:
 4. Extract Contract action addresses and reject every address that is not an approved deployment.
 5. Decode the approved contract's current and previous-block ledger state with the exact schema decoder.
 6. Require exactly one new daily attestation attributable by the fail-closed block-delta rule.
-7. Require `schemaVersion == 6`, `circuitVersion == 4`, and `verified == true`.
+7. Require `schemaVersion == 7`, `circuitVersion == 5`, and `verified == true`.
 8. Load the referenced Policy and Assignment from the same decoded state.
-9. Require Assignment Policy, Device, version, and validity to match the Attestation.
-10. Require `periodStart == measurementDay × 86,400` and `periodEnd == periodStart + 86,400`.
+9. Require Assignment Policy, Device, version, validity, and operational-day boundary to match the Attestation.
+10. Require `periodStart == measurementDay × 86,400 + utcDayStartMinute × 60` and `periodEnd == periodStart + 86,400`.
 11. Require both hourly vectors to have 24 entries.
 12. For each hour, require `NO_DATA` exactly when `hourPresence[h] == false`.
 13. Require `observedHourCount` to equal the number of present hours.
@@ -254,7 +258,7 @@ expected[h] == public hourResults[h]
 ```
 
 The same proof also binds the private daily object to its public commitment, Device, measurement
-group, Policy, Assignment, UTC interval, versions, total count, and Device Authority. A false hourly
+group, Policy, Assignment, registered UTC interval, versions, total count, and Device Authority. A false hourly
 vector cannot produce a proof accepted by the approved Contract Verifier Key.
 
 ## 9. Minimum viewer output
@@ -262,8 +266,8 @@ vector cannot produce a proof accepted by the approved Contract Verifier Key.
 | Display item | Source |
 | --- | --- |
 | Network, TX hash, TX ID, block height, Contract | Confirmed transaction lookup. |
-| Measurement date | Validated `measurementDay` and UTC period. |
-| 24 hourly results | `hourResults[0..23]`, labeled by fixed UTC bands. |
+| Operational date and boundary | Date derived from the validated UTC period plus Assignment offset/start fields. |
+| 24 hourly results | `hourResults[0..23]`, labeled from the registered local start hour. |
 | Applied threshold | Referenced immutable Policy. |
 | Policy validity | Referenced immutable Assignment. |
 | Proof subject | `deviceCommitment` shared by Attestation and Assignment. |
@@ -289,9 +293,11 @@ Even a fully verified record does not prove:
   independently operated Indexer/Node or verify the relevant block data through their chosen chain
   trust mechanism.
 
-## 11. Dated Preprod conformance vector
+## 11. Historical Preprod evidence
 
-This real transaction can be used to test an independent implementation:
+This real schema-6 transaction records the preceding UTC-midnight profile. It remains historical
+evidence, but is intentionally incompatible with the schema-7 decoder and is not a conformance vector
+for the configurable-boundary implementation:
 
 | Field | Expected value |
 | --- | --- |
@@ -320,7 +326,7 @@ transaction, block confirmation, and public verification are real.
 | Browser capture with D1-API rejection | `tools/submission-media/capture-dashboard-demo.mjs` |
 
 The current hosted viewer derives candidate Contract actions from the transaction and accepts the one
-that decodes as the schema-6 contract transition. Independent production verifiers must additionally
+that decodes as the schema-7 contract transition. Independent production verifiers must additionally
 enforce the approved-deployment rule in section 3. Deployment allowlisting or Verifier Key
 fingerprinting remains a required hardening item before treating arbitrary pasted hashes as belonging
 to BACCHIRI solely from their ledger shape.

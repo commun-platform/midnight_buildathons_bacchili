@@ -282,7 +282,7 @@ commitment, thresholdPolicyVersion
 
 WorkerはAuthenticated Device／Project、Sensor Metadata、Policy Version、有限かつ順序が正しい値、Period、Count、Commitment形式、Unique `batchId`を検証します。D1にはHourly Aggregateを保存し、Raw Sampleごとには書きません。
 
-審査用Browser Deviceは完了済みの過去30日間からUTC日付を選び、1分間隔のRaw値を1,440件生成します。生成Raw値とPrivate OpeningはそのBrowserのIndexedDBだけに保持し、Cloudへは最大24件のHourly Windowだけを送ります。当日と未来日は選択対象外なので、生成データは必ず完了した日次Claimになります。Threshold内Modeと外れ値ModeはどちらもZKP成功経路であり、Hourly Extremaを開示せず24個の時間帯別結果と日次総合結果を生成します。
+審査用Browser Deviceは完了済みの過去30日間から運用日を選び、1分間隔のRaw値を1,440件生成します。生成Raw値とPrivate OpeningはそのBrowserのIndexedDBだけに保持し、Cloudへは最大24件のHourly Windowだけを送ります。当日と未来日は選択対象外なので、生成データは必ず完了した日次Claimになります。Threshold内Modeと外れ値ModeはどちらもZKP成功経路であり、Hourly Extremaを開示せず24個の時間帯別結果と日次総合結果を生成します。
 
 AnomalyはDebounce済みState Transitionとして即時送信します。
 
@@ -349,7 +349,7 @@ Private `DailyExtremaInput`はMeasurement Group／Device／Policy／Assignment B
 
 Default Proof Server Admission時間は02:00～06:00 JSTです。時間外もIngestion／Anomaly Alertは継続します。
 
-1. DeviceがUTC日次をCloseし、Private 24 Slot Attestationを準備
+1. Deviceが登録済み運用日をCloseし、Private 24 Slot Attestationを準備
 2. `proofJobId`を`zjb_<UUIDv7>`として生成・永続化し、Public Metadataだけを送信する。再送でも同じIDを使う
 3. WorkerがD1 Policy／Assignment Mirrorを検査し、`daily_proof_jobs`へ`pending`で1件保存
 4. 営業時間内にCronがDue RowをConditional Claimし、Job参照をQueueへ送信
@@ -404,7 +404,7 @@ Framework-free GUIをReview／撮影用にLocal Hostでき、Workerからも配�
 6. Midnight Attestation Confirmed
 
 管理者画面はHourly Operational Minimum／Maximum／Average／Count、Anomaly Marker、Observed／STOPPED時間、Proof／TX状態を表示できます。Raw SampleやPrivate Daily Openingは表示しません。
-時系列はUTC日付ごとにまとめ、新しい日を初期表示し、その日の日次Proof操作を同じ画面に表示します。
+時系列は運用日ごとにまとめ、新しい日を初期表示し、その日の日次Proof操作を同じ画面に表示します。
 
 第三者画面はTransaction ID／Hash／Block Heightが揃ったConfirmed Recordだけを一覧表示します。TX hashの貼り付け、または一覧行の選択から詳細を開き、次の順で表示します。
 
@@ -488,15 +488,15 @@ Cost実測は標準運用Profileだけを記録します。1分ごとのRaw Samp
 ```text
 Compact toolchain 0.31.1
 Compact language  0.23
-daily schema      6
-circuit           4
-contract schema   3
-D1 migrations     0025_hourly_threshold_results.sqlまで
+daily schema      7
+circuit           5
+contract schema   4
+D1 migrations     0026_operational_day_boundary.sqlまで
 ```
 
 旧Selected-Merkle-leaf／Singleton／WITHIN専用Fleet Registry Ledgerとは互換性がありません。採用には新Fleet Registry Deploy、
 運用前のOperator限定Device／Policy／Device-bound Assignment TX、管理TX Evidence付きD1 Migration／Mirror
-Sync、D1 Migration `0025`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
+Sync、D1 Migration `0026`までの適用、Public Contract Address更新が必要です。旧固定24／96／1,440件`daily-attestation` Profileは開発専用Benchmarkです。
 
 Wave 1は、審査用PoCで次を確認できた時点で完了とします。
 
@@ -509,7 +509,7 @@ Wave 1は、審査用PoCで次を確認できた時点で完了とします。
 - Proof Requestから別Threshold Boundを指定できない
 - Policy、Assignment、Device、Period、Presence、Count、Commitment改ざんが失敗
 - User認可済み・Service Fee負担のPreprod Attestation TXがConfirmedとなり第三者画面へ表示
-- 第三者画面がUTC計測日、24個の時間帯別結果、適用Policy、Device Commitmentを公開し、Hourly Extrema／Nonceを公開しない
+- 第三者画面が運用日／登録済み境界、24個の時間帯別結果、適用Policy、Device Commitmentを公開し、Hourly Extrema／Nonceを公開しない
 - Cost／Version実測記録をBenchmark文書へ追加
 
 Wave 2では、自律的な現場運用、本番Role分離、認証・認可、監査・解析Log、監視、復旧、運用ダッシュボードを追加します。

@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-現行ソースは、6つの証明回路のコンパイル、339件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
+現行ソースは、6つの証明回路のコンパイル、345件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDEと、2026-08-30のSponsor負担Schema-5を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
 
 | 審査成果物 | 文書 |
 | --- | --- |
@@ -98,7 +98,7 @@ TX hashを貼り付けると、Browserは成功したMidnight TX、そのBlock�
 | 2 | [Wave 1仕様](architecture/wave1_spec.md)、[3 Waveロードマップ](architecture/three_wave_roadmap.md)、[複数デバイスの登録](security/device_registry.md) | 現行PoC、将来到達点、On-chain Authority境界を分けて確認します。 |
 | 3 | [システム構成](architecture/system_architecture.md) | 各構成要素とデータ保存先を確認します。 |
 | 4 | [非公開情報の境界](security/private_spec.md) | 非公開入力、管理者向け情報、第三者への公開情報を区別します。 |
-| 5 | [仕様と実装の対応](implementation/implement_spec.md)、[GUI操作と処理場所](implementation/gui_action_reference.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[TX hashによる第三者検証](implementation/transaction_hash_verification.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、非公開の24時間証明が公開時間帯別結果になる仕組み、D1に依存しないビューワの構築手順、DUSTだけを負担する権限を確認します。 |
+| 5 | [仕様と実装の対応](implementation/implement_spec.md)、[GUI操作と処理場所](implementation/gui_action_reference.md)、[ZK回路仕様](implementation/zk_circuit_spec.md)、[運用日の境界](architecture/operational_day_boundary.md)、[TX hashによる第三者検証](implementation/transaction_hash_verification.md)、[送信手数料のスポンサー](implementation/fee_sponsorship.md) | 設計とコードの対応、固定24 Slotの開始時刻、非公開の24時間証明が公開時間帯別結果になる仕組み、D1に依存しないビューワの構築手順、DUSTだけを負担する権限を確認します。 |
 | 6 | [デバイス認証](security/device_authentication.md)と[デバイス用ソフトウェア](operations/device_firmware.md) | 初期登録、APIセッション、導入、復旧を理解します。 |
 | 7 | [開発環境](operations/development_environment.md)と[実演手順](operations/demo_runbook.md) | 準備後、順番に配備して動作確認します。 |
 | 8 | [費用実測](implementation/cost_benchmark.md) | 標準1,440件／日の実測と10,000台の計画値を確認します。 |
@@ -126,7 +126,7 @@ Wave 2の到達点です。
 
 運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の非公開時間枠を検査し、各時間帯の判定と日次の総合結果をMidnightへ記録します。User管理Accountまたは現場Transaction Agentが取引内容を認可し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、認可済み内容を変更できません。
 
-ブラウザには、ユーザー管理のMidnight Accountを使う疑似計測Workflow、運用者向けの処理状況、第三者向けの公開画面があります。TX hashを貼り付けると、確定済みRecordを特定し、Public Midnight Indexerへ直接問い合わせます。同じTX／BlockのContract LedgerからUTC計測日、24個の時間帯別結果、適用しきい値／有効期間、Device Commitmentを照合します。Raw Sensor値やPrivate Openingは使いません。Browser内でCompact Proof Verifierを再実行するのではなく、MidnightがTX受理時に検証した公開Stateを確認します。
+ブラウザには、ユーザー管理のMidnight Accountを使う疑似計測Workflow、運用者向けの処理状況、第三者向けの公開画面があります。TX hashを貼り付けると、確定済みRecordを特定し、Public Midnight Indexerへ直接問い合わせます。同じTX／BlockのContract Ledgerから運用日／登録済み境界、24個の時間帯別結果、適用しきい値／有効期間、Device Commitmentを照合します。Raw Sensor値やPrivate Openingは使いません。Browser内でCompact Proof Verifierを再実行するのではなく、MidnightがTX受理時に検証した公開Stateを確認します。
 
 ## モノレポの境界
 
@@ -187,7 +187,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-期待結果は、運用する6つの証明回路のコンパイル、339件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用する6つの証明回路のコンパイル、345件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 

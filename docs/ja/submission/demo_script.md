@@ -28,7 +28,7 @@
 | 0:48.816–1:06.296 | Private Sensor Evidence説明Slide | Raw Reading、順序付き24 SlotのHourly MIN／MAX、Canonicalな計測なし時間を説明する。このSceneではProof TX画面を出さない。 |
 | 1:06.296–1:22.216 | ZK Proof GUI、素材3:58.000–4:13.920 | Midnightへ事前登録したThresholdに対するProof生成を示す。 |
 | 1:22.216–1:39.864 | Device Approval GUI、素材4:58.000–5:15.648 | 正確なPayloadへのUser認可と、Service側のFee負担を分離して示す。 |
-| 1:39.864–1:58.664 | Third-party GUIとExplorer、素材5:54.000–6:12.800 | TX hashを貼り付け、Private値を隠したままUTC日付、24個の時間帯別結果、適用Policy／有効期間、Device Commitment、Block、TX Evidenceを示す。 |
+| 1:39.864–1:58.664 | Third-party GUIとExplorer、素材5:54.000–6:12.800 | TX hashを貼り付け、Private値を隠したまま運用日／境界、24個の時間帯別結果、適用Policy／有効期間、Device Commitment、Block、TX Evidenceを示す。 |
 | 1:58.664–2:18.040 | Exact Claim Boundary Slide | Midnightが証明する範囲を説明し、物理Sensor精度、完全なSampling、計測元側Aggregationの正しさを明示的に除外する。 |
 
 ## 正確なGUI操作順序
@@ -46,8 +46,8 @@
 11. ZKPを生成してTX送信をClickする。
 12. Confirmedまで待ち、短縮TX IDとResultをCaptureする。
 13. 日次ZKPを検証をClickする。
-14. Policy Bound、24個のUTC時間帯別結果、Device Commitment、Confirmed State、TX IDを見せる。
-15. Top Navigationから第三者検証を開き、TX hashを貼り付け、Private Inputなしで同じUTC日付、時間帯別結果、Policy／有効期間、Device Commitment、Block、TXを確認する。
+14. Policy Bound、登録済み境界と24個の運用時間帯別結果、Device Commitment、Confirmed State、TX IDを見せる。
+15. Top Navigationから第三者検証を開き、TX hashを貼り付け、Private Inputなしで同じ運用日／境界、時間帯別結果、Policy／有効期間、Device Commitment、Block、TXを確認する。
 
 ## 必須Shot
 
@@ -60,7 +60,7 @@
 | GUI-05 | Proof Requested | Proof Job ID、Admitted / Ready |
 | GUI-06 | Proof Generated | Proving / Proof-ready |
 | GUI-07 | Transaction Confirmed | Result、短縮TX ID |
-| GUI-08 | Public Verifier | TX hash検索、UTC日付、24個の時間帯別結果、Policy／有効期間、Device Commitment、Block、TX |
+| GUI-08 | Public Verifier | TX hash検索、運用日／境界、24個の時間帯別結果、Policy／有効期間、Device Commitment、Block、TX |
 | GUI-09 | Negative / Boundary | OUTSIDEまたは明示的Tamper Reject |
 | EVD-01 | Compile | 6 Circuit、submitDailyAttestation Rows |
 | EVD-02 | Test | 339成功 |

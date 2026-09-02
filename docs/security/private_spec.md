@@ -85,6 +85,6 @@ copied into the image.
 The browser does not independently execute the ZK verifier. From a pasted transaction hash, it asks
 the public Midnight Indexer for the successful transaction, block, and Contract actions. It decodes
 the Contract state at that block and the preceding block, identifies the attestation added by that
-transaction, and renders its UTC day, hourly results, policy/validity, and Device Commitment. D1 is
+transaction, and renders its operational date/boundary, hourly results, policy/validity, and Device Commitment. D1 is
 not used in this hash-verification path. Local proof-verifier execution and multi-source Indexer
 hardening remain later extensions.

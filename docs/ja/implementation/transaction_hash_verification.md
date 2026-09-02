@@ -4,7 +4,7 @@
 
 状態：2026-09-01 JST時点の第三者相互運用に関する規範仕様と現行実装注記
 対象Network：Midnight Preprod
-対象Contract：`sensor-registry`、Attestation Schema `6`、Circuit Version `4`
+対象Contract：`sensor-registry`、Attestation Schema `7`、Circuit Version `5`
 
 ## 1. 目的
 
@@ -15,7 +15,7 @@
 
 1. 成功して確定したMidnight TXか。
 2. 承認済み`sensor-registry`コントラクトへ日次Attestationを1件追加したTXか。
-3. どのUTC計測日、Device Commitment、Policy、Assignment、時間帯別結果が記録されたか。
+3. どの運用日、登録済み日次境界、Device Commitment、Policy、Assignment、時間帯別結果が記録されたか。
 4. 公開項目がコントラクト仕様と矛盾しないか。
 
 MidnightはTX受理時にContract CallのZKPを検証します。ビューワは、成功したChain記録、
@@ -27,7 +27,7 @@ MidnightはTX受理時にContract CallのZKPを検証します。ビューワは
 回路は各Index `h`について、非公開の時間枠と登録済み公開Policyから`expectedResult[h]`を計算し、
 `hourResults[h]`との一致を証明します。TX成功後、Contractは同じVectorを公開Ledgerへ保存します。
 
-ビューワは保存済みVectorを読み、Index `h`をUTCの`h:00`～`h+1:00`、Enumを表示文言へ
+ビューワは保存済みVectorを読み、Index `h`をAssignmentの登録済みローカル開始時からの時間枠へ
 対応付けます。`hourPresence[24]`は計測有無を表すBoolean Vectorです。しきい値判定を表す
 `hourResults[24]`はBooleanではなく、`noData`、`withinThreshold`、`outsideThreshold`の3値Enumです。
 
@@ -42,7 +42,7 @@ flowchart LR
     LEDGER --> VIEWER["第三者ビューワが<br/>24件を読み出して表示"]
 ```
 
-UTCの各時間`h = 0..23`で次を証明します。
+運用日の各時間枠`h = 0..23`で次を証明します。
 
 ```text
 present[h] == falseの場合:
@@ -132,7 +132,7 @@ query PublicProofTransaction($offset: TransactionOffset!) {
 - TX確定Block HeightのContract State
 - 1つ前のBlock HeightのContract State
 
-現行Profileは、2つのState間で`attestations`へ追加されたKeyを調べ、Schema 6のAttestationが
+現行Profileは、2つのState間で`attestations`へ追加されたKeyを調べ、Schema 7のAttestationが
 正確に1件ある場合だけ受理します。0件または複数件なら結果不定とし、検証済み表示にしません。
 
 24時間分の取得値は、この手順で特定した`DailyAttestationPublicState`の
@@ -153,14 +153,14 @@ query PublicProofTransaction($offset: TransactionOffset!) {
 | `deviceCommitment` | 仮名の証明対象。AssignmentのDeviceと一致する必要があります。 |
 | `policyId` | ZKPが使った変更不可の公開しきい値Key。 |
 | `assignmentId` | DeviceとPolicyを結ぶ変更不可のAssignment Key。 |
-| `measurementDay` | Unix EpochからのUTC日数。`periodStart = measurementDay × 86,400`である必要があります。 |
-| `periodStart` / `periodEnd` | Unix秒。`[UTC 00:00, 翌日00:00)`の正確な1日である必要があります。 |
-| `hourPresence[24]` | `Boolean[24]`。各UTC時間に非公開の観測枠があるか。Index `0`は00:00～01:00 UTCです。 |
+| `measurementDay` | `periodStart`を含むUTC Epoch Day。`periodStart = measurementDay × 86,400 + utcDayStartMinute × 60`である必要があります。 |
+| `periodStart` / `periodEnd` | Unix秒。Assignment境界から始まる正確な86,400秒である必要があります。 |
+| `hourPresence[24]` | `Boolean[24]`。各運用時間枠に非公開の観測枠があるか。Index `0`は`localDayStartHour`から始まります。 |
 | `hourResults[24]` | `HourThresholdResult[24]`。Code `0`は`noData`、`1`は`withinThreshold`、`2`は`outsideThreshold`です。 |
 | `observedHourCount` | `hourPresence == true`の個数。 |
 | `sampleCount` | 非公開の時間別件数合計。回路内で一致を証明します。時間別件数は非公開です。 |
-| `schemaVersion` | このProfileでは`6`。 |
-| `circuitVersion` | このProfileでは`4`。 |
+| `schemaVersion` | このProfileでは`7`。 |
+| `circuitVersion` | このProfileでは`5`。 |
 | `thresholdSatisfied` | 日次Summary。観測時間に`範囲外`がなければtrue。欠測時間は無視します。 |
 | `verified` | 承認済み回路の成功時にtrueを保存します。Contract識別とTX成功確認なしでは十分ではありません。 |
 
@@ -189,6 +189,9 @@ query PublicProofTransaction($offset: TransactionOffset!) {
 | --- | --- |
 | `policyId` | Attestationが示すPolicy Keyと一致する。 |
 | `deviceCommitment` | Attestationの証明対象と一致する。 |
+| `timeZoneOffsetMinutesBias` | 固定UTC Offsetを`offset + 840`で表す。Decode後は-840～+840分。 |
+| `localDayStartHour` | 0～23のローカル運用日開始時。分・秒は00。 |
+| `utcDayStartMinute` | UTCの開始Minute。`modulo(localDayStartHour × 60 - offset, 1440)`と一致する。 |
 | `validFrom` | Unix秒の有効開始を含む。 |
 | `validUntil` | 許容する`periodEnd`の上限。`0`は期限なし。 |
 | `version` | 変更不可のAssignment Version。正数である必要があります。 |
@@ -205,10 +208,10 @@ Chain準拠ビューワは次を順番に実行します。
 4. Contract Actionを抽出し、承認済みDeployment以外を拒否する。
 5. 正確なSchema Decoderで、承認済みContractの当該Blockと前BlockをDecodeする。
 6. 安全側のBlock差分規則により、新規日次Attestationが正確に1件あることを確認する。
-7. `schemaVersion == 6`、`circuitVersion == 4`、`verified == true`を確認する。
+7. `schemaVersion == 7`、`circuitVersion == 5`、`verified == true`を確認する。
 8. 同じStateから参照先PolicyとAssignmentを取得する。
-9. AssignmentのPolicy、Device、Version、有効期間がAttestationと一致することを確認する。
-10. `periodStart == measurementDay × 86,400`、`periodEnd == periodStart + 86,400`を確認する。
+9. AssignmentのPolicy、Device、Version、有効期間、運用日境界がAttestationと一致することを確認する。
+10. `periodStart == measurementDay × 86,400 + utcDayStartMinute × 60`、`periodEnd == periodStart + 86,400`を確認する。
 11. 2つの時間Vectorがともに24件であることを確認する。
 12. 各時間で、`hourPresence[h] == false`の場合だけ`計測なし`であることを確認する。
 13. `observedHourCount`が計測あり時間数と一致することを確認する。
@@ -245,7 +248,7 @@ expected[h] =
 expected[h] == 公開hourResults[h]
 ```
 
-同じZKPが、非公開日次Objectと公開Commitment、Device、計測Group、Policy、Assignment、UTC期間、
+同じZKPが、非公開日次Objectと公開Commitment、Device、計測Group、Policy、Assignment、登録済みUTC期間、
 Version、合計件数、Device Authorityも結び付けます。誤った時間帯別Vectorは、承認済みContractの
 Verifier Keyによる検証を通過できません。
 
@@ -254,8 +257,8 @@ Verifier Keyによる検証を通過できません。
 | 表示項目 | 取得元 |
 | --- | --- |
 | Network、TX hash、TX ID、Block Height、Contract | 確定TX検索結果。 |
-| 計測日 | 検証済み`measurementDay`とUTC期間。 |
-| 24個の時間帯別結果 | `hourResults[0..23]`を固定UTC時間帯として表示。 |
+| 運用日と境界 | 検証済みUTC期間とAssignmentのOffset／開始時から導出。 |
+| 24個の時間帯別結果 | `hourResults[0..23]`を登録済みローカル開始時から表示。 |
 | 適用しきい値 | 参照先の変更不可Policy。 |
 | Policy有効期間 | 参照先の変更不可Assignment。 |
 | 証明対象 | AttestationとAssignmentが共有する`deviceCommitment`。 |
@@ -278,9 +281,10 @@ TXが未発見、失敗、部分成功、別Network、未承認Contract、Decode
 - Public Indexer自体の独立した信頼性。より高い保証が必要な場合は、独立運用Indexer／Nodeとの比較、
   または採用するChain Trust方式によるBlock Data検証が必要です。
 
-## 11. Preprod適合確認用TX
+## 11. 過去のPreprod Evidence
 
-独立実装の確認に使える実TXです。
+旧UTC 0時固定Profileの実Schema 6 TXです。履歴Evidenceとして残しますが、Schema 7 Decoderとは
+意図的に互換性がなく、設定可能な境界実装の適合確認用TXではありません。
 
 | 項目 | 期待値 |
 | --- | --- |
@@ -308,7 +312,7 @@ TXが未発見、失敗、部分成功、別Network、未承認Contract、Decode
 | TX hash Routeと画面描画 | `frontend/verification-portal/public/app.js` |
 | D1 API不使用を検査するBrowser Capture | `tools/submission-media/capture-dashboard-demo.mjs` |
 
-現行Hosted ViewerはTXからContract Action候補を導出し、Schema 6としてDecodeできる1件を受理します。
+現行Hosted ViewerはTXからContract Action候補を導出し、Schema 7としてDecodeできる1件を受理します。
 独立した本番ビューワは、これに加えて3章の承認済みDeployment規則を必ず実装してください。Ledger形状
 だけを理由に任意のHashをBACCHIRIの証明として扱わないため、Deployment AllowlistまたはVerifier Key
 Fingerprint照合は必要なHardening項目です。

@@ -142,8 +142,8 @@ function addCover(pptx, locale) {
     margin: 0, breakLine: false, fit: 'shrink',
   });
   slide.addText(ja
-    ? '第三者はUTC計測日・24時間の判定・適用しきい値・証明対象を確認。実値は見えない。'
-    : 'A third party checks the UTC day, 24 hourly results, applied threshold, and proof subject. Values stay hidden.', {
+    ? '第三者は運用日・登録済み境界・24時間の判定・適用しきい値・証明対象を確認。実値は見えない。'
+    : 'A third party checks the operational date, registered boundary, 24 hourly results, applied threshold, and proof subject. Values stay hidden.', {
       x: 0.68, y: 2.82, w: 11.7, h: 0.52,
       fontFace: ja ? 'Yu Gothic' : 'Aptos',
       fontSize: ja ? 13 : 15, color: C.muted, margin: 0, fit: 'shrink',
@@ -152,7 +152,7 @@ function addCover(pptx, locale) {
   const values = ja
     ? [
       ['センサー値', 'エッジデバイス内だけ', C.cyan],
-      ['第三者が確認', 'UTC日・24時間判定・しきい値', C.purple],
+      ['第三者が確認', '運用日・24時間判定・しきい値', C.purple],
       ['Wave 1', 'Midnight事前公開環境で確認済み', C.green],
     ]
     : [

@@ -524,7 +524,7 @@ npm run device:benchmark -- --samples 1440 --period-date YYYY-MM-DD --run-id cos
 
 各ResultをWorkerの`proof_gateway_upstream` Logと突き合わせ、Request Bytesを検証し、Response BytesとContainer時間を取得します。表を完了扱いにする前に、Attestation TX 1件とPolicy AssignmentをMidnight Stateで確認します。
 
-同じ運用回路で正しいOUTSIDEを計測する場合だけ、管理されたRunへ`--outlier-value 40`を指定します。`--period-date`にはWorkerが受理する一意の完了済みUTC日を指定します。
+同じ運用回路で正しいOUTSIDEを計測する場合だけ、管理されたRunへ`--outlier-value 40`を指定します。`--period-date`にはWorkerが受理する一意の完了済み運用日を指定します。
 
 ## 価格式
 

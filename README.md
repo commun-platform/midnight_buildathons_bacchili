@@ -10,7 +10,7 @@
 
 ## Judge review
 
-The current review tree compiles all 6 operational proof circuits and passes 339 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
+The current review tree compiles all 6 operational proof circuits and passes 345 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records and the 2026-08-30 Sponsor-funded schema-5 record. Source validation and dated network records are kept as separate evidence.
 
 | Review artifact | Link |
 | --- | --- |
@@ -52,12 +52,18 @@ English slide figures are under [`docs/assets/review/`](docs/assets/review/) and
 
 This monorepo implements the Wave 1 core-proof PoC. Its primary review path uses a user-authorized browser client as a simulated measurement source, creates a synthetic daily record, and proves its relationship to a condition registered before the measurement period. Midnight records the public condition, proof subject, result, and transaction without publishing the underlying values. Supporting field-runtime code is included, but autonomous long-running field operation is a Wave 2 objective rather than the primary Wave 1 claim.
 
-The operational `sensor-registry` contract proves a separate public result for each of the 24 UTC hours: WITHIN, OUTSIDE, or NO DATA. The private minimum and maximum values remain hidden. A daily Boolean is retained only as a summary: it is true when every observed hour is within the public threshold registered on Midnight before operation. The contract does not prove physical sensor integrity, continuous sampling, completeness, or correct Device-side aggregation.
+The operational `sensor-registry` contract proves a separate public result for each of 24 consecutive
+one-hour slots: WITHIN, OUTSIDE, or NO DATA. A Project fixes its UTC offset and local operational-day
+start hour before Device registration; the resulting immutable Assignment binds that boundary on
+Midnight. The private minimum and maximum values remain hidden. A daily Boolean is retained only as a
+summary: it is true when every observed hour is within the public threshold registered on Midnight
+before operation. The contract does not prove physical sensor integrity, continuous sampling,
+completeness, or correct Device-side aggregation.
 
 | What a third party sees | Meaning |
 | --- | --- |
-| Measurement date | `YYYY-MM-DD`, fixed to UTC 00:00–24:00. |
-| Hourly results | One of WITHIN, OUTSIDE, or NO DATA for each of the 24 UTC hours. |
+| Operational date | `YYYY-MM-DD`, derived from the Project's registered fixed UTC offset and start hour. |
+| Hourly results | One of WITHIN, OUTSIDE, or NO DATA for each of the 24 operational-hour slots. |
 | Applied threshold | Lower/upper bounds, unit, scale, version, and validity interval. |
 | Proof subject | `deviceCommitment`, the pseudonymous Device bound to the proof and policy assignment. |
 
@@ -76,7 +82,7 @@ not require D1, a Wallet, or private proof input.
 | Raw sample | One timestamped temperature/humidity reading. In the Wave 1 review flow it remains in browser-private source state; the supporting field path retains it locally. |
 | Hourly summary / anomaly transition | An aggregate uploaded once per hour, and an immediate event when the sensor changes between normal and anomalous states. Neither is the raw sample stream. |
 | Daily private input | A fixed private object with 24 observed or no-data hourly slots. Each observed slot has a minimum, maximum, and reported reading count. |
-| Hourly threshold result | The public status of one UTC hour: WITHIN, OUTSIDE, or NO DATA. It does not expose the hourly minimum or maximum. |
+| Hourly threshold result | The public status of one operational-hour slot: WITHIN, OUTSIDE, or NO DATA. It does not expose the hourly minimum or maximum. |
 | Commitment | A one-way binding to the complete private daily-extrema input using a nonce. |
 | Threshold policy | Immutable public Midnight state containing mode, bounds, scale, sensor/unit codes, and version. The device cannot provide alternate bounds at proof time. |
 | Policy assignment | Immutable policy binding and validity interval registered for the device before operation. |
@@ -187,7 +193,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-The expected review result is 6 compiled operational proof circuits, 339 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The expected review result is 6 compiled operational proof circuits, 345 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 

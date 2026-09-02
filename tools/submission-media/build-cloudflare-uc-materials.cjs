@@ -103,7 +103,7 @@ const useCases = [
     slug: 'public-review',
     title: '第三者が判定を確認する',
     subtitle: '公開記録だけを表示し、センサー値は見せない',
-    focus: '第三者が見るのはUTC日付・24個の時間帯判定・適用しきい値・証明対象・取引記録',
+    focus: '第三者が見るのは運用日・登録済み境界・24個の時間帯判定・適用しきい値・証明対象・取引記録',
     active: ['workers', 'd1', 'midnight', 'public'],
     flows: [
       ['M1315 455H1260V725H500V665', C.green, '確定結果', 930, 712],

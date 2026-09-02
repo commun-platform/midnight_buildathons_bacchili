@@ -216,14 +216,14 @@ that governance rule is outside the current contract.
 ### What it achieves
 
 This is the customer-value circuit. It proves that the committed private hourly extrema produce the
-public result for each UTC hour under the policy registered for that Device, without revealing the
+public result for each operational-hour slot under the policy registered for that Device, without revealing the
 extrema. `thresholdSatisfied` remains as a daily summary.
 
 ```mermaid
 flowchart LR
     DSECRET["Private: Device secret"] --> DAUTH["Active Device and Authority check"]
     DAILY["Private: 24 hourly slots<br/>+ commitment nonce"] --> COMMIT["Recompute daily commitment"]
-    PUBLIC["Public: Device, group, assignment,<br/>UTC day/period, presence, 24 results,<br/>total count, daily summary, versions"] --> BIND["Bind public and private metadata"]
+    PUBLIC["Public: Device, group, assignment,<br/>operational period, presence, 24 results,<br/>total count, daily summary, versions"] --> BIND["Bind public and private metadata"]
     LEDGER["Ledger: Device, assignment, policy,<br/>existing attestation IDs"] --> DAUTH
     LEDGER --> BIND
     COMMIT --> HOURS["Validate 24 observed / STOPPED slots"]
@@ -249,7 +249,7 @@ The witness selected by `attestationCommitment` contains:
 ### 10.2 Public input
 
 The transaction publishes the attestation commitment, Device Commitment, measurement-group ID,
-Assignment ID, UTC measurement day and period, 24-bit presence information, 24 hourly results, total
+Assignment ID, measurement epoch day and operational period, 24-bit presence information, 24 hourly results, total
 sample count, daily Boolean summary, and versions.
 The hourly minimums, hourly maximums, per-hour counts, and nonce are not public arguments or ledger
 fields.
@@ -259,18 +259,19 @@ fields.
 1. The Device is registered, active, and authorized by the private Device secret.
 2. `attestationId = H("vsp:daily-attestation-id:v1", deviceCommitment, measurementGroupId)` is unused.
 3. The Assignment exists, belongs to the same Device, and covers the complete period.
-4. The period is exactly the UTC day identified by `measurementDay`: 00:00:00 through the next 00:00:00.
+4. The period starts at the Assignment's registered `utcDayStartMinute` within `measurementDay` and lasts exactly 86,400 seconds.
 5. `Commit(privateDailyInput, nonce)` equals the public attestation commitment.
 6. Domain, Device, group, Policy, Assignment, period, presence, and versions match across private input,
    public input, and ledger state.
-7. Schema version is `6` and circuit version is `4`.
+7. Schema version is `7` and circuit version is `5`.
 8. Every observed slot has `sampleCount > 0` and `minimum <= maximum`.
 9. Every STOPPED slot is the canonical `{present: false, minimum: 0, maximum: 0, sampleCount: 0}`.
 10. The sum of all private per-hour counts equals the public total sample count.
 11. Every recomputed hourly result equals the corresponding public `hourResults` value.
 12. The AND of all observed hourly results equals the public `thresholdSatisfied` summary.
 
-The circuit derives the period boundary from `measurementDay`, so non-UTC or partial-day periods fail.
+The circuit derives the period boundary from `measurementDay` and the immutable Assignment, so a
+different boundary or a partial-day period fails.
 
 ### 10.4 Threshold rule
 
@@ -382,7 +383,7 @@ presence tampering, duplicate measurement groups, wrong Device/Operator secrets,
 Assignment reuse, disabling, Authority rotation, and Authority reuse rejection.
 
 Current source/simulator validation and any previously deployed Preprod contract are separate evidence.
-A local compile or simulator pass does not establish that circuit version `4` is deployed or confirmed
+A local compile or simulator pass does not establish that circuit version `5` is deployed or confirmed
 on Preprod.
 
 Operator Authority rotation and Device-owner-authorized threshold replacement are planned contract

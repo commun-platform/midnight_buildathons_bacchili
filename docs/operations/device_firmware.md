@@ -108,7 +108,7 @@ npm run device:submit -- --input /path/to/prepared-real-dataset.json
 npm run device:status
 ```
 
-Generate Contract Authority once before the development operator deploys the contract. Transfer only its public `enrollment.json`; its `authority.json` secret remains on the Edge Device. `device:submit` accepts either real `SensorRecord[]` or a `PreparedDailyExtremaAttestation`. Array input is grouped into 24 UTC observed/no-data slots and may select only the UTC date and already registered policy/assignment IDs. It cannot submit threshold bounds. Submission creates or reuses one scheduled daily Proof Job. The collector uploads only hourly aggregate windows and anomaly transitions, never raw readings.
+Generate Contract Authority once before the development operator deploys the contract. Transfer only its public `enrollment.json`; its `authority.json` secret remains on the Edge Device. `device:submit` accepts either real `SensorRecord[]` or a `PreparedDailyExtremaAttestation`. Array input is grouped into 24 observed/no-data slots from the authenticated Assignment boundary and may select only the operational date and already registered policy/assignment IDs. It cannot submit threshold bounds or an alternate boundary. Submission creates or reuses one scheduled daily Proof Job. The collector uploads only hourly aggregate windows and anomaly transitions, never raw readings.
 
 For an explicit Preprod cost integration test, the Device generates the standard full day in memory:
 one reading per minute, 1,440 private Raw values, reduced locally to 24 hourly minimum/maximum slots.

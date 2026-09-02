@@ -78,7 +78,7 @@ Prompt Set:
 Prompt Set:
 
 - 2 × 2の技術的な実証結果。
-- 6つの証明回路のコンパイル、339件の自動テスト、型検査・ビルド、Cloudflare配備前検査を表示。
+- 6つの証明回路のコンパイル、345件の自動テスト、型検査・ビルド、Cloudflare配備前検査を表示。
 - 2026-08-29 JSTの現行ソース検証と、2026-08-28のMidnight事前公開ネットワーク記録を分離。
 - 回路行数、関数名、`k`値など、顧客価値の理解に不要な内部指標は載せない。
 
@@ -113,7 +113,7 @@ Prompt Set:
 - APIセッション、Midnight取引署名鍵、バックエンドでの証明生成、公開しきい値、対象デバイスを使う箇所を表示。
 - 生のセンサー値から時間別最小値・最大値、証明生成、デバイス署名、Midnight確定、公開画面までを10段階で表示。
 - 証明用乱数は公開しないと明記。
-- 第三者が見るのはUTC計測日・24時間のしきい値以内／範囲外／計測なし・適用しきい値・`deviceCommitment`・Midnight取引記録で、センサー実値は見えないと明記。
+- 第三者が見るのは運用日／登録済み境界・24時間のしきい値以内／範囲外／計測なし・適用しきい値・`deviceCommitment`・Midnight取引記録で、センサー実値は見えないと明記。
 
 ## cloudflare-uc01〜05-*-ja.svg／.png
 
@@ -124,7 +124,7 @@ Prompt Set:
 - 各ページの文章はタイトル、1行の説明、短い線ラベル、最下部の着目点だけに限定。
 - UC 3は、非公開MIN／MAXが証明中だけ通過し、D1、Queues、R2へ保存されない点を強調。
 - UC 4は、デバイスが取引内容を署名し、Sponsor WalletがDUSTだけを追加する責任分離を強調。
-- UC 5は、第三者がUTC計測日・24個の時間帯判定・適用しきい値・`deviceCommitment`・Midnight取引記録を見る点を強調。
+- UC 5は、第三者が運用日／登録済み境界・24個の時間帯判定・適用しきい値・`deviceCommitment`・Midnight取引記録を見る点を強調。
 - Cron Trigger、Rate Limiter、Observability、Durable Objects、Instanceサイズ、再試行条件は図から外し、`system_architecture.md`の説明用表へ分離。
 - Cloudflare Product Iconは、Cloudflare公式Docsリポジトリの`src/icons/`にあるWorkers、D1、Queues、Containers、R2のSVG Pathを使用。
 - Icon source revision: `cloudflare/cloudflare-docs` commit `3feb9a48ac3b20803e7d672f546bebf4b5b65a30`。

@@ -48,7 +48,7 @@ The burned-in captions reproduce the TTS script exactly and use speech/silence b
 11. Click Generate proof and record TX.
 12. Wait for confirmed, then capture the shortened transaction ID and result.
 13. Click Verify daily ZKP.
-14. Show policy bounds, the 24 UTC hourly results, Device Commitment, confirmed state, and transaction ID.
+14. Show policy bounds, the registered boundary and 24 operational-hour results, Device Commitment, confirmed state, and transaction ID.
 15. Open Third-Party Verification, paste the transaction hash, and show the same UTC date, hourly results, policy/validity, Device Commitment, block, and transaction without private input.
 
 ## Required shots

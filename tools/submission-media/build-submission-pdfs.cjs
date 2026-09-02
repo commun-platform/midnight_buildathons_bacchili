@@ -35,12 +35,12 @@ function coverSvg(locale) {
     ? ['センサー値を開示せず、', '24時間の判定を示す']
     : ['Show all 24 hourly results.', 'Keep sensor values private.'];
   const sub = ja
-    ? '第三者はUTC計測日・24時間の判定・適用しきい値・証明対象を確認。実値は見えない'
-    : 'A third party checks the UTC day, 24 hourly results, applied threshold, and proof subject. Values stay hidden.';
+    ? '第三者は運用日・登録済み境界・24時間の判定・適用しきい値・証明対象を確認。実値は見えない'
+    : 'A third party checks the operational date, registered boundary, 24 hourly results, applied threshold, and proof subject. Values stay hidden.';
   const values = ja
     ? [
       ['センサー値', 'エッジデバイス内だけ', '38D6E8'],
-      ['第三者が確認', 'UTC日・24時間判定・しきい値', 'A66CFF'],
+      ['第三者が確認', '運用日・24時間判定・しきい値', 'A66CFF'],
       ['Wave 1', 'Midnight事前公開環境で確認済み', '79D66A'],
     ]
     : [

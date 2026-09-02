@@ -10,7 +10,7 @@
 
 ## 第三者は何を確認できますか
 
-TX hashを貼り付け、UTC計測日、24個の時間帯別のしきい値以内／範囲外／計測なし、適用しきい値の下限／上限／単位／スケール／Version／有効期間、`deviceCommitment`、Midnight取引／Blockを確認できます。生のセンサー値や時間別の最小値・最大値は表示しません。
+TX hashを貼り付け、運用日／登録済み境界、24個の時間帯別のしきい値以内／範囲外／計測なし、適用しきい値の下限／上限／単位／スケール／Version／有効期間、`deviceCommitment`、Midnight取引／Blockを確認できます。生のセンサー値や時間別の最小値・最大値は表示しません。
 
 ## 何を証明しないのですか
 
@@ -38,15 +38,15 @@ Wave 1審査経路では、Browser上の疑似計測元が生成し、Raw Captur
 
 ## 測定していない時間はどう表示しますか
 
-UTCの各時間を「しきい値以内」「範囲外」「計測なし」のいずれかとして公開します。時間別の最小値・最大値は非公開です。
+運用日の各時間枠を「しきい値以内」「範囲外」「計測なし」のいずれかとして公開します。時間別の最小値・最大値は非公開です。
 
 ## 現時点でどこまで検証済みですか
 
-2026-09-01の現行ソースで、6つの証明回路のコンパイル、339件の自動テスト、型検査、ビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークには、2026-08-28の自己負担WITHIN／OUTSIDEと2026-08-30のSponsor負担Schema-5記録があります。ソース検証と日付付きネットワーク記録は別のEvidenceです。
+2026-09-02の現行ソースで、6つの証明回路のコンパイル、345件の自動テスト、型検査、ビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークには、2026-08-28の自己負担WITHIN／OUTSIDEと2026-08-30のSponsor負担Schema-5記録があります。ソース検証と日付付きネットワーク記録は別のEvidenceです。
 
 ## 第三者画面だけで独立検証できますか
 
-Public Chain Evidenceは独立に照合できます。Wallet、Private Input、D1検索を使わず、BrowserがTX hashでPublic Midnight Indexerへ問い合わせ、成功TX／Block、呼び出したContract、該当Blockと直前BlockのState差分を確認します。新しく追加されたAttestation、UTC計測日、24個の時間帯判定、Policy／有効期間、Presence／Count、Device Commitment、Device-bound AssignmentをDecodeします。Browser内でProof Verifierを再実行したりWitnessを開示したりはしません。Proof自体はTX受理時にMidnightが検証しています。
+Public Chain Evidenceは独立に照合できます。Wallet、Private Input、D1検索を使わず、BrowserがTX hashでPublic Midnight Indexerへ問い合わせ、成功TX／Block、呼び出したContract、該当Blockと直前BlockのState差分を確認します。新しく追加されたAttestation、運用日／登録済み境界、24個の時間帯判定、Policy／有効期間、Presence／Count、Device Commitment、Device-bound AssignmentをDecodeします。Browser内でProof Verifierを再実行したりWitnessを開示したりはしません。Proof自体はTX受理時にMidnightが検証しています。
 
 ## 誰がどの鍵を持ちますか
 

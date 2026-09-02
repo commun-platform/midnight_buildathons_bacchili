@@ -48,7 +48,7 @@ old and new authorities, so neither can be reused by another Device.
 2. the private Device Contract Authority derives to that registry entry's public authority;
 3. the selected immutable Policy Assignment contains the same Device Commitment;
 4. the private committed daily input contains the same Device, Policy, and Assignment keys; and
-5. daily schema `6`, circuit `4`, the exact UTC day, presence bitmap, 24 hourly results, counts, and policy checks pass.
+5. daily schema `7`, circuit `5`, the exact registered operational period, presence bitmap, 24 hourly results, counts, and policy checks pass.
 
 The daily commitment contains and constrains the explicit domain `vsp:daily-extrema:v1`.
 
@@ -163,8 +163,9 @@ configuration revision and the dedicated `configuration:read` scope. Migration
 `0013_daily_threshold_result.sql` binds the claimed public daily summary to each idempotent Proof
 Job. Migration `0019_worker_browser_provisioning.sql` adds hashed one-time browser challenges and
 hashed Wallet verification-key bindings. Migration `0025_hourly_threshold_results.sql` stores the
-24 public hourly results used to locate and render schema-6 chain evidence. Secrets are never stored
-in D1.
+24 public hourly results. Migration `0026_operational_day_boundary.sql` mirrors the Project and
+immutable Assignment boundary used to locate and render schema-7 chain evidence. Secrets are never
+stored in D1.
 
 The Worker requires all of these before issuing a Session or accepting operational input:
 
@@ -183,17 +184,17 @@ when the Device, active Device-bound Assignment, Policy, their confirmed transac
 contract addresses, and the Worker's configured contract address agree. Wallet commands refresh this
 configuration before contract-sensitive operations, so a confirmed redeployment can move Devices to
 the new address without rebuilding the firmware archive. Threshold bounds remain public on Midnight;
-the Device does not choose or send bounds in a Proof request.
+the Device does not choose or send bounds or an alternate operational-day boundary in a Proof request.
 
 ## 5. Compatibility and deployment gate
 
 This Fleet Registry ledger and the domain-tagged daily commitment are incompatible with the
 selected-leaf deployment, the intermediate singleton daily-attestation implementation, and the
 WITHIN-only Fleet Registry. Adoption requires Compact recompilation, a new contract deployment,
-migrations through `0020`, re-registering
+migrations through `0026`, re-registering
 every Device/Policy/Assignment, updating the Worker contract address, allowing Devices to pull the
 new operation configuration, and regenerating private
-daily commitments under schema `5` / circuit `3`.
+daily commitments under schema `7` / circuit `5` and contract schema `4`.
 
 HEAD, the current working tree, and any deployed Preprod contract are separate states. A local
 compile or simulator pass must never be reported as a Preprod deployment or transaction.
@@ -213,7 +214,7 @@ the cost benchmark:
 
 The Edge Device completed both truthful WITHIN and OUTSIDE self-funded attestations. The historical
 schema-5 Sponsor-funded WITHIN attestation was separately confirmed on 2026-08-30 JST and remains
-operational sponsorship-boundary evidence; it does not contain schema-6 hourly results.
+operational sponsorship-boundary evidence; it does not contain schema-7 configurable-boundary results.
 
 The current Sponsor-funded release gate replaces step 6 with:
 

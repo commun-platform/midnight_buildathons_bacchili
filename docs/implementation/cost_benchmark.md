@@ -563,7 +563,7 @@ Each result is written below `~/.midnight/midnight-cloudflare-demo/device-wallet
 Correlate each result with the Worker's `proof_gateway_upstream` logs to validate request bytes and obtain response bytes and Container durations. Confirm the one attestation transaction and its policy assignment in Midnight state before marking a row complete.
 
 Use `--outlier-value 40` on a controlled run to measure a truthful OUTSIDE result with the same
-operational circuit. `--period-date` must identify a unique completed UTC day accepted by the Worker.
+operational circuit. `--period-date` must identify a unique completed operational day accepted by the Worker.
 
 ## Pricing model
 

@@ -109,9 +109,12 @@ sensor values is automatically `STOPPED` and has the canonical representation `p
 threshold failure. This is necessary because construction work is not necessarily active for 24
 hours and schedules vary by day.
 
-Wave 1 defines a day as UTC 00:00–24:00. The circuit receives a UTC epoch day plus Unix seconds and
-requires `periodStart = measurementDay * 86,400` and `periodEnd = periodStart + 86,400`. Local-time
-offsets and daylight-saving transitions cannot change the proof period.
+A Project registers a fixed UTC offset and a local start hour before Device operation. Those values
+are copied into the immutable Device-bound Assignment. The circuit receives a UTC epoch day plus Unix
+seconds and requires `periodStart = measurementDay * 86,400 + utcDayStartMinute * 60` and
+`periodEnd = periodStart + 86,400`. The 24-slot shape does not change. Wave 1 uses a fixed offset and
+does not apply daylight-saving transitions within an Assignment. See the normative
+[operational-day boundary specification](operational_day_boundary.md).
 
 The private ZK shape is independent of raw sampling frequency:
 
@@ -158,7 +161,7 @@ verified = true
 ```
 
 Hourly minima/maxima and the commitment nonce remain private. Thresholds, mode, unit/type codes,
-policy version, assignment, UTC day/period, presence, counts, commitment, and the 24 hourly results are
+policy version, assignment, operational date/boundary, UTC period, presence, counts, commitment, and the 24 hourly results are
 public.
 
 ## 5. Circuit rules
@@ -169,7 +172,7 @@ public.
 2. derives the attestation ID from the registered Device Commitment and public measurement group ID,
    then rejects an ID already present in the ledger;
 3. loads the immutable assignment and policy and rejects an assignment belonging to another Device;
-4. checks the exact UTC day, 24-hour period, and assignment validity;
+4. checks the exact registered operational-day boundary, 24-hour period, and assignment validity;
 5. opens and recomputes the private daily commitment;
 6. binds measurement group, device, policy, assignment, period, schema, circuit version, and presence
    to public state;
@@ -225,7 +228,7 @@ Migrations `0010_hourly_extrema_policies.sql` and `0011_multi_device_registry.sq
   result.
 
 The Worker validates that the authenticated device, D1 policy/assignment mirror, device commitment,
-UTC day/period, claimed hourly results, daily summary, and job metadata agree before queueing. It accepts policy and assignment
+operational date/period, claimed hourly results, daily summary, and job metadata agree before queueing. It accepts policy and assignment
 identifiers but no threshold bounds. The claimed result is not trusted as evidence until the
 corresponding Midnight transaction is confirmed; the circuit recomputes it from private extrema and
 ledger policy. The public verifier joins the confirmed job to the registered policy and displays the
@@ -236,16 +239,16 @@ contract address, and transaction reference.
 
 - Compact toolchain: `0.31.1`
 - Compact language pragma: `0.23`
-- contract schema version: `3`
-- daily schema version: `6`
-- circuit version: `4`
-- D1 migrations: through `0025_hourly_threshold_results.sql`
+- contract schema version: `4`
+- daily schema version: `7`
+- circuit version: `5`
+- D1 migrations: through `0026_operational_day_boundary.sql`
 
 The prior selected-Merkle-leaf, singleton, and WITHIN-only Fleet Registry contracts are not
 state-compatible with this ledger.
 Adoption requires a new Fleet Registry deployment, Operator-only Device/Policy/Device-bound
 Assignment registration before operation, updating the public contract address, and applying all D1
-migrations through `0025`. Historical schema-5 transactions remain valid daily-summary evidence but
+migrations through `0026`. Historical schema-5/6 transactions remain valid historical evidence but
 cannot be retrofitted with 24 hourly results. The old 24/96/1,440 `daily-attestation` profiles remain development-only
 circuit-scaling experiments and are not the operational path or pricing basis.
 
@@ -265,5 +268,5 @@ Automated tests cover:
 Historical Preprod transactions confirm the prior daily-summary design, including a 1,440-reading day
 reduced locally to 24 private hourly extrema slots. Their transaction time, proof time, proving-key
 size, request size, transaction size, DUST fee, and planning estimates remain in
-[the cost benchmark](../implementation/cost_benchmark.md). They do not demonstrate schema `6` /
-circuit `4` hourly public results; that requires a new contract deployment and new transactions.
+[the cost benchmark](../implementation/cost_benchmark.md). They do not demonstrate schema `7` /
+circuit `5` configurable-boundary results; that requires a new contract deployment and new transactions.
