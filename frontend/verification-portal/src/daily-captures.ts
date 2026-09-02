@@ -5,10 +5,13 @@ import {
   evaluatePreparedDailyExtremaLocally,
   evaluatePreparedDailyExtremaHoursLocally,
   generateSensorRecords,
+  operationalPeriodDate,
+  operationalPeriodStart,
   prepareDailyExtremaAttestation,
   sha256,
   type PreparedDailyExtremaAttestation,
   type HourThresholdResult,
+  type OperationalDayBoundary,
   type SensorRecord,
   type ThresholdPolicyDescriptor,
 } from '@midnight-demo/shared';
@@ -28,7 +31,7 @@ export interface DailyHourlyWindow {
 }
 
 export interface BrowserDailyCapture {
-  schemaVersion: 2;
+  schemaVersion: 3;
   storageKey: string;
   projectId: string;
   deviceId: string;
@@ -53,6 +56,7 @@ export interface GenerateDailyCaptureInput {
   periodDate: string;
   policy: ThresholdPolicyDescriptor;
   assignmentId: string;
+  operationalDay: OperationalDayBoundary;
   sampleCount: DailySampleCount;
   mode: DailyGenerationMode;
   now?: Date;
@@ -69,7 +73,7 @@ function isCurrentDailyCapture(value: unknown): value is BrowserDailyCapture {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const capture = value as Partial<BrowserDailyCapture>;
   const attestation = capture.attestation;
-  return capture.schemaVersion === 2
+  return capture.schemaVersion === 3
     && capture.requestedSampleCount === 1440
     && Array.isArray(capture.records)
     && capture.records.length === 1440
@@ -90,33 +94,32 @@ function round(value: number, digits = 2): number {
   return Math.round(value * factor) / factor;
 }
 
-function periodStart(periodDate: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(periodDate)) {
-    throw new Error('periodDate must be YYYY-MM-DD');
-  }
-  const start = new Date(`${periodDate}T00:00:00.000Z`);
-  if (
-    Number.isNaN(start.valueOf())
-    || start.toISOString().slice(0, 10) !== periodDate
-  ) throw new Error('periodDate is not a valid calendar date');
-  return start;
+function shiftCalendarDate(periodDate: string, days: number): string {
+  const [year, month, day] = periodDate.split('-').map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day! + days)).toISOString().slice(0, 10);
 }
 
-export function dailyGenerationDateBounds(now = new Date()): { minimum: string; maximum: string } {
+export function dailyGenerationDateBounds(
+  operationalDay: OperationalDayBoundary = { timeZoneOffsetMinutes: 0, localDayStartHour: 0 },
+  now = new Date(),
+): { minimum: string; maximum: string } {
   if (!Number.isFinite(now.valueOf())) throw new Error('Current time is invalid');
-  const today = now.toISOString().slice(0, 10);
-  const todayStart = periodStart(today).valueOf();
+  const currentPeriodDate = operationalPeriodDate(now, operationalDay);
   return {
-    minimum: new Date(todayStart - browserGenerationDayLimit * dayMilliseconds).toISOString().slice(0, 10),
-    maximum: new Date(todayStart - dayMilliseconds).toISOString().slice(0, 10),
+    minimum: shiftCalendarDate(currentPeriodDate, -browserGenerationDayLimit),
+    maximum: shiftCalendarDate(currentPeriodDate, -1),
   };
 }
 
-export function validateDailyGenerationDate(periodDate: string, now = new Date()): void {
-  periodStart(periodDate);
-  const bounds = dailyGenerationDateBounds(now);
+export function validateDailyGenerationDate(
+  periodDate: string,
+  operationalDay: OperationalDayBoundary = { timeZoneOffsetMinutes: 0, localDayStartHour: 0 },
+  now = new Date(),
+): void {
+  operationalPeriodStart(periodDate, operationalDay);
+  const bounds = dailyGenerationDateBounds(operationalDay, now);
   if (periodDate < bounds.minimum || periodDate > bounds.maximum) {
-    throw new Error(`periodDate must be between ${bounds.minimum} and ${bounds.maximum} (UTC)`);
+    throw new Error(`periodDate must be between ${bounds.minimum} and ${bounds.maximum}`);
   }
 }
 
@@ -240,8 +243,8 @@ export async function generateDailyCapture(
     throw new Error('sampleCount must be 24, 96, or 1440');
   }
   const now = input.now ?? new Date();
-  validateDailyGenerationDate(input.periodDate, now);
-  const start = periodStart(input.periodDate);
+  validateDailyGenerationDate(input.periodDate, input.operationalDay, now);
+  const start = operationalPeriodStart(input.periodDate, input.operationalDay);
   const fullEnd = new Date(start.valueOf() + dayMilliseconds);
   const completeDay = true;
   const effectiveEnd = fullEnd;
@@ -260,12 +263,14 @@ export async function generateDailyCapture(
     periodDate: input.periodDate,
     policyId: input.policy.policyId,
     assignmentId: input.assignmentId,
+    timeZoneOffsetMinutes: input.operationalDay.timeZoneOffsetMinutes,
+    localDayStartHour: input.operationalDay.localDayStartHour,
   });
   const outlierCount = records.filter((record) => !policyAllowsValue(input.policy, record.temperature)).length;
   const thresholdResult = evaluatePreparedDailyExtremaLocally(attestation, input.policy);
   const hourResults = evaluatePreparedDailyExtremaHoursLocally(attestation, input.policy);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     storageKey: storageKey(input.projectId, input.deviceId, input.periodDate),
     projectId: input.projectId,
     deviceId: input.deviceId,

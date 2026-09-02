@@ -21,6 +21,7 @@ const policy = {
   unitCode: 1,
   version: 1,
 };
+const utcOperationalDay = { timeZoneOffsetMinutes: 0, localDayStartHour: 0 };
 
 afterEach(async () => {
   await new Promise<void>((resolve, reject) => {
@@ -39,6 +40,7 @@ describe('browser private daily captures', () => {
       periodDate: '2026-08-27',
       policy,
       assignmentId: 'browser-device-001-temperature-v1-wave1',
+      operationalDay: utcOperationalDay,
       sampleCount,
       mode: 'within-threshold',
       now: new Date('2026-08-28T12:00:00.000Z'),
@@ -60,6 +62,7 @@ describe('browser private daily captures', () => {
       periodDate: '2026-08-27',
       policy,
       assignmentId: 'browser-device-002-temperature-v1-wave1',
+      operationalDay: utcOperationalDay,
       sampleCount: 96,
       mode: 'with-outliers',
       now: new Date('2026-08-28T12:00:00.000Z'),
@@ -71,9 +74,9 @@ describe('browser private daily captures', () => {
     expect(capture.hourResults).toContain('outside-threshold');
   });
 
-  it('allows only the previous 30 completed UTC days', async () => {
+  it('allows only the previous 30 completed operational days', async () => {
     const now = new Date('2026-08-28T03:37:42.000Z');
-    expect(dailyGenerationDateBounds(now)).toEqual({
+    expect(dailyGenerationDateBounds(utcOperationalDay, now)).toEqual({
       minimum: '2026-07-29',
       maximum: '2026-08-27',
     });
@@ -82,6 +85,7 @@ describe('browser private daily captures', () => {
       deviceId: 'browser-device-003',
       policy,
       assignmentId: 'browser-device-003-temperature-v1-wave1',
+      operationalDay: utcOperationalDay,
       sampleCount: 1440,
       mode: 'within-threshold',
       now,
@@ -97,17 +101,41 @@ describe('browser private daily captures', () => {
     expect(capture.windows).toHaveLength(24);
   });
 
+  it('generates a JST 06:00 operational day from the preceding UTC date', async () => {
+    const operationalDay = { timeZoneOffsetMinutes: 540, localDayStartHour: 6 };
+    expect(dailyGenerationDateBounds(
+      operationalDay,
+      new Date('2026-08-28T00:00:00.000Z'),
+    )).toEqual({ minimum: '2026-07-29', maximum: '2026-08-27' });
+    const capture = await generateDailyCapture({
+      projectId: 'measurement-authenticity-01',
+      deviceId: 'browser-device-jst',
+      periodDate: '2026-08-27',
+      policy,
+      assignmentId: 'browser-device-jst-temperature-v1-wave1',
+      operationalDay,
+      sampleCount: 1440,
+      mode: 'within-threshold',
+      now: new Date('2026-08-28T00:00:00.000Z'),
+      seed: 29,
+    });
+    expect(capture.windows[0]?.periodStart).toBe('2026-08-26T21:00:00.000Z');
+    expect(capture.attestation.publicData.utcDayStartMinute).toBe(1260);
+  });
+
   it('stores raw samples only in the browser private store and lists days newest-first', async () => {
     const first = await generateDailyCapture({
       projectId: 'measurement-authenticity-01', deviceId: 'browser-device-004',
       periodDate: '2026-08-26', policy,
       assignmentId: 'browser-device-004-temperature-v1-wave1', sampleCount: 1440,
+      operationalDay: utcOperationalDay,
       mode: 'within-threshold', now: new Date('2026-08-28T12:00:00.000Z'), seed: 17,
     });
     const second = await generateDailyCapture({
       projectId: 'measurement-authenticity-01', deviceId: 'browser-device-004',
       periodDate: '2026-08-27', policy,
       assignmentId: 'browser-device-004-temperature-v1-wave1', sampleCount: 1440,
+      operationalDay: utcOperationalDay,
       mode: 'within-threshold', now: new Date('2026-08-28T12:00:00.000Z'), seed: 19,
     });
     await storeDailyCapture(first);
@@ -124,6 +152,7 @@ describe('browser private daily captures', () => {
       projectId: 'measurement-authenticity-01', deviceId: 'browser-device-005',
       periodDate: '2026-08-27', policy,
       assignmentId: 'browser-device-005-temperature-v1-wave1', sampleCount: 1440,
+      operationalDay: utcOperationalDay,
       mode: 'within-threshold', now: new Date('2026-08-28T12:00:00.000Z'), seed: 23,
     });
     await storeDailyCapture(capture);

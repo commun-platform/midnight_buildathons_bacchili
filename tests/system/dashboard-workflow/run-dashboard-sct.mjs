@@ -56,14 +56,15 @@ const publicProof = {
   assignmentVersion: 1,
   assignmentValidFrom: '2026-08-01T00:00:00.000Z',
   assignmentValidUntil: '2026-09-01T00:00:00.000Z',
+  operationalDay: { timeZoneOffsetMinutes: 0, localDayStartHour: 0, utcDayStartMinute: 0 },
   measurementGroupId: '66'.repeat(32),
   attestationCommitment: '77'.repeat(32),
-  schemaVersion: 6,
-  circuitVersion: 4,
+  schemaVersion: 7,
+  circuitVersion: 5,
   proofGeneratedAt: '2026-08-28T02:14:15.000Z',
   status: 'confirmed',
-  claim: 'Each UTC hour is publicly proved as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.',
-  claimJa: 'UTCの各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。',
+  claim: 'Each operational hour is publicly proved as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.',
+  claimJa: '運用日の各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。',
   checks: {
     dailyAttestationRecorded: true,
     committedHourlyExtrema: true,
@@ -141,10 +142,12 @@ const defaultProjectId = 'measurement-authenticity-01';
 let activeProjectId = defaultProjectId;
 const projectList = [{
   projectId: defaultProjectId, name: 'Measurement Data Authenticity', nameJa: null,
+  timeZone: 'UTC+00:00', timeZoneOffsetMinutes: 0, localDayStartHour: 0, utcDayStartMinute: 0,
   createdAt: '2026-08-30T00:00:00.000Z',
 }];
 if (localStorage.getItem('sct-second-project-created') === 'true') projectList.push({
   projectId: 'project-gui-sct-002', name: 'Second construction site', nameJa: null,
+  timeZone: 'UTC+09:00', timeZoneOffsetMinutes: 540, localDayStartHour: 6, utcDayStartMinute: 1260,
   createdAt: '2026-08-31T00:00:00.000Z',
 });
 const state = {
@@ -203,6 +206,7 @@ function provisioned() {
     ...state.device, contractAddress, deviceCommitment: '${'22'.repeat(32)}',
     policyId, policyKey,
     assignmentId: state.device.deviceId + '-' + policyId + '-wave1', assignmentKey,
+    timeZoneOffsetMinutes: 0, localDayStartHour: 0, utcDayStartMinute: 0,
     registeredTxId: 'gui-sct-device-tx', assignmentTxId: 'gui-sct-assignment-tx',
   };
 }
@@ -232,6 +236,9 @@ function policies(projectId = activeProjectId) {
 function configuration(projectId = activeProjectId) {
   return {
     network: 'preprod', projectId, contractAddress, serviceUrl: location.origin,
+    operationalDay: projectId === defaultProjectId
+      ? { timeZoneOffsetMinutes: 0, localDayStartHour: 0, utcDayStartMinute: 0 }
+      : { timeZoneOffsetMinutes: 540, localDayStartHour: 6, utcDayStartMinute: 1260 },
     policies: policies(projectId), maximumPolicies: 10,
   };
 }
@@ -263,9 +270,11 @@ export const browserDeviceFlow = {
       configuration: configuration(projectId),
     };
   },
-  async createProject(name) {
+  async createProject(input) {
     const project = {
-      projectId: 'project-gui-sct-002', name, nameJa: null,
+      projectId: 'project-gui-sct-002', name: input.name, nameJa: null,
+      timeZone: 'UTC+09:00', timeZoneOffsetMinutes: input.timeZoneOffsetMinutes,
+      localDayStartHour: input.localDayStartHour, utcDayStartMinute: 1260,
       createdAt: new Date().toISOString(),
     };
     if (!projectList.some((item) => item.projectId === project.projectId)) projectList.push(project);
@@ -395,7 +404,8 @@ export const browserDeviceFlow = {
         hourPresence: Array.from({ length: 24 }, () => true), observedHourCount: 24,
         hourResults: Array.from({ length: 24 }, (_, hour) =>
           hour === 12 || hour === 18 ? 'outside-threshold' : 'within-threshold'),
-        measurementDay: 20693, schemaVersion: 6, circuitVersion: 4,
+        measurementDay: 20693, timeZoneOffsetMinutes: 0, localDayStartHour: 0,
+        utcDayStartMinute: 0, schemaVersion: 7, circuitVersion: 5,
       } },
     };
     localStorage.setItem('sct-capture-created', 'true');
@@ -504,10 +514,15 @@ class CdpClient {
     this.socket = socket;
     this.nextId = 0;
     this.pending = new Map();
+    this.events = [];
     socket.on('message', (data) => {
       const message = JSON.parse(String(data));
       const pending = this.pending.get(message.id);
-      if (!pending) return;
+      if (!pending) {
+        this.events.push(message);
+        if (this.events.length > 100) this.events.shift();
+        return;
+      }
       this.pending.delete(message.id);
       if (message.error) pending.reject(new Error(message.error.message));
       else pending.resolve(message.result || {});
@@ -529,6 +544,10 @@ class CdpClient {
       this.pending.set(id, { resolve, reject });
       this.socket.send(JSON.stringify({ id, method, params }));
     });
+  }
+
+  recentEvents(method) {
+    return this.events.filter((event) => event.method === method);
   }
 
   close() { this.socket.close(); }
@@ -592,7 +611,11 @@ try {
       await sleep(100);
     }
     const body = await evaluate(`document.querySelector('main')?.textContent || document.body.textContent`);
-    throw new Error(`Timed out waiting for GUI state: ${expression}\nRendered text: ${String(body).slice(0, 2_000)}`);
+    const exceptions = cdp.recentEvents('Runtime.exceptionThrown').slice(-3)
+      .map((event) => event.params?.exceptionDetails?.exception?.description
+        || event.params?.exceptionDetails?.text)
+      .filter(Boolean);
+    throw new Error(`Timed out waiting for GUI state: ${expression}\nRendered text: ${String(body).slice(0, 2_000)}\nBrowser exceptions: ${exceptions.join('\n') || 'none'}`);
   };
   const click = async (selector) => {
     await waitFor(`document.querySelector(${JSON.stringify(selector)}) && !document.querySelector(${JSON.stringify(selector)}).disabled`);

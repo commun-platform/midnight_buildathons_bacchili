@@ -5,7 +5,13 @@ import {
   pureCircuits,
   type Ledger,
 } from '@midnight-demo/sensor-registry-contract/contract';
-import { bytesToHex, hexToBytes } from '@midnight-demo/shared';
+import {
+  bytesToHex,
+  hexToBytes,
+  operationalPeriodDate,
+  operationalPeriodStart,
+  utcDayStartMinute,
+} from '@midnight-demo/shared';
 import type { HourThresholdResult } from '@midnight-demo/shared';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
@@ -27,6 +33,11 @@ export interface PublicAttestationRecord {
   assignmentVersion: number;
   assignmentValidFrom: string | null;
   assignmentValidUntil: string | null;
+  operationalDay: {
+    timeZoneOffsetMinutes: number;
+    localDayStartHour: number;
+    utcDayStartMinute: number;
+  };
   sampleCount: number;
   observedHourCount: number;
   hourPresence: boolean[];
@@ -169,7 +180,7 @@ export function publicAttestationFromLedgerTransition(
     throw new Error('The transaction does not add exactly one daily attestation');
   }
   const [, attestation] = additions[0]!;
-  if (attestation.schemaVersion !== 6n || attestation.circuitVersion !== 4n) {
+  if (attestation.schemaVersion !== 7n || attestation.circuitVersion !== 5n) {
     throw new Error('This transaction predates the public hourly-result schema');
   }
   if (!attestation.verified) throw new Error('The daily attestation is not verified');
@@ -191,13 +202,18 @@ export function publicAttestationFromLedgerTransition(
   ) throw new Error('The attestation is outside the public policy validity interval');
   const periodStart = safeNumber(attestation.periodStart, 'Measurement period');
   const measurementDay = safeNumber(attestation.measurementDay, 'Measurement day');
+  const operationalDay = {
+    timeZoneOffsetMinutes: safeNumber(assignment.timeZoneOffsetMinutesBias, 'Time-zone offset') - 840,
+    localDayStartHour: safeNumber(assignment.localDayStartHour, 'Local day start hour'),
+    utcDayStartMinute: safeNumber(assignment.utcDayStartMinute, 'UTC day start minute'),
+  };
   if (
-    attestation.periodStart !== attestation.measurementDay * 86_400n
+    operationalDay.utcDayStartMinute !== utcDayStartMinute(operationalDay)
+    || attestation.periodStart !== attestation.measurementDay * 86_400n
+      + assignment.utcDayStartMinute * 60n
     || attestation.periodEnd !== attestation.periodStart + 86_400n
-  ) throw new Error('The attestation is not fixed to one UTC day');
-  const periodDate = new Date(periodStart * 1_000).toISOString().slice(0, 10);
-  const expectedPeriodDate = new Date(measurementDay * 86_400_000).toISOString().slice(0, 10);
-  if (periodDate !== expectedPeriodDate) throw new Error('The public UTC measurement day is inconsistent');
+  ) throw new Error('The attestation does not match its registered operational-day boundary');
+  const periodDate = operationalPeriodDate(periodStart * 1_000, operationalDay);
   const hourPresence = [...attestation.hourPresence];
   const hourResults = attestation.hourResults.map(publicHourResult);
   if (
@@ -235,6 +251,7 @@ export function publicAttestationFromLedgerTransition(
     assignmentVersion: safeNumber(assignment.version, 'Assignment version'),
     assignmentValidFrom: isoFromEpoch(assignment.validFrom),
     assignmentValidUntil: isoFromEpoch(assignment.validUntil),
+    operationalDay,
     sampleCount: safeNumber(attestation.sampleCount, 'Sample count'),
     observedHourCount,
     stoppedHourCount: 24 - observedHourCount,
@@ -265,11 +282,11 @@ export function publicAttestationFromLedgerTransition(
     status: 'confirmed',
     proofGeneratedAt: null,
     claim: observedHourCount === 0
-      ? 'All 24 UTC hours are publicly reported as NO DATA; no sensor values are disclosed.'
-      : 'Each UTC hour is publicly proved as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.',
+      ? 'All 24 operational hours are publicly reported as NO DATA; no sensor values are disclosed.'
+      : 'Each operational hour is publicly proved as WITHIN, OUTSIDE, or NO DATA under the registered threshold; the sensor values remain private.',
     claimJa: observedHourCount === 0
-      ? 'UTCの24時間すべてが「計測なし」として公開され、センサー値自体は開示されません。'
-      : 'UTCの各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。',
+      ? '運用日の24時間すべてが「計測なし」として公開され、センサー値自体は開示されません。'
+      : '運用日の各時間帯について、登録済みしきい値に対する「閾値以内・範囲外・計測なし」を公開しています。センサー値自体は非公開です。',
     checks: {
       dailyAttestationRecorded: true,
       committedHourlyExtrema: true,
@@ -314,11 +331,19 @@ export function verifyPublicAttestationLedger(
     };
   }
   const attestation = state.attestations.lookup(attestationId);
-  const periodStart = Date.parse(`${input.periodDate}T00:00:00.000Z`);
-  const canonicalDate = Number.isFinite(periodStart)
-    ? new Date(periodStart).toISOString().slice(0, 10)
-    : '';
-  const periodStartEpoch = canonicalDate === input.periodDate ? BigInt(periodStart / 1_000) : -1n;
+  const assignmentBoundary = {
+    timeZoneOffsetMinutes: Number(assignment.timeZoneOffsetMinutesBias) - 840,
+    localDayStartHour: Number(assignment.localDayStartHour),
+  };
+  const boundaryMatches = input.operationalDay.timeZoneOffsetMinutes
+      === assignmentBoundary.timeZoneOffsetMinutes
+    && input.operationalDay.localDayStartHour === assignmentBoundary.localDayStartHour
+    && input.operationalDay.utcDayStartMinute === Number(assignment.utcDayStartMinute)
+    && input.operationalDay.utcDayStartMinute === utcDayStartMinute(assignmentBoundary);
+  const periodStart = boundaryMatches
+    ? operationalPeriodStart(input.periodDate, assignmentBoundary).valueOf()
+    : Number.NaN;
+  const periodStartEpoch = Number.isFinite(periodStart) ? BigInt(periodStart / 1_000) : -1n;
   const measurementDay = periodStartEpoch >= 0n ? periodStartEpoch / 86_400n : -1n;
   const dailyAttestationRecorded = attestation.verified;
   const committedHourlyExtrema = dailyAttestationRecorded
@@ -328,6 +353,7 @@ export function verifyPublicAttestationLedger(
     && sameBytes(attestation.deviceCommitment, assignment.deviceCommitment)
     && sameBytes(attestation.policyId, policyKey)
     && sameBytes(attestation.assignmentId, assignmentKey)
+    && boundaryMatches
     && attestation.measurementDay === measurementDay
     && attestation.periodStart === periodStartEpoch
     && attestation.periodEnd === periodStartEpoch + 86_400n
@@ -509,7 +535,7 @@ export async function loadPublicAttestationByTransactionHash(
   }
   if (candidates.length !== 1) {
     throw new Error(candidates.length === 0
-      ? 'No schema-6 daily attestation was found in this transaction'
+      ? 'No schema-7 daily attestation was found in this transaction'
       : 'The transaction contains multiple daily attestations');
   }
   return candidates[0]!;

@@ -6,6 +6,8 @@ import {
 } from '@midnight-demo/shared/browser-provisioning';
 import {
   type ThresholdPolicyDescriptor,
+  utcDayStartMinute,
+  validateOperationalDayBoundary,
 } from '@midnight-demo/shared';
 import { deriveDeviceAuthorityHex } from '@midnight-demo/sensor-registry-contract/witnesses';
 
@@ -51,6 +53,11 @@ export interface ProvisioningConfiguration {
   projectId: string;
   contractAddress: string;
   serviceUrl: string;
+  operationalDay: {
+    timeZoneOffsetMinutes: number;
+    localDayStartHour: number;
+    utcDayStartMinute: number;
+  };
   policies: DevicePolicy[];
   maximumPolicies: number;
 }
@@ -84,6 +91,10 @@ export interface BrowserProject {
   projectId: string;
   name: string;
   nameJa: string | null;
+  timeZone: string;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
+  utcDayStartMinute: number;
   createdAt: string;
 }
 
@@ -110,6 +121,9 @@ export interface ProvisionedDevice extends BrowserDevice {
   policyKey: string;
   assignmentId: string;
   assignmentKey: string;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
+  utcDayStartMinute: number;
   registeredTxId: string;
   assignmentTxId: string;
 }
@@ -196,7 +210,7 @@ export interface RestoredDeviceState {
 }
 
 interface DeviceOperationConfiguration {
-  schemaVersion: 1;
+  schemaVersion: 2;
   device: {
     deviceId: string;
     projectId: string;
@@ -206,7 +220,7 @@ interface DeviceOperationConfiguration {
   midnight: {
     network: 'preprod';
     contractAddress: string;
-    contractSchemaVersion: 3;
+    contractSchemaVersion: 4;
   };
   policy: {
     id: string;
@@ -215,6 +229,9 @@ interface DeviceOperationConfiguration {
   assignment: {
     id: string;
     key: string;
+    timeZoneOffsetMinutes: number;
+    localDayStartHour: number;
+    utcDayStartMinute: number;
   };
   evidence: {
     deviceRegisteredTxId: string;
@@ -247,6 +264,9 @@ interface ProvisioningResponse {
   policyKey: string;
   assignmentId: string;
   assignmentKey: string;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
+  utcDayStartMinute: number;
   registeredTxId: string;
   assignmentTxId: string;
 }
@@ -431,6 +451,8 @@ export async function loadConfiguration(
     || !configuration.serviceUrl
     || !Array.isArray(configuration.policies)
     || configuration.maximumPolicies !== 10
+    || validateOperationalDayBoundary(configuration.operationalDay) !== configuration.operationalDay
+    || configuration.operationalDay.utcDayStartMinute !== utcDayStartMinute(configuration.operationalDay)
   ) throw new Error('Provisioning configuration is incomplete');
   return configuration;
 }
@@ -538,7 +560,11 @@ export async function selectProject(projectId: string): Promise<{
   };
 }
 
-export async function createProject(name: string): Promise<{
+export async function createProject(input: {
+  name: string;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
+}): Promise<{
   project: BrowserProject;
   deviceId: string;
   projectCount: number;
@@ -559,7 +585,7 @@ export async function createProject(name: string): Promise<{
       'Content-Type': 'application/json',
       'X-Client-Operation-Id': operationId,
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(input),
     signal: AbortSignal.timeout(15_000),
   }), 'Create Project');
   projects = [...projects, created.project];
@@ -695,19 +721,28 @@ function validOperationConfiguration(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Partial<DeviceOperationConfiguration>;
   const policy = config.policies.find((item) => item.policyId === candidate.policy?.id);
-  return candidate.schemaVersion === 1
+  const boundary = candidate.assignment && {
+    timeZoneOffsetMinutes: candidate.assignment.timeZoneOffsetMinutes,
+    localDayStartHour: candidate.assignment.localDayStartHour,
+  };
+  return candidate.schemaVersion === 2
     && candidate.device?.deviceId === currentIdentity.deviceId
     && candidate.device.projectId === currentIdentity.projectId
     && validHex32(candidate.device.commitment)
     && validHex32(candidate.device.provisioningWalletKeySha256)
     && candidate.midnight?.network === config.network
     && candidate.midnight.contractAddress === config.contractAddress
-    && candidate.midnight.contractSchemaVersion === 3
+    && candidate.midnight.contractSchemaVersion === 4
     && Boolean(policy)
     && candidate.policy?.key === policy?.policyKey
     && validHex32(candidate.assignment?.key)
     && typeof candidate.assignment?.id === 'string'
     && Boolean(candidate.assignment.id)
+    && boundary !== undefined
+    && validateOperationalDayBoundary(boundary) === boundary
+    && candidate.assignment.utcDayStartMinute === config.operationalDay.utcDayStartMinute
+    && candidate.assignment.timeZoneOffsetMinutes === config.operationalDay.timeZoneOffsetMinutes
+    && candidate.assignment.localDayStartHour === config.operationalDay.localDayStartHour
     && typeof candidate.evidence?.deviceRegisteredTxId === 'string'
     && Boolean(candidate.evidence.deviceRegisteredTxId)
     && typeof candidate.evidence.assignmentRegisteredTxId === 'string'
@@ -744,6 +779,9 @@ export async function restoreDevice(deviceId: string): Promise<RestoredDeviceSta
       policyKey: operationConfiguration.policy.key,
       assignmentId: operationConfiguration.assignment.id,
       assignmentKey: operationConfiguration.assignment.key,
+      timeZoneOffsetMinutes: operationConfiguration.assignment.timeZoneOffsetMinutes,
+      localDayStartHour: operationConfiguration.assignment.localDayStartHour,
+      utcDayStartMinute: operationConfiguration.assignment.utcDayStartMinute,
       registeredTxId: operationConfiguration.evidence.deviceRegisteredTxId,
       assignmentTxId: operationConfiguration.evidence.assignmentRegisteredTxId,
     };
@@ -850,6 +888,9 @@ export async function registerDevice(input: {
     || response.contractAddress !== config.contractAddress
     || response.policyId !== policy.policyId
     || response.policyKey !== policy.policyKey
+    || response.timeZoneOffsetMinutes !== config.operationalDay.timeZoneOffsetMinutes
+    || response.localDayStartHour !== config.operationalDay.localDayStartHour
+    || response.utcDayStartMinute !== config.operationalDay.utcDayStartMinute
   ) throw new Error('Device registration response does not match the request');
   provisioned = {
     ...response,
@@ -912,6 +953,9 @@ export async function resumePendingDeviceRegistration(
     || response.contractAddress !== config.contractAddress
     || response.policyId !== policy.policyId
     || response.policyKey !== policy.policyKey
+    || response.timeZoneOffsetMinutes !== config.operationalDay.timeZoneOffsetMinutes
+    || response.localDayStartHour !== config.operationalDay.localDayStartHour
+    || response.utcDayStartMinute !== config.operationalDay.utcDayStartMinute
   ) throw new Error('Resumed Device registration does not match the stored identity');
   provisioned = {
     ...response,
@@ -1008,7 +1052,11 @@ export async function generateDailyMeasurements(input: {
   const operationId = clientOperationId('measurement-day');
   const device = requireProvisioned();
   const policy = selectedPolicy(device.policyId);
-  validateDailyGenerationDate(input.periodDate);
+  const operationalDay = {
+    timeZoneOffsetMinutes: device.timeZoneOffsetMinutes,
+    localDayStartHour: device.localDayStartHour,
+  };
+  validateDailyGenerationDate(input.periodDate, operationalDay);
   const existing = await loadDailyCapture(config.projectId, device.deviceId, input.periodDate);
   captured = existing?.requestedSampleCount === 1440 ? existing : await generateDailyCapture({
     projectId: config.projectId,
@@ -1016,6 +1064,7 @@ export async function generateDailyMeasurements(input: {
     periodDate: input.periodDate,
     policy,
     assignmentId: device.assignmentId,
+    operationalDay,
     sampleCount: 1440,
     mode: input.mode,
   });
@@ -1100,7 +1149,7 @@ export async function requestProof(input: {
   const device = requireProvisioned();
   if (input.periodDate) await selectDailyCapture(input.periodDate);
   const measurement = requireCaptured();
-  if (!measurement.completeDay) throw new Error('The selected UTC day is still in progress');
+  if (!measurement.completeDay) throw new Error('The selected operational day is still in progress');
   const publicData = measurement.attestation.publicData;
   const headers = await authenticatedHeaders('proof:request', operationId);
   let job = (await jsonResponse<{ job: ProofJob }>(await fetch(
@@ -1122,6 +1171,9 @@ export async function requestProof(input: {
         assignmentId: publicData.assignmentId,
         assignmentKey: publicData.assignmentKey,
         measurementDay: publicData.measurementDay,
+        timeZoneOffsetMinutes: publicData.timeZoneOffsetMinutes,
+        localDayStartHour: publicData.localDayStartHour,
+        utcDayStartMinute: publicData.utcDayStartMinute,
         hourPresence: publicData.hourPresence,
         hourResults: measurement.hourResults,
         observedHourCount: publicData.observedHourCount,
@@ -1163,7 +1215,7 @@ export async function proveAndSubmit(
   const device = requireProvisioned();
   if (periodDate) await selectDailyCapture(periodDate);
   const measurement = requireCaptured();
-  if (!measurement.completeDay) throw new Error('The selected UTC day is still in progress');
+  if (!measurement.completeDay) throw new Error('The selected operational day is still in progress');
   const currentWallet = requireWallet();
   const proofHeaders = await authenticatedHeaders('proof:generate', operationId);
   const accessToken = proofHeaders.Authorization?.replace(/^Bearer\s+/u, '');

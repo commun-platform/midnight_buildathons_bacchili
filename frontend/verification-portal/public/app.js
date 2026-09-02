@@ -34,7 +34,7 @@ const copy = {
     average: 'Average', commitment: 'Commitment', anomalies: 'Immediate Anomaly Transitions', transition: 'Transition',
     occurred: 'Occurred', jobs: 'Proof / Transaction Jobs', job: 'Proof Job', status: 'Status', root: 'Data fingerprint',
     tx: 'Attestation Transaction', action: 'Action', inspect: 'Public view', none: 'No records yet.',
-    verifierIntro: 'Anyone can check the UTC measurement date, each hourly threshold result, and the applied public policy without seeing sensor values.', txProofViewer: 'Transaction proof viewer',
+    verifierIntro: 'Anyone can check the operational date, each hourly threshold result, and the applied public policy without seeing sensor values.', txProofViewer: 'Transaction proof viewer',
     proofId: 'Proof record ID', open: 'Check result', latest: 'Use latest local record', claim: 'Public Result', checks: 'What Was Checked',
     dataset: 'Daily proof record found', inclusion: 'Hidden hourly summary is tied to this proof',
     threshold: 'ZK proof matches all 24 published hourly results',
@@ -56,9 +56,9 @@ const copy = {
     publicHourStatus: 'HOURLY WITHIN / OUTSIDE / NO DATA', publicThreshold: 'THRESHOLD RULE',
     network: 'Network', contract: 'Contract',
     sampleCount: 'Sensor readings used', observedHours: 'Observed hours', stoppedHours: 'NO DATA hours', policyId: 'Threshold setting ID',
-    measurementDate: 'Measurement date (UTC)', hourlyResults: 'Hourly threshold results (UTC)',
+    measurementDate: 'Operational date', hourlyResults: 'Hourly threshold results',
     hourlyResultsIntro: 'Each result is proved from the hidden hourly minimum and maximum. The values themselves remain private.',
-    hourBand: 'UTC time band', hourResult: 'Result', hourlyWithin: 'WITHIN', hourlyOutside: 'OUTSIDE', hourlyNoData: 'NO DATA',
+    hourBand: 'Local operational time', hourResult: 'Result', hourlyWithin: 'WITHIN', hourlyOutside: 'OUTSIDE', hourlyNoData: 'NO DATA',
     legacyHourlyResults: 'This legacy record predates hourly public results. Only its aggregate daily result is available.',
     legacyThreshold: 'Legacy aggregate ZK result matches the registered threshold',
     policyMode: 'Threshold rule', policyBounds: 'Public threshold', policyVersion: 'Policy version',
@@ -88,6 +88,7 @@ const copy = {
     walletRequiredBody: 'Connect your Midnight Wallet from the button in the upper-right corner. The Device Workflow appears after the connection is authorized.',
     project: 'Project', projectSelect: 'Select Project', projectAdd: '+ New Project',
     projectName: 'Project name', projectCreate: 'Create Project', projectCancel: 'Cancel',
+    projectTimeZone: 'Fixed UTC offset', projectDayStart: 'Operational day starts',
     projectLimit: 'Projects per Wallet', projectCreated: 'Project created',
     policyAdd: '+ New Policy', policyName: 'Policy name', policyCreate: 'Create Policy',
     policyCancel: 'Cancel', policyLimit: 'Policies in this Project', policyCreated: 'Policy registration queued',
@@ -142,7 +143,7 @@ const copy = {
     reproofReady: 'The previous TX was released. Regenerate the ZK proof and TX with the same Proof Job ID.',
     deviceId: 'Device ID (derived from Wallet)', wallet: 'Wallet', temperature: 'Temperature', progress: 'Processing status',
     identityRestored: 'Stored Device Identity restored', registrationRestored: 'Registered Device and policy assignment restored',
-    autoGenerate: 'Auto Generate one day', generationDate: 'Measurement date (UTC)', previousSensorDay: '◀ Previous day', nextSensorDay: 'Next day ▶',
+    autoGenerate: 'Auto Generate one day', generationDate: 'Operational date', previousSensorDay: '◀ Previous day', nextSensorDay: 'Next day ▶',
     generationMode: 'Generation mode', withOutliers: 'Random values with outliers (OUTSIDE proof)',
     withinThreshold: 'Within threshold (ZKP test)', outlierCount: 'Outliers', dailyHistory: 'Daily sensor history',
     selectDay: 'View this day', verifyDaily: 'Verify daily ZKP', requestDaily: 'Request daily proof',
@@ -156,7 +157,7 @@ const copy = {
     sponsorQuotaReached: 'The daily limit is reached. Already reserved proof jobs can still be retried.',
     alreadyAttested: 'This measurement group is already recorded on Midnight. It will not be submitted again.',
     completeDay: 'Complete day', incompleteDay: 'Day in progress', generationRange: 'Previous 30 completed days only', latestProofs: 'Daily proof records (newest first)',
-    publicProofListIntro: 'Choose a UTC measurement date to check all 24 hourly results.', publicView: 'PUBLIC VIEW', checked: 'CHECKED', checksComplete: 'checks complete',
+    publicProofListIntro: 'Choose an operational date to check all 24 hourly results.', publicView: 'PUBLIC VIEW', checked: 'CHECKED', checksComplete: 'checks complete',
     statusPending: 'Waiting', statusAggregating: 'Collecting readings', statusProving: 'Creating ZK proof',
     statusSubmitted: 'Sent to Midnight', statusConfirmed: 'Recorded on Midnight', statusFailed: 'Could not complete',
     statusActive: 'Active', statusDisabled: 'Disabled', statusRevoked: 'Revoked', statusRegistered: 'Registered',
@@ -195,7 +196,7 @@ const copy = {
     anomalies: '即時異常遷移', transition: '遷移', occurred: '発生時刻', jobs: '証明・トランザクション処理',
     job: '証明処理', status: '状態', root: '照合用のデータ指紋', tx: '証明トランザクション', action: '操作',
     inspect: '第三者表示', none: 'まだ記録がありません。',
-    verifierIntro: '第三者はセンサー値を見ることなく、UTCの計測日、24時間分の判定、適用された公開しきい値を確認できます。', txProofViewer: 'TX証明ビューワ',
+    verifierIntro: '第三者はセンサー値を見ることなく、運用日、24時間分の判定、適用された公開しきい値を確認できます。', txProofViewer: 'TX証明ビューワ',
     proofId: '証明記録ID', open: '結果を確認', latest: '最新の記録を使用', claim: '公開された結果',
     checks: '確認できたこと', dataset: '日次の証明記録がある', inclusion: '非公開の時間別集計と証明が一致',
     threshold: 'ZK証明と24時間分の公開判定が一致', midnight: 'Midnightへの記録を確認', publicData: '誰でも確認できる情報',
@@ -215,9 +216,9 @@ const copy = {
     pipelinePolicy: '時間帯別判定と公開しきい値を照合', legacyPipelinePolicy: '旧形式の日次総合結果と公開しきい値を照合', pipelineChain: 'Midnightへの記録を確認',
     pipelineVerifier: '第三者による確認が完了',
     contract: 'コントラクト', sampleCount: '使用したセンサー値の件数', observedHours: '観測時間数', policyId: 'しきい値設定ID',
-    stoppedHours: '計測なし時間数', measurementDate: '計測日（UTC）', hourlyResults: '時間帯別結果（UTC）',
+    stoppedHours: '計測なし時間数', measurementDate: '運用日', hourlyResults: '時間帯別結果',
     hourlyResultsIntro: '非公開の時間別最小値・最大値から各判定を証明しています。実測値自体は公開しません。',
-    hourBand: 'UTC時間帯', hourResult: '判定', hourlyWithin: '閾値以内', hourlyOutside: '範囲外', hourlyNoData: '計測なし',
+    hourBand: '現地の運用時間帯', hourResult: '判定', hourlyWithin: '閾値以内', hourlyOutside: '範囲外', hourlyNoData: '計測なし',
     legacyHourlyResults: 'この旧形式の記録は時間帯別結果の公開前に作成されたため、日次の集約判定だけを確認できます。',
     legacyThreshold: '旧形式の日次総合ZK結果と登録しきい値が一致',
     policyMode: 'しきい値ルール', policyBounds: '公開しきい値',
@@ -247,6 +248,7 @@ const copy = {
     walletRequiredBody: '画面右上のボタンからMidnight Walletを接続してください。接続を承認するとデバイス操作画面が表示されます。',
     project: 'プロジェクト', projectSelect: 'プロジェクトを選択', projectAdd: '＋ 新規追加',
     projectName: 'プロジェクト名', projectCreate: 'プロジェクトを作成', projectCancel: 'キャンセル',
+    projectTimeZone: '固定UTCオフセット', projectDayStart: '運用日の開始時刻',
     projectLimit: 'Walletごとのプロジェクト数', projectCreated: 'プロジェクトを作成しました',
     policyAdd: '＋ しきい値を新規追加', policyName: 'しきい値設定名', policyCreate: 'しきい値を登録',
     policyCancel: 'キャンセル', policyLimit: 'このプロジェクトのしきい値数', policyCreated: 'しきい値登録を受け付けました',
@@ -301,7 +303,7 @@ const copy = {
     reproofReady: '前回のTXは解放済みです。同じProof Job IDでZK証明とTXを再生成できます。',
     deviceId: 'デバイスID（ウォレットから自動生成）', wallet: 'ウォレット', temperature: '温度', progress: '処理状況',
     identityRestored: '保存済みのデバイス認証鍵を復元しました', registrationRestored: '登録済みデバイスとしきい値設定を復元しました',
-    autoGenerate: '1日分を自動生成', generationDate: '計測日（UTC）', previousSensorDay: '◀ 前日', nextSensorDay: '翌日 ▶',
+    autoGenerate: '1日分を自動生成', generationDate: '運用日', previousSensorDay: '◀ 前日', nextSensorDay: '翌日 ▶',
     generationMode: '生成モード', withOutliers: 'ランダム値＋外れ値（しきい値外の証明）',
     withinThreshold: 'しきい値内（ZK証明の確認用）', outlierCount: '外れ値', dailyHistory: '日別センサー履歴',
     selectDay: 'この日を表示', verifyDaily: '日次ZK証明を確認', requestDaily: '日次証明を要求',
@@ -315,7 +317,7 @@ const copy = {
     sponsorQuotaReached: '本日分の上限に達しました。予約済みの証明処理は引き続き再試行できます。',
     alreadyAttested: 'この測定グループはMidnightに記録済みです。再送信は行いません。',
     completeDay: '1日分完了', incompleteDay: '当日進行中', generationRange: '完了済みの過去30日間のみ', latestProofs: '日次証明記録（新しい順）',
-    publicProofListIntro: 'UTCの計測日を選び、24時間分の判定を確認してください。', publicView: '第三者向け画面', checked: '確認済み', checksComplete: '項目を確認済み',
+    publicProofListIntro: '運用日を選び、24時間分の判定を確認してください。', publicView: '第三者向け画面', checked: '確認済み', checksComplete: '項目を確認済み',
     statusPending: '待機中', statusAggregating: 'センサー値を集計中', statusProving: 'ZK証明を作成中',
     statusSubmitted: 'Midnightへ送信済み', statusConfirmed: 'Midnightに記録済み', statusFailed: '処理に失敗',
     statusActive: '利用中', statusDisabled: '無効', statusRevoked: '利用停止', statusRegistered: '登録済み',
@@ -349,7 +351,7 @@ const deviceState = {
   sponsorQuota: null,
   provisioning: null,
   selectedDate: localStorage.getItem('vsp-selected-sensor-date') || '',
-  generationDate: normalizedSensorDate(localStorage.getItem('vsp-generation-date') || defaultSensorDate()),
+  generationDate: '',
   generationMode: localStorage.getItem('vsp-generation-mode') || 'with-outliers',
   busy: false,
   activeAction: '',
@@ -370,6 +372,10 @@ const deviceState = {
   historyListError: '',
 };
 
+deviceState.generationDate = normalizedSensorDate(
+  localStorage.getItem('vsp-generation-date') || defaultSensorDate(),
+);
+
 function utcDate(value = new Date()) {
   return value.toISOString().slice(0, 10);
 }
@@ -378,13 +384,28 @@ function defaultSensorDate() {
   return sensorDateBounds().maximum;
 }
 
+function operationalDate(value = new Date()) {
+  const boundary = deviceState.configuration?.operationalDay || {
+    timeZoneOffsetMinutes: 0,
+    localDayStartHour: 0,
+  };
+  return new Date(
+    value.valueOf()
+      + boundary.timeZoneOffsetMinutes * 60_000
+      - boundary.localDayStartHour * 3_600_000,
+  ).toISOString().slice(0, 10);
+}
+
+function shiftedCalendarDate(periodDate, days) {
+  const [year, month, day] = periodDate.split('-').map(Number);
+  return utcDate(new Date(Date.UTC(year, month - 1, day + days)));
+}
+
 function sensorDateBounds(value = new Date()) {
-  const dayMilliseconds = 24 * 60 * 60 * 1000;
-  const today = utcDate(value);
-  const todayStart = Date.parse(`${today}T00:00:00.000Z`);
+  const current = operationalDate(value);
   return {
-    minimum: utcDate(new Date(todayStart - 30 * dayMilliseconds)),
-    maximum: utcDate(new Date(todayStart - dayMilliseconds)),
+    minimum: shiftedCalendarDate(current, -30),
+    maximum: shiftedCalendarDate(current, -1),
   };
 }
 
@@ -395,7 +416,7 @@ function normalizedSensorDate(value) {
     : bounds.maximum;
 }
 
-function windowDate(window) { return utcDate(new Date(window.periodStart)); }
+function windowDate(window) { return operationalDate(new Date(window.periodStart)); }
 
 function locale() {
   if (selectedLanguage === 'en' || selectedLanguage === 'ja') return selectedLanguage;
@@ -959,9 +980,29 @@ function workflowButton(id, label, complete, disabled) {
   </button>`;
 }
 
+function fixedOffsetLabel(minutes) {
+  const sign = minutes < 0 ? '-' : '+';
+  const absolute = Math.abs(minutes);
+  return `UTC${sign}${String(Math.floor(absolute / 60)).padStart(2, '0')}:${String(absolute % 60).padStart(2, '0')}`;
+}
+
+function timeZoneOffsetOptions() {
+  const browserOffset = Math.max(-840, Math.min(840, -new Date().getTimezoneOffset()));
+  const selected = Math.round(browserOffset / 15) * 15;
+  const values = Array.from({ length: 113 }, (_, index) => -840 + index * 15);
+  return values.map((minutes) => `<option value="${minutes}" ${minutes === selected ? 'selected' : ''}>${fixedOffsetLabel(minutes)}</option>`).join('');
+}
+
+function localDayStartOptions() {
+  return Array.from({ length: 24 }, (_, hour) => (
+    `<option value="${hour}" ${hour === 0 ? 'selected' : ''}>${String(hour).padStart(2, '0')}:00</option>`
+  )).join('');
+}
+
 function projectSelectorView() {
   const count = deviceState.projects.length;
   const atLimit = count >= deviceState.maximumProjects;
+  const selectedProject = deviceState.projects.find((project) => project.projectId === deviceState.projectId);
   return `<section class="window project-selector-window"><div class="window-title">${escapeHtml(t('project'))}</div><div class="window-body project-selector-body">
     <label for="device-project-select">${escapeHtml(t('projectSelect'))}</label>
     <select id="device-project-select" ${deviceState.busy ? 'disabled' : ''}>${deviceState.projects.map((project) => (
@@ -972,9 +1013,14 @@ function projectSelectorView() {
     <form id="device-project-create-form" class="project-create-form" ${deviceState.projectCreateOpen ? '' : 'hidden'}>
       <label for="device-project-name">${escapeHtml(t('projectName'))}</label>
       <input id="device-project-name" name="projectName" maxlength="80" required autofocus>
+      <label for="device-project-time-zone">${escapeHtml(t('projectTimeZone'))}</label>
+      <select id="device-project-time-zone" name="timeZoneOffsetMinutes">${timeZoneOffsetOptions()}</select>
+      <label for="device-project-day-start">${escapeHtml(t('projectDayStart'))}</label>
+      <select id="device-project-day-start" name="localDayStartHour">${localDayStartOptions()}</select>
       <button type="submit" class="workflow-action next-action">${escapeHtml(t('projectCreate'))}</button>
       <button type="button" class="compact-button" id="device-project-cancel">${escapeHtml(t('projectCancel'))}</button>
     </form>
+    ${selectedProject ? `<small>${escapeHtml(fixedOffsetLabel(selectedProject.timeZoneOffsetMinutes))} / ${escapeHtml(String(selectedProject.localDayStartHour).padStart(2, '0'))}:00–24h</small>` : ''}
   </div></section>`;
 }
 
@@ -1460,10 +1506,13 @@ function attachDeviceActions() {
   });
   document.querySelector('#device-project-create-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
-    const name = new FormData(event.currentTarget).get('projectName')?.toString().trim() || '';
-    if (!name) return;
+    const form = new FormData(event.currentTarget);
+    const name = form.get('projectName')?.toString().trim() || '';
+    const timeZoneOffsetMinutes = Number(form.get('timeZoneOffsetMinutes'));
+    const localDayStartHour = Number(form.get('localDayStartHour'));
+    if (!name || !Number.isSafeInteger(timeZoneOffsetMinutes) || !Number.isSafeInteger(localDayStartHour)) return;
     void deviceAction('device-project-create', t('projectCreate'), async (flow) => {
-      const created = await flow.createProject(name);
+      const created = await flow.createProject({ name, timeZoneOffsetMinutes, localDayStartHour });
       deviceState.projects = [...deviceState.projects, created.project];
       deviceState.maximumProjects = created.maximumProjects;
       deviceState.projectId = created.project.projectId;
@@ -1764,16 +1813,19 @@ function hourlyResultView(data) {
   if (!Array.isArray(data.hourResults) || data.hourResults.length !== 24) {
     return `<section class="window full-width"><div class="window-title inactive">${escapeHtml(t('hourlyResults'))}</div><div class="window-body"><div class="notice"><strong>${escapeHtml(t('legacyHourlyResults'))}</strong></div></div></section>`;
   }
+  const localDayStartHour = Number(data.operationalDay?.localDayStartHour) || 0;
+  const offsetMinutes = Number(data.operationalDay?.timeZoneOffsetMinutes) || 0;
+  const localHour = (total) => `${String(total % 24).padStart(2, '0')}:00${total >= 24 ? ' (+1)' : ''}`;
   const rows = data.hourResults.map((result, hour) => {
-    const start = String(hour).padStart(2, '0');
-    const end = String(hour + 1).padStart(2, '0');
+    const start = localHour(localDayStartHour + hour);
+    const end = localHour(localDayStartHour + hour + 1);
     const safeResult = ['within-threshold', 'outside-threshold', 'no-data'].includes(result)
       ? result
       : 'no-data';
-    return `<tr><td class="nowrap"><strong>${start}:00–${end}:00</strong></td><td><span class="hour-result ${escapeHtml(safeResult)}">${escapeHtml(hourlyResultLabel(safeResult))}</span></td></tr>`;
+    return `<tr><td class="nowrap"><strong>${escapeHtml(start)}–${escapeHtml(end)}</strong></td><td><span class="hour-result ${escapeHtml(safeResult)}">${escapeHtml(hourlyResultLabel(safeResult))}</span></td></tr>`;
   }).join('');
   return `<section class="window full-width"><div class="window-title">${escapeHtml(t('hourlyResults'))}</div><div class="window-body">
-    <p>${escapeHtml(t('hourlyResultsIntro'))}</p>
+    <p>${escapeHtml(t('hourlyResultsIntro'))} <strong>${escapeHtml(fixedOffsetLabel(offsetMinutes))} / ${escapeHtml(String(localDayStartHour).padStart(2, '0'))}:00–24h</strong></p>
     <div class="hourly-results-scroll"><table class="data-table hourly-results-table"><thead><tr><th>${escapeHtml(t('hourBand'))}</th><th>${escapeHtml(t('hourResult'))}</th></tr></thead><tbody>${rows}</tbody></table></div>
   </div></section>`;
 }
@@ -1962,8 +2014,8 @@ async function render({ showLoading = true } = {}) {
       if (
         data.status === 'confirmed'
         && data.transactions?.attest
-        && data.schemaVersion === 6
-        && data.circuitVersion === 4
+        && data.schemaVersion === 7
+        && data.circuitVersion === 5
         && Array.isArray(data.hourResults)
         && data.hourResults.length === 24
       ) {
