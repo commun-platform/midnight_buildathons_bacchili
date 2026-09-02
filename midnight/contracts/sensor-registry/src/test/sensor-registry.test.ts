@@ -96,6 +96,9 @@ class SensorRegistrySimulator {
       hexToBytes(publicData.assignmentKey),
       hexToBytes(publicData.policyKey),
       hexToBytes(publicData.deviceCommitment),
+      BigInt(publicData.timeZoneOffsetMinutes + 840),
+      BigInt(publicData.localDayStartHour),
+      BigInt(publicData.utcDayStartMinute),
       BigInt(publicData.periodStartEpoch),
       0n,
       1n,
@@ -181,6 +184,62 @@ describe('SensorRegistry hourly-extrema contract', () => {
       hexToBytes(valid.publicData.attestationCommitment),
     );
     expect(attestation.measurementGroupId).toEqual(hexToBytes(valid.publicData.measurementGroupId));
+  });
+
+  it('binds a JST 06:00 operational day to its registered UTC boundary', async () => {
+    const configured = await prepareDailyExtremaAttestation(generateSensorRecords({
+      deviceId: 'edge-temp-jst-001',
+      start: new Date('2026-08-27T21:00:00.000Z'),
+      samples: 24,
+      intervalSeconds: 3_600,
+      seed: 104,
+    }), {
+      periodDate: '2026-08-28',
+      timeZoneOffsetMinutes: 540,
+      localDayStartHour: 6,
+      assignmentId: 'edge-temp-jst-001-temperature-v1-wave1',
+      nonceSeed: 'contract-jst-six-boundary',
+    });
+    const simulator = new SensorRegistrySimulator(configured);
+    simulator.registerPolicy();
+    const state = simulator.submit();
+    const assignment = state.policyAssignments.lookup(
+      hexToBytes(configured.publicData.assignmentKey),
+    );
+    expect(configured.publicData.periodStart).toBe('2026-08-27T21:00:00.000Z');
+    expect(configured.publicData.measurementDay).toBe(20_692);
+    expect(assignment.timeZoneOffsetMinutesBias).toBe(1_380n);
+    expect(assignment.localDayStartHour).toBe(6n);
+    expect(assignment.utcDayStartMinute).toBe(1_260n);
+    expect(state.attestations.lookup(attestationId(configured)).verified).toBe(true);
+  });
+
+  it('rejects an inconsistent operational-day boundary at assignment registration', () => {
+    const simulator = new SensorRegistrySimulator(valid);
+    const publicData = valid.publicData;
+    simulator.context = simulator.contract.impureCircuits.registerDevice(
+      simulator.context,
+      hexToBytes(publicData.deviceCommitment),
+      pureCircuits.deriveDeviceAuthority(hexToBytes(deviceSecretHex)),
+      1n,
+    ).context;
+    simulator.context = simulator.contract.impureCircuits.registerThresholdPolicy(
+      simulator.context,
+      hexToBytes(publicData.policyKey),
+      thresholdPolicy(),
+    ).context;
+    expect(() => simulator.contract.impureCircuits.registerPolicyAssignment(
+      simulator.context,
+      hexToBytes(publicData.assignmentKey),
+      hexToBytes(publicData.policyKey),
+      hexToBytes(publicData.deviceCommitment),
+      840n,
+      0n,
+      60n,
+      BigInt(publicData.periodStartEpoch),
+      0n,
+      1n,
+    )).toThrow('operational day boundary is inconsistent');
   });
 
   it('accepts missing hours as canonical STOPPED slots', async () => {
@@ -395,6 +454,9 @@ describe('SensorRegistry hourly-extrema contract', () => {
       hexToBytes(second.publicData.assignmentKey),
       hexToBytes(second.publicData.policyKey),
       firstCommitment,
+      BigInt(second.publicData.timeZoneOffsetMinutes + 840),
+      BigInt(second.publicData.localDayStartHour),
+      BigInt(second.publicData.utcDayStartMinute),
       BigInt(second.publicData.periodStartEpoch),
       0n,
       1n,

@@ -33,6 +33,9 @@ export struct ThresholdPolicy {
 export struct PolicyAssignment {
     policyId: Bytes<32>;
     deviceCommitment: Bytes<32>;
+    timeZoneOffsetMinutesBias: Uint<16>;
+    localDayStartHour: Uint<8>;
+    utcDayStartMinute: Uint<16>;
     validFrom: Uint<64>;
     validUntil: Uint<64>;
     version: Uint<32>;
@@ -245,6 +248,9 @@ export circuit registerPolicyAssignment(
     assignmentId: Bytes<32>,
     policyId: Bytes<32>,
     deviceCommitment: Bytes<32>,
+    timeZoneOffsetMinutesBias: Uint<16>,
+    localDayStartHour: Uint<8>,
+    utcDayStartMinute: Uint<16>,
     validFrom: Uint<64>,
     validUntil: Uint<64>,
     version: Uint<32>
@@ -258,6 +264,17 @@ export circuit registerPolicyAssignment(
     assert(devices.member(publicDeviceCommitment), "device is not registered");
     assert(devices.lookup(publicDeviceCommitment).active, "device is disabled");
     assert(!policyAssignments.member(publicAssignmentId), "policy assignment already exists");
+    assert(timeZoneOffsetMinutesBias <= 1680, "time zone offset is outside the supported range");
+    assert(localDayStartHour < 24, "local day start hour must be from 0 through 23");
+    assert(utcDayStartMinute < 1440, "UTC day start minute must be from 0 through 1439");
+    const localDayStartMinute = (localDayStartHour as Uint<16>) * 60;
+    const shiftedStartMinute = localDayStartMinute + 2280 - timeZoneOffsetMinutesBias;
+    assert(
+        shiftedStartMinute == utcDayStartMinute ||
+        shiftedStartMinute == utcDayStartMinute + 1440 ||
+        shiftedStartMinute == utcDayStartMinute + 2880,
+        "operational day boundary is inconsistent"
+    );
     assert(validUntil == 0 || validFrom < validUntil, "policy assignment period is invalid");
     assert(version > 0, "assignment version must be positive");
     policyAssignments.insert(
@@ -265,6 +282,9 @@ export circuit registerPolicyAssignment(
         disclose(PolicyAssignment {
             policyId: publicPolicyId,
             deviceCommitment: publicDeviceCommitment,
+            timeZoneOffsetMinutesBias: timeZoneOffsetMinutesBias,
+            localDayStartHour: localDayStartHour,
+            utcDayStartMinute: utcDayStartMinute,
             validFrom: validFrom,
             validUntil: validUntil,
             version: version
@@ -304,12 +324,14 @@ export circuit submitDailyAttestation(
     );
     assert(!attestations.member(publicAttestationId), "measurement group already attested");
     assert(policyAssignments.member(publicAssignmentId), "policy assignment is not registered");
-    assert(periodStart == (measurementDay * 86400) as Uint<64>, "attestation period must start at UTC midnight");
-    assert(periodStart < periodEnd, "attestation period is invalid");
-    assert(periodEnd - periodStart == 86400, "attestation period must be exactly 24 hours");
-
     const assignment = policyAssignments.lookup(publicAssignmentId);
     assert(assignment.deviceCommitment == publicDeviceCommitment, "policy assignment belongs to another device");
+    const expectedPeriodStart =
+        ((measurementDay as Uint<64>) * 86400) +
+        ((assignment.utcDayStartMinute as Uint<64>) * 60);
+    assert(periodStart == expectedPeriodStart, "attestation period does not match the registered day boundary");
+    assert(periodStart < periodEnd, "attestation period is invalid");
+    assert(periodEnd - periodStart == 86400, "attestation period must be exactly 24 hours");
     assert(periodStart >= assignment.validFrom, "attestation is before the policy assignment");
     assert(
         assignment.validUntil == 0 || periodEnd <= assignment.validUntil,
@@ -331,8 +353,8 @@ export circuit submitDailyAttestation(
     assert(disclose(daily.periodEnd == periodEnd), "period end mismatch");
     assert(disclose(daily.schemaVersion == schemaVersion), "schema version mismatch");
     assert(disclose(daily.circuitVersion == circuitVersion), "circuit version mismatch");
-    assert(schemaVersion == 6, "unsupported schema version");
-    assert(circuitVersion == 4, "unsupported circuit version");
+    assert(schemaVersion == 7, "unsupported schema version");
+    assert(circuitVersion == 5, "unsupported circuit version");
 
     for (const hourIndex of 0..24) {
         const hour = daily.hours[hourIndex];

@@ -15,6 +15,7 @@ import {
   policyAssignmentKey,
   sensorDeviceCommitment,
   thresholdPolicyKey,
+  utcDayStartMinute,
   type ThresholdPolicyMode,
 } from '@midnight-demo/shared';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
@@ -50,6 +51,9 @@ interface LoadedContract {
       policyAssignments: Iterable<[Uint8Array, {
         policyId: Uint8Array;
         deviceCommitment: Uint8Array;
+        timeZoneOffsetMinutesBias: bigint;
+        localDayStartHour: bigint;
+        utcDayStartMinute: bigint;
         validFrom: bigint;
         validUntil: bigint;
         version: bigint;
@@ -101,6 +105,8 @@ export interface InitialPolicyConfig {
   unitCode: number;
   policyVersion: number;
   assignmentVersion: number;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
   validFromEpoch: bigint;
   validUntilEpoch: bigint;
   deviceRegistrationVersion: number;
@@ -265,6 +271,9 @@ export async function registerInitialConfiguration(
         assignmentId: Uint8Array,
         policyId: Uint8Array,
         deviceCommitment: Uint8Array,
+        timeZoneOffsetMinutesBias: bigint,
+        localDayStartHour: bigint,
+        utcDayStartMinute: bigint,
         validFrom: bigint,
         validUntil: bigint,
         version: bigint,
@@ -293,6 +302,9 @@ export async function registerInitialConfiguration(
     assignmentKeyBytes,
     policyKeyBytes,
     deviceCommitment,
+    BigInt(config.timeZoneOffsetMinutes + 840),
+    BigInt(config.localDayStartHour),
+    BigInt(utcDayStartMinute(config)),
     config.validFromEpoch,
     config.validUntilEpoch,
     BigInt(config.assignmentVersion),
@@ -317,6 +329,8 @@ export async function registerAdditionalDevice(
   assignmentId: string,
   deviceRegistrationVersion: number,
   assignmentVersion: number,
+  timeZoneOffsetMinutes: number,
+  localDayStartHour: number,
   validFromEpoch: bigint,
   validUntilEpoch: bigint,
 ): Promise<{ deviceTxId: string; assignmentTxId: string; policyKey: string; assignmentKey: string }> {
@@ -340,6 +354,9 @@ export async function registerAdditionalDevice(
         assignmentId: Uint8Array,
         policyId: Uint8Array,
         deviceCommitment: Uint8Array,
+        timeZoneOffsetMinutesBias: bigint,
+        localDayStartHour: bigint,
+        utcDayStartMinute: bigint,
         validFrom: bigint,
         validUntil: bigint,
         version: bigint,
@@ -357,6 +374,9 @@ export async function registerAdditionalDevice(
     assignmentKeyBytes,
     policyKeyBytes,
     deviceCommitment,
+    BigInt(timeZoneOffsetMinutes + 840),
+    BigInt(localDayStartHour),
+    BigInt(utcDayStartMinute({ timeZoneOffsetMinutes, localDayStartHour })),
     validFromEpoch,
     validUntilEpoch,
     BigInt(assignmentVersion),
@@ -463,6 +483,9 @@ export async function queryRegistry(network: NetworkConfig, contractAddress: str
       assignmentKey: bytesToHex(assignmentId),
       policyKey: bytesToHex(assignment.policyId),
       deviceCommitment: bytesToHex(assignment.deviceCommitment),
+      timeZoneOffsetMinutes: Number(assignment.timeZoneOffsetMinutesBias) - 840,
+      localDayStartHour: Number(assignment.localDayStartHour),
+      utcDayStartMinute: Number(assignment.utcDayStartMinute),
       validFrom: new Date(Number(assignment.validFrom) * 1000).toISOString(),
       validUntil: assignment.validUntil === 0n
         ? null

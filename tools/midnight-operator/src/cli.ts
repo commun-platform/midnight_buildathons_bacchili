@@ -9,7 +9,13 @@ import {
   registerInitialConfiguration,
   rotateRegisteredDeviceAuthority,
 } from './midnight.js';
-import { bytesToHex, hexToBytes, type ThresholdPolicyMode } from '@midnight-demo/shared';
+import {
+  bytesToHex,
+  hexToBytes,
+  utcDayStartMinute,
+  validateOperationalDayBoundary,
+  type ThresholdPolicyMode,
+} from '@midnight-demo/shared';
 import { getOrCreateOperatorAuthority } from './operator-authority.js';
 import {
   getOrCreateWalletCredentials,
@@ -62,6 +68,19 @@ function positiveIntegerFlag(name: string, fallback: number): number {
   const value = numericFlag(name, fallback);
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`--${name} must be a positive integer`);
   return value;
+}
+
+function operationalDayBoundary(fallback?: { timeZoneOffsetMinutes: number; localDayStartHour: number }) {
+  return validateOperationalDayBoundary({
+    timeZoneOffsetMinutes: numericFlag(
+      'time-zone-offset-minutes',
+      fallback?.timeZoneOffsetMinutes ?? 0,
+    ),
+    localDayStartHour: numericFlag(
+      'local-day-start-hour',
+      fallback?.localDayStartHour ?? 0,
+    ),
+  });
 }
 
 function policyMode(): ThresholdPolicyMode {
@@ -170,6 +189,7 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
   const unitCode = positiveIntegerFlag('unit-code', 1);
   const policyVersion = positiveIntegerFlag('policy-version', 1);
   const assignmentVersion = positiveIntegerFlag('assignment-version', 1);
+  const boundary = operationalDayBoundary();
   const deviceRegistrationVersion = positiveIntegerFlag('device-registration-version', 1);
   const validFromEpoch = epochFlag('valid-from');
   const validUntilEpoch = epochFlag('valid-until');
@@ -203,6 +223,7 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
         unitCode,
         policyVersion,
         assignmentVersion,
+        ...boundary,
         validFromEpoch,
         validUntilEpoch,
         deviceRegistrationVersion,
@@ -224,7 +245,7 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
         )),
     );
     saveDeployment(network.networkId, {
-      contractSchemaVersion: 3,
+      contractSchemaVersion: 4,
       contractAddress: deployed.contractAddress,
       deploymentTxId: deployed.deploymentTxId,
       deployerAddress: walletAddress(wallet),
@@ -245,6 +266,8 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
       policyVersion,
       policyRegisteredTxId: registered.policyTxId,
       assignmentVersion,
+      ...boundary,
+      utcDayStartMinute: utcDayStartMinute(boundary),
       validFrom: validFromEpoch === 0n
         ? null
         : new Date(Number(validFromEpoch) * 1000).toISOString(),
@@ -264,6 +287,8 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
         assignmentId,
         assignmentKey: registered.assignmentKey,
         assignmentVersion,
+        ...boundary,
+        utcDayStartMinute: utcDayStartMinute(boundary),
         assignmentRegisteredTxId: registered.assignmentTxId,
         validFrom: validFromEpoch === 0n
           ? null
@@ -282,7 +307,7 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
 
 async function runRegisterDevice(network: NetworkConfig): Promise<void> {
   const deployment = loadDeployment(network.networkId);
-  if (!deployment || deployment.contractSchemaVersion !== 3) {
+  if (!deployment || deployment.contractSchemaVersion !== 4) {
     throw new Error(`No compatible ${network.networkId} fleet deployment found`);
   }
   const authorityHex = flag('device-authority')?.trim().replace(/^0x/iu, '');
@@ -297,6 +322,7 @@ async function runRegisterDevice(network: NetworkConfig): Promise<void> {
   const policyId = flag('policy-id')?.trim() || deployment.policyId;
   const assignmentId = flag('assignment-id')?.trim() || `${deviceId}-${policyId}-wave1`;
   const assignmentVersion = positiveIntegerFlag('assignment-version', 1);
+  const boundary = operationalDayBoundary(deployment);
   const registrationVersion = positiveIntegerFlag('device-registration-version', 1);
   const validFromEpoch = epochFlag('valid-from');
   const validUntilEpoch = epochFlag('valid-until');
@@ -322,6 +348,8 @@ async function runRegisterDevice(network: NetworkConfig): Promise<void> {
       assignmentId,
       registrationVersion,
       assignmentVersion,
+      boundary.timeZoneOffsetMinutes,
+      boundary.localDayStartHour,
       validFromEpoch,
       validUntilEpoch,
     );
@@ -353,6 +381,8 @@ async function runRegisterDevice(network: NetworkConfig): Promise<void> {
       assignmentId,
       assignmentKey: registered.assignmentKey,
       assignmentVersion,
+      ...boundary,
+      utcDayStartMinute: utcDayStartMinute(boundary),
       assignmentRegisteredTxId: registered.assignmentTxId,
       validFrom: validFromEpoch === 0n ? null : new Date(Number(validFromEpoch) * 1000).toISOString(),
       validUntil: validUntilEpoch === 0n ? null : new Date(Number(validUntilEpoch) * 1000).toISOString(),
@@ -366,7 +396,7 @@ async function runRegisterDevice(network: NetworkConfig): Promise<void> {
 
 async function runDisableDevice(network: NetworkConfig): Promise<void> {
   const deployment = loadDeployment(network.networkId);
-  if (!deployment || deployment.contractSchemaVersion !== 3) {
+  if (!deployment || deployment.contractSchemaVersion !== 4) {
     throw new Error(`No compatible ${network.networkId} fleet deployment found`);
   }
   const deviceId = flag('device-id')?.trim();
@@ -407,7 +437,7 @@ async function runDisableDevice(network: NetworkConfig): Promise<void> {
 
 async function runRotateDevice(network: NetworkConfig): Promise<void> {
   const deployment = loadDeployment(network.networkId);
-  if (!deployment || deployment.contractSchemaVersion !== 3) {
+  if (!deployment || deployment.contractSchemaVersion !== 4) {
     throw new Error(`No compatible ${network.networkId} fleet deployment found`);
   }
   const deviceId = flag('device-id')?.trim();

@@ -50,6 +50,9 @@ export interface OperatorDeviceRegistration {
   assignmentId: string;
   deviceRegistrationVersion: number;
   assignmentVersion: number;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
+  utcDayStartMinute: number;
   validFromEpoch: string;
   validUntilEpoch: string;
   knownDeviceTxId?: string;
@@ -112,6 +115,9 @@ async function registrationVisibility(
     bytesToHex(key) === assignmentKey
     && bytesToHex(assignment.policyId) === policyKey
     && bytesToHex(assignment.deviceCommitment) === deviceCommitment
+    && Number(assignment.timeZoneOffsetMinutesBias) - 840 === input.timeZoneOffsetMinutes
+    && Number(assignment.localDayStartHour) === input.localDayStartHour
+    && Number(assignment.utcDayStartMinute) === input.utcDayStartMinute
     && assignment.version === BigInt(input.assignmentVersion)
   )).some(Boolean);
   return { deviceConfirmed, assignmentConfirmed };
@@ -182,6 +188,19 @@ function validate(input: OperatorDeviceRegistration): void {
   if (!Number.isSafeInteger(input.assignmentVersion) || input.assignmentVersion < 1) {
     throw new Error('Assignment version is invalid');
   }
+  if (
+    !Number.isSafeInteger(input.timeZoneOffsetMinutes)
+    || input.timeZoneOffsetMinutes < -840
+    || input.timeZoneOffsetMinutes > 840
+    || !Number.isSafeInteger(input.localDayStartHour)
+    || input.localDayStartHour < 0
+    || input.localDayStartHour > 23
+    || !Number.isSafeInteger(input.utcDayStartMinute)
+    || input.utcDayStartMinute < 0
+    || input.utcDayStartMinute > 1439
+    || ((input.localDayStartHour * 60 - input.timeZoneOffsetMinutes) % 1440 + 1440) % 1440
+      !== input.utcDayStartMinute
+  ) throw new Error('Operational day boundary is invalid');
   if (!/^\d+$/u.test(input.validFromEpoch) || !/^\d+$/u.test(input.validUntilEpoch)) {
     throw new Error('Assignment validity is invalid');
   }
@@ -342,6 +361,9 @@ export async function registerOperatorDevice(
       assignmentKey,
       policyKey,
       deviceCommitment,
+      BigInt(input.timeZoneOffsetMinutes + 840),
+      BigInt(input.localDayStartHour),
+      BigInt(input.utcDayStartMinute),
       BigInt(input.validFromEpoch),
       BigInt(input.validUntilEpoch),
       BigInt(input.assignmentVersion),

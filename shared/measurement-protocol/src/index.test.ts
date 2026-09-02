@@ -6,11 +6,14 @@ import {
   evaluatePreparedDailyExtremaLocally,
   evaluatePreparedDailyExtremaHoursLocally,
   generateSensorRecords,
+  operationalPeriodDate,
+  operationalPeriodStart,
   policyAssignmentKey,
   prepareDailyExtremaAttestation,
   prepareDataset,
   sensorDeviceCommitment,
   thresholdPolicyKey,
+  utcDayStartMinute,
   bytesToHex,
   verifyPreparedDailyExtremaLocally,
   verifyPreparedDatasetLocally,
@@ -55,6 +58,38 @@ test('policy, assignment, and device domain keys stay compatible with D1 seeds',
     bytesToHex(await sensorDeviceCommitment('edge-temp-001')),
     '41ec4294cdb082936f86c6529e911f21289491867ff32a5eed86923140acde9b',
   );
+});
+
+test('operational day helpers map a JST 06:00 day to the preceding UTC date', () => {
+  const boundary = { timeZoneOffsetMinutes: 540, localDayStartHour: 6 };
+  assert.equal(utcDayStartMinute(boundary), 1_260);
+  assert.equal(
+    operationalPeriodStart('2026-08-28', boundary).toISOString(),
+    '2026-08-27T21:00:00.000Z',
+  );
+  assert.equal(operationalPeriodDate(Date.parse('2026-08-27T20:59:59.999Z'), boundary), '2026-08-27');
+  assert.equal(operationalPeriodDate(Date.parse('2026-08-27T21:00:00.000Z'), boundary), '2026-08-28');
+});
+
+test('daily extrema slots follow the registered operational-day boundary', async () => {
+  const records = generateSensorRecords({
+    deviceId: 'edge-temp-jst-001',
+    start: new Date('2026-08-27T21:00:00.000Z'),
+    samples: 24,
+    intervalSeconds: 3_600,
+    seed: 105,
+  });
+  const attestation = await prepareDailyExtremaAttestation(records, {
+    periodDate: '2026-08-28',
+    timeZoneOffsetMinutes: 540,
+    localDayStartHour: 6,
+    nonceSeed: 'daily-jst-six-boundary',
+  });
+  assert.equal(attestation.publicData.periodStart, '2026-08-27T21:00:00.000Z');
+  assert.equal(attestation.publicData.periodEnd, '2026-08-28T21:00:00.000Z');
+  assert.equal(attestation.publicData.measurementDay, 20_692);
+  assert.equal(attestation.publicData.utcDayStartMinute, 1_260);
+  assert.equal(attestation.publicData.observedHourCount, 24);
 });
 
 test('valid private sample passes inclusion and range verification', async () => {

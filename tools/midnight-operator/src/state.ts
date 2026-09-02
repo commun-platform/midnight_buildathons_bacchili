@@ -13,7 +13,7 @@ export interface WalletCredentials {
 }
 
 export interface DeploymentRecord {
-  contractSchemaVersion: 3;
+  contractSchemaVersion: 4;
   contractAddress: string;
   deploymentTxId: string;
   deployerAddress: string;
@@ -35,6 +35,9 @@ export interface DeploymentRecord {
   policyVersion: number;
   policyRegisteredTxId: string;
   assignmentVersion: number;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
+  utcDayStartMinute: number;
   validFrom: string | null;
   validUntil: string | null;
   devices: Array<{
@@ -50,6 +53,9 @@ export interface DeploymentRecord {
     assignmentId: string;
     assignmentKey: string;
     assignmentVersion: number;
+    timeZoneOffsetMinutes: number;
+    localDayStartHour: number;
+    utcDayStartMinute: number;
     assignmentRegisteredTxId: string;
     validFrom: string | null;
     validUntil: string | null;
