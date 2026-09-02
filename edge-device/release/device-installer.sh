@@ -690,6 +690,10 @@ rollback_release() {
 }
 
 stop_existing_service() {
+  if (( ! START_SERVICE )); then
+    log "Preserving the current ${SERVICE_NAME}.service process because --no-start was selected"
+    return
+  fi
   if (( DRY_RUN )); then
     log "Would stop ${SERVICE_NAME}.service only if it is currently active"
     if [[ "${SERVICE_NAME}" == "${DEFAULT_SERVICE_NAME}" ]]; then

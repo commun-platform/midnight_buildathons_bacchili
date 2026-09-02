@@ -7,8 +7,31 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const installer = path.join(repoRoot, 'edge-device/release/scripts/install-device-release.mjs');
-const migrateEnvironment = path.join(repoRoot, 'edge-device/release/scripts/migrate-device-env.mjs');
+
+function releaseScript(name: string): string {
+  const sourcePath = path.join(repoRoot, 'edge-device/release/scripts', name);
+  return fs.existsSync(sourcePath) ? sourcePath : path.join(repoRoot, 'scripts', name);
+}
+
+const installer = releaseScript('install-device-release.mjs');
+const migrateEnvironment = releaseScript('migrate-device-env.mjs');
+const deviceInstaller = fs.existsSync(path.join(repoRoot, 'edge-device/release/device-installer.sh'))
+  ? path.join(repoRoot, 'edge-device/release/device-installer.sh')
+  : path.join(repoRoot, 'device-installer.sh');
+
+test('--no-start preserves an already-running collector process', () => {
+  const source = fs.readFileSync(deviceInstaller, 'utf8');
+  const functionBody = source.slice(
+    source.indexOf('stop_existing_service()'),
+    source.indexOf('\n}\n', source.indexOf('stop_existing_service()')) + 3,
+  );
+  assert.match(functionBody, /if \(\( ! START_SERVICE \)\); then/u);
+  assert.ok(
+    functionBody.indexOf('if (( ! START_SERVICE )); then')
+      < functionBody.indexOf('systemctl stop'),
+    '--no-start guard must run before any service stop',
+  );
+});
 
 test('device release installer creates a versioned runtime directory', () => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'device-release-install-'));
