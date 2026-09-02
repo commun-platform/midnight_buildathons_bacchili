@@ -8,7 +8,7 @@ import {
   operationalPeriodStart,
   utcDayStartMinute,
   validateOperationalDayBoundary,
-} from '@midnight-demo/shared/runtime';
+} from '@midnight-demo/shared/operational-day';
 
 const maxBodyBytes = 64 * 1024;
 

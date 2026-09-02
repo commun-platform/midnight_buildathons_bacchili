@@ -12,7 +12,7 @@ import {
 import {
   utcDayStartMinute,
   validateOperationalDayBoundary,
-} from '@midnight-demo/shared/runtime';
+} from '@midnight-demo/shared/operational-day';
 
 import { sponsorWalletCanSubmit } from './sponsor-policy.js';
 import { sponsorContainerName } from './sponsor-container.js';

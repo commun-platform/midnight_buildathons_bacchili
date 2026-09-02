@@ -109,6 +109,12 @@ const violations = [];
 for (const relative of filesUnder(repoRoot)) {
   if (!textExtensions.has(path.extname(relative))) continue;
   const contents = fs.readFileSync(path.join(repoRoot, relative), 'utf8');
+  if (
+    relative.startsWith(path.join('backend', 'cloudflare', 'proof-gateway-worker', 'src'))
+    && contents.includes("from '@midnight-demo/shared/runtime'")
+  ) {
+    violations.push(`${relative}: Worker must use a runtime-free shared entry point`);
+  }
   for (const { label, expression } of forbiddenPatterns) {
     expression.lastIndex = 0;
     const match = expression.exec(contents);
