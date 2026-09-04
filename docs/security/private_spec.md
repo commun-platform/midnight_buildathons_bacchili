@@ -37,6 +37,12 @@ for the supporting field path, it is local field storage. They are not written t
 messages, Worker logs, or public browser state. Authorized hourly summaries are the bounded exception:
 they are stored in D1 for the operator workflow but are not public evidence.
 
+The simulated Browser Device is a review-only feature. Its non-extractable P-256 key, Compact Device
+secret, private opening, and synthetic raw readings may be retained in that browser's IndexedDB so
+the demonstration can recover after reload. This is not the production Device or Managed API
+storage model. Field Devices retain private material locally; Managed API mode discards raw responses
+after aggregation and encrypts its temporary R2 proof artifact with AES-256-GCM.
+
 ## Administrator data
 
 The logical operator view can display only the selected proof subject's authorized hourly minimum,
@@ -66,18 +72,21 @@ an OUTSIDE result reveals the hour but not the value or which bound was exceeded
 ## Trusted Wave 1 components
 
 The Cloudflare Worker and Proof Server Container are trusted with an in-transit private proving
-request. TLS protects that hop. The Worker removes authorization headers before forwarding, does not
-log request bodies, and streams the body without storing it in D1, R2, or Queue messages. The Device
-transaction agent or user-controlled browser account retains the transaction authority and explicitly
-approves the fee-free transaction. The
-private Sponsor Wallet Container holds a separate Sponsor seed for DUST balancing/submission and an
-Operator Authority secret for the fixed browser-registration circuits; neither secret is exposed by
-a public route or returned to the browser.
+request. TLS protects that hop. The Worker removes authorization headers before forwarding and does
+not log request bodies or put secrets in Queue messages. Browser and field Devices retain their own
+transaction authority. Managed API mode uses a distinct Managed Attestor authority.
 
-The two Container secrets are runtime inputs, not image contents. The production Worker obtains them
-from Cloudflare Secret bindings and passes them to the Sponsor Wallet Container as startup environment
-variables. The Docker build context and resulting image must remain free of the seed, Operator
-Authority secret, `.env`, `.dev.vars`, wallet checkpoints, and wallet state. Compiled Compact
+The Sponsor, Fleet Authority, and Managed Attestor Wallets run as separate Container OS processes
+with distinct seeds. The Sponsor receives only its DUST seed. The Fleet Authority process receives
+only its seed and Operator Authority. The Managed Attestor receives only its seed and root authority.
+Authority Wallets finalize a transaction without DUST; the Sponsor validates one allowlisted Sensor
+Registry call, adds only DUST through the official Midnight sponsorship flow, and submits it. The
+transaction binding prevents the Sponsor from replacing the authorized contract call.
+
+These Container secrets are runtime inputs, not image contents. The production Worker obtains them
+from Cloudflare Secret bindings and passes each process only its role-specific values. The Docker
+build context and resulting image must remain free of seeds, authority secrets, `.env`, `.dev.vars`,
+wallet checkpoints, and wallet state. Compiled Compact
 prover/verifier artifacts are build artifacts rather than secret key material. For local development,
 ignored `.dev.vars` values may replace Cloudflare Secret bindings, but they must not be committed or
 copied into the image.
@@ -88,3 +97,8 @@ the Contract state at that block and the preceding block, identifies the attesta
 transaction, and renders its operational date/boundary, hourly results, policy/validity, and Device Commitment. D1 is
 not used in this hash-verification path. Local proof-verifier execution and multi-source Indexer
 hardening remain later extensions.
+
+Managed API mode proves the relationship between values received by the service and the on-chain
+policy. It does not prove that the upstream API or a physical sensor reported truthfully. API
+credentials, strict response validation, and audit events identify and trace the configured source,
+but are not a source-authenticity proof.

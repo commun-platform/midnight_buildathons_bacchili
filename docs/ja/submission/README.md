@@ -13,7 +13,8 @@
 | 提出前の技術確認表 | 作成済み、外部確認待ち | [technical_gate_checklist.md](technical_gate_checklist.md) |
 | 審査員向けQ&A | 作成済み | [judge_qa.md](judge_qa.md) |
 | 1ページ概要 | 作成済み | [one_page_brief.md](one_page_brief.md) |
-| 日本語Technical Reference | 参考資料。提出対象は最終英語9枚 | [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
+| 最終英語Pitch Deck | Slide 7へServer側Sponsor Walletの現行構成と限定付きCost Evidenceを追加済み | [PPTX](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx)・[PDF](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) |
+| 日本語Technical Reference | 参考資料。Slide 8へ日本語の現行Sponsor Wallet構成と限定付きCost Evidenceを追加済み。提出対象は最終英語9枚 | [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
 | Cloudflare UC別技術補足 | 作成済み | [説明](../architecture/cloudflare_use_cases.md)・[PPTX](deck/cloudflare-use-cases-ja.pptx)・[PDF](deck/cloudflare-use-cases-ja.pdf) |
 | 最終画面の録画台本 | 英語動画で使用済み | [demo_script.md](demo_script.md) |
 | 最終画面の画像素材 | 審査済み英語Still 6枚とSubmission Thumbnailを作成済み | [captures/](captures/) |
@@ -25,6 +26,17 @@
 `tools/submission-media/build-submission-decks.cjs`と`build-submission-pdfs.cjs`は旧12 Pageの日英Technical Deckを
 再現するために残しており、最終Pitchを再現しません。提出用英語Filenameに対して実行してはいけません。
 
+最終英語PitchのSlide 7は、動画と同じUser認可／Service Fee分離を保ちながら、オンデマンドのServer側
+Sponsor Wallet、D1／R2、独立したProof Server、限定付きCost Evidenceを1枚に統合します。
+`build-on-demand-zkp-architecture.cjs`が編集可能な英語SVGと1672 × 941 PNGを生成し、
+`include-on-demand-architecture-in-pitch.cjs`が最終9枚PPTX／PDFのSlide／Page 7だけを検査付きで
+差し替えます。
+
+`build-on-demand-zkp-architecture-ja.cjs`は、元の日本語ガイド画像を上書きせず、英語Pitch図と同じ
+主張境界を持つ編集可能な日本語SVGと1672 × 941 PNGを生成します。
+`include-on-demand-architecture-in-ja-reference.cjs`は、日本語12枚Technical Referenceの
+Slide／Page 8だけを検査付きで差し替えます。この参考Deckを最終提出Pitchへ変更するものではありません。
+
 Cloudflare UC別技術補足は、次のコマンドで5枚のSVG／PNG、PPTX、PDFを一括再生成します。
 
     NODE_PATH=<workspace-dependencies-node-modules> node tools/submission-media/build-cloudflare-uc-materials.cjs
@@ -35,4 +47,4 @@ Cloudflare UC別技術補足は、次のコマンドで5枚のSVG／PNG、PPTX�
 2. 完成した英語動画、最終英語9枚Deck／PDF、Thumbnailを公開する。
 3. リポジトリとスライドを公開して仮URLを置き換える。
 4. 公開設定、Apache 2.0、`midnightntwrk`トピック、AKINDO提出フォームを確認する。
-5. 審査Audienceから求められた場合だけ、日本語版を最終英語9枚から別制作する。
+5. 審査Audienceから求められた場合だけ、動画と同期する日本語9枚Pitchを最終英語9枚から別制作する。日本語Technical Referenceの構成図Slideは作成済み。

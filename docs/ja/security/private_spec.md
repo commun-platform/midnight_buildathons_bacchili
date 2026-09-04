@@ -30,6 +30,11 @@ Attestation Evidenceの正本はMidnightです。
 Raw値はTX ConfirmとRetention Policyが削除を許可するまでPrivate Source Storageに保持できます。Wave 1の疑似計測元では
 Browser Private Storage、補助的な現場経路ではLocal Field Storageです。D1、R2、Queue Message、Worker Log、Public Browser Stateへ書きません。認可済み時間別Summaryだけは例外として運用者Workflow用にD1へ保存しますが、Public Evidenceにはしません。
 
+Browser疑似Deviceは審査・デモ専用です。Reload後に復帰できるよう、非抽出P-256鍵、Compact Device Secret、
+Private Opening、疑似Raw値をそのBrowserのIndexedDBへ保持できます。これは本番DeviceやAPI連携の保存方式では
+ありません。現場Deviceは秘密情報をLocalに保持し、API連携は集約後にRaw応答を破棄して、一時R2 Proof
+ArtifactをAES-256-GCMで認証暗号化します。
+
 論理的な運用者Viewは、選択した証明対象の認可済みHourly Minimum／Maximum／Average／Count、Anomaly Transition、状態、Proof／TX処理状態だけを表示します。Wave 1では
 第三者Viewと同じ審査Applicationに入っていますが、本番Role・Application分離はWave 2の目標です。Private Aggregate値を
 第三者Public APIに含めません。
@@ -47,13 +52,26 @@ Public Proof画面は次の項目を表示します。
 
 運用ContractはThreshold Mode、Minimum／Maximum、Scale、Sensor／Unit Code、Policy Assignment、UTC Measurement Day、24個の時間帯別結果、日次の`thresholdSatisfied`をPublic Ledger Stateへ保存します。そのため製品説明でもThreshold Policyと各時間帯のStatusは公開と明記します。ZKが隠すのは提出済みHourly ExtremaとCommitment Nonceであり、範囲外の時間帯は分かりますが、実値とどちらのBoundを超えたかは開示しません。
 
-Cloudflare Worker／Proof Server ContainerはTransit中のPrivate Proving Requestを扱うTrusted Componentです。Workerは転送前にAuthorization Headerを除去し、BodyをLog／D1／R2／Queueへ保存せずStreamします。現場Transaction AgentまたはUser管理のBrowser AccountがTransaction Authorityを保持し、FeeなしTXを明示承認します。PrivateなSponsor Wallet ContainerはDUST付与／送信用の分離Sponsor Seedと、固定されたBrowser登録回路用のOperator Authority秘密値を保持します。どちらもPublic RouteやBrowserへ公開しません。
+Cloudflare Worker／Proof Server ContainerはTransit中のPrivate Proving Requestを扱うTrusted Componentです。
+Workerは転送前にAuthorization Headerを除去し、Request BodyをLogへ残さず、Queueには秘密値でなくIDだけを
+入れます。Browser／現場Deviceは自身のTransaction Authorityを保持し、API連携は分離したManaged Attestor
+Authorityを使います。
 
-2つのContainer Secretは実行時入力であり、Container Imageの内容ではありません。本番WorkerがCloudflare
-Secret Bindingから取得し、Sponsor Wallet Container起動時の環境変数として渡します。Docker Build
-Contextと生成Imageには、Sponsor Seed、Operator Authority秘密値、`.env`、`.dev.vars`、Wallet
+Sponsor、Fleet Authority、Managed AttestorのWalletは、別Seedを使う別々のContainer OS Processです。
+SponsorにはDUST用Seedだけ、Fleet Authorityには専用SeedとOperator Authorityだけ、Managed Attestorには
+専用SeedとRoot Authorityだけを渡します。権限WalletはDUSTなしでTXを確定し、Sponsorは許可済みのSensor
+Registry呼出し1件を検査して、Midnight公式スポンサー手順でDUSTだけを追加・送信します。TXの束縛により、
+Sponsorは認可済みコントラクト呼出しを別内容へ交換できません。
+
+Container Secretは実行時入力であり、Container Imageの内容ではありません。本番WorkerがCloudflare
+Secret Bindingから取得し、各Processへ担当値だけを渡します。Docker Build Contextと生成Imageには、
+各Seed、Authority秘密値、`.env`、`.dev.vars`、Wallet
 Checkpoint、Wallet Stateを含めてはいけません。Compile済みCompact Prover／Verifier ArtifactはBuild
 Artifactであり、秘密鍵素材ではありません。Local開発ではGit Ignore済みの`.dev.vars`等でCloudflare
 Secret Bindingを代替できますが、CommitまたはImageへのCopyは禁止します。
 
 BrowserはZK Verifier自体を再実行しません。貼り付けたTX hashからPublic Midnight Indexerへ成功TX、Block、Contract Actionを問い合わせ、該当Blockと直前BlockのContract State差分をDecodeして、そのTXが追加したAttestationを特定します。そこから運用日／登録済み境界、24個の時間帯別結果、Policy／有効期間、Device Commitmentを表示します。このHash検証経路はD1を使いません。Local Proof Verifier実行と複数Indexer比較は将来拡張です。
+
+API連携モードが証明するのは、サービスが受領した値とオンチェーンPolicyの関係です。上流APIや物理センサーが
+正しく申告したことは保証しません。API Credential、厳格な応答検証、監査Eventは設定済みの取得元を識別・
+追跡するためのものであり、測定元の真正性を証明するものではありません。

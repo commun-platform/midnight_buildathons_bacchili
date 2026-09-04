@@ -2,7 +2,7 @@
 
 [English](../../implementation/zk_circuit_spec.md)
 
-状態：2026-09-01 JST時点の実装準拠仕様
+状態：2026-09-03 JST時点の実装準拠仕様
 対象コントラクト：`midnight/contracts/sensor-registry/src/sensor-registry.compact`
 
 ## 1. 目的と対象範囲
@@ -10,17 +10,19 @@
 BACCHIRI!━━Verifiable Measurement Layerが顧客へ提供する証明価値は1つです。**提出された時間別の
 センサー最小値・最大値を開示せず、登録済みしきい値を満たすか証明します**。
 
-運用コントラクト`sensor-registry`には、証明を生成する公開回路が6つあります。
+運用コントラクト`sensor-registry`には、証明を生成する公開回路が8つあります。
 
 1. `registerDevice`
-2. `rotateDeviceAuthority`
-3. `disableDevice`
-4. `registerThresholdPolicy`
-5. `registerPolicyAssignment`
-6. `submitDailyAttestation`
+2. `rotateOperatorAuthority`
+3. `rotateDeviceAuthority`
+4. `disableDevice`
+5. `registerThresholdPolicy`
+6. `registerPolicyAssignment`
+7. `closePolicyAssignment`
+8. `submitDailyAttestation`
 
-最初の5回路は、誰が、どのデバイスとしきい値を使えるかを管理します。6番目が、非公開の日次しきい値
-判定を行う回路です。コンパイラ生成情報でも、この6回路が`proof: true`となり、それぞれに証明鍵と
+最初の7回路は、誰が、どのデバイスとしきい値を使えるかを管理します。8番目が、非公開の日次しきい値
+判定を行う回路です。コンパイラ生成情報でも、この8回路が`proof: true`となり、それぞれに証明鍵と
 検証鍵が1組ずつ生成されています。
 
 TX hashを起点に、第三者ビューワが検証済みの24時間公開結果をどう解釈するかという実装手順は、
@@ -28,13 +30,13 @@ TX hashを起点に、第三者ビューワが検証済みの24時間公開結�
 
 `deriveDeviceAuthority`、`deriveOperatorAuthority`、`deriveAttestationId`は、決定的なハッシュを計算する
 公開純粋回路です。証明や台帳トランザクションは生成しません。固定24／96／1,440件の
-`daily-attestation`は開発専用の費用実験であり、[13章](#13-開発専用回路プロファイル)へ分離します。
+`daily-attestation`は開発専用の費用実験であり、[15章](#15-開発専用回路プロファイル)へ分離します。
 
-## 2. 6回路の関係
+## 2. 8回路の関係
 
 ```mermaid
 flowchart LR
-    OA["非公開の運用管理者秘密値"] --> ADMIN["5つの管理用証明回路"]
+    OA["非公開の運用管理者秘密値"] --> ADMIN["7つの管理用証明回路"]
     ADMIN --> REG["公開デバイス台帳"]
     ADMIN --> POLICY["公開しきい値"]
     ADMIN --> ASSIGN["公開デバイス・しきい値適用設定"]
@@ -54,7 +56,7 @@ flowchart LR
 
 | 分類 | データ | 公開範囲 |
 | --- | --- | --- |
-| 運用管理者の非公開入力 | `privateOperatorSecret()` | 非公開。5つの管理用回路で使用 |
+| 運用管理者の非公開入力 | `privateOperatorSecret()` | 非公開。7つの管理用回路で使用 |
 | デバイスの非公開入力 | `privateDeviceSecret()` | 非公開。`submitDailyAttestation`で使用 |
 | 日次の非公開入力 | `privateDailyExtrema(commitment)`、`privateDailyNonce(commitment)` | 非公開。24時間枠と1つの証明用乱数 |
 | 公開引数 | デバイス／しきい値／適用設定ID、運用期間、時間枠の有無、24個の時間帯別結果、合計件数、日次総合結果、版番号 | 公開トランザクション入力 |
@@ -75,10 +77,12 @@ flowchart LR
 | 回路 | 非公開で証明すること | 主な公開結果 |
 | --- | --- | --- |
 | `registerDevice` | 運用管理者秘密値を知っている | 使用可能なデバイスと権限ハッシュを登録 |
+| `rotateOperatorAuthority` | 現在の運用管理者秘密値を知っている | 運用管理者権限をより大きい版へ変更 |
 | `rotateDeviceAuthority` | 運用管理者秘密値を知っている | デバイス権限ハッシュを新しい版へ変更 |
 | `disableDevice` | 運用管理者秘密値を知っている | 登録済みデバイスを無効化 |
 | `registerThresholdPolicy` | 運用管理者秘密値を知っている | 変更不可の公開しきい値を登録 |
-| `registerPolicyAssignment` | 運用管理者秘密値を知っている | 1つのデバイスへしきい値と有効期間を設定 |
+| `registerPolicyAssignment` | 運用管理者秘密値を知っている | 重複しないしきい値と有効期間を1つのデバイス・センサー系列へ設定 |
+| `closePolicyAssignment` | 運用管理者秘密値を知っている | 最新の未終了適用設定へ終了日時を設定 |
 | `submitDailyAttestation` | デバイス秘密値と、コミットした日次入力・乱数を知っている | 最小値・最大値を保存せず、24個の時間帯別結果と日次総合結果を記録 |
 
 ## 5. `registerDevice`
@@ -105,7 +109,24 @@ flowchart LR
 | 拒否条件 | 空のID、版番号`0`、登録済みデバイス、使用済みデバイス権限 |
 | 台帳更新 | `{authority, active: true, version}`を登録し、権限所有者を予約して`deviceCount`を加算 |
 
-## 6. `rotateDeviceAuthority`
+## 6. `rotateOperatorAuthority`
+
+### 実現すること
+
+現在の運用管理者だけが、全管理回路で使う秘密権限をコントラクト再配備なしで交換できます。
+新しい秘密値そのものは公開せず、一方向の権限ハッシュだけを公開します。
+
+| 項目 | 仕様 |
+| --- | --- |
+| 非公開入力 | 現在の`privateOperatorSecret()` |
+| 公開入力 | `newOperatorAuthority`、`newVersion` |
+| 拒否条件 | 空または現在と同じ権限、増加しない版番号 |
+| 台帳更新 | `operatorAuthority`と`operatorAuthorityVersion`を同時に交換 |
+
+確定後、旧運用管理者秘密値では管理回路を呼べません。運用CLIは送信前に新しい秘密値を権限`0600`の
+待機ファイルへ保存し、台帳上の確定を確認してから有効化するため、中断後も安全に復旧できます。
+
+## 7. `rotateDeviceAuthority`
 
 ### 実現すること
 
@@ -130,7 +151,7 @@ flowchart LR
 
 古い権限の所有者予約は削除しません。古い権限と新しい権限は、別デバイスへ再利用できません。
 
-## 7. `disableDevice`
+## 8. `disableDevice`
 
 ### 実現すること
 
@@ -154,7 +175,7 @@ flowchart LR
 
 現行コントラクトには再有効化回路がありません。この台帳版では無効化を取り消せません。
 
-## 8. `registerThresholdPolicy`
+## 9. `registerThresholdPolicy`
 
 ### 実現すること
 
@@ -179,7 +200,7 @@ flowchart LR
 しきい値IDが空でないこと、`valueScale`と版番号が正であること、IDが未使用であることも検査します。
 更新回路はなく、しきい値を変更する場合は新しいIDを登録します。
 
-## 9. `registerPolicyAssignment`
+## 10. `registerPolicyAssignment`
 
 ### 実現すること
 
@@ -198,13 +219,29 @@ flowchart LR
 | --- | --- |
 | 非公開入力 | `privateOperatorSecret()` |
 | 公開入力 | 適用設定ID、しきい値ID、デバイスコミットメント、`validFrom`、`validUntil`、版番号 |
-| 拒否条件 | 空／使用済みID、未登録しきい値／デバイス、無効デバイス、不正な期間、版番号`0` |
-| 台帳更新 | しきい値・デバイス・有効期間・版番号を変更不可で保存し、`assignmentCount`を加算 |
+| 拒否条件 | 空／使用済みID、未登録しきい値／デバイス、無効デバイス、不正な期間、版番号`0`、未終了の先行設定、期間重複、増加しない系列版 |
+| 台帳更新 | しきい値・デバイス・有効期間・版番号を保存し、デバイス・センサー系列の最新設定を更新して`assignmentCount`を加算 |
 
-`validUntil == 0`は有効期限なしを表します。複数の適用設定が期間上重複することは、現行回路では禁止して
-いません。重複管理は運用規則の対象です。
+`validUntil == 0`は有効期限なしを表します。デバイスと公開`sensorTypeCode`の組ごとに、未終了の
+適用設定は1件だけです。後続設定は先行設定の終了後に開始し、かつ大きい版番号を使います。
 
-## 10. `submitDailyAttestation`
+## 11. `closePolicyAssignment`
+
+### 実現すること
+
+デバイス・センサー系列の最新の未終了適用設定へ終了日時を設定します。しきい値、デバイス、運用日の
+境界、開始日時、版番号は変更せず、過去の証明も有効なままです。
+
+| 項目 | 仕様 |
+| --- | --- |
+| 非公開入力 | `privateOperatorSecret()` |
+| 公開入力 | 適用設定IDと明示的な`validUntil` |
+| 拒否条件 | 未登録の適用設定／しきい値／系列、最新でない設定、終了済み設定、開始日時以下の終了日時 |
+| 台帳更新 | 適用設定の`0`だった終了日時だけを指定値へ置換 |
+
+終了済みの適用設定でも、日次証明の運用期間全体が確定後の有効期間内に収まる場合だけ使用できます。
+
+## 12. `submitDailyAttestation`
 
 ### 実現すること
 
@@ -225,7 +262,7 @@ flowchart LR
     RESULT --> WRITE["最小値・最大値・乱数を含めず<br/>検証済み証明記録を保存"]
 ```
 
-### 10.1 非公開入力
+### 12.1 非公開入力
 
 `attestationCommitment`で選択する非公開入力には、次を含みます。
 
@@ -237,13 +274,13 @@ flowchart LR
 - 仕様版と回路版
 - 32バイトの証明用乱数1つ
 
-### 10.2 公開入力
+### 12.2 公開入力
 
 トランザクションは、日次コミットメント、デバイスコミットメント、計測グループID、適用設定ID、運用期間、
 24時間枠の観測有無、24個の時間帯別結果、合計件数、日次総合結果、版番号を公開します。時間別の最小値・最大値・件数と
 証明用乱数は、公開引数にも公開台帳にも含めません。
 
-### 10.3 1つの証明で行う検査
+### 12.3 1つの証明で行う検査
 
 1. デバイスが登録済み・使用可能で、非公開のデバイス秘密値による権限が一致する。
 2. `attestationId = H("vsp:daily-attestation-id:v1", deviceCommitment, measurementGroupId)`が未使用。
@@ -261,7 +298,7 @@ flowchart LR
 
 回路が`measurementDay`と変更不能なAssignmentから期間境界を導出するため、別の境界や部分日は失敗します。
 
-### 10.4 しきい値の判定式
+### 12.4 しきい値の判定式
 
 観測済みの各時間`h`について、次を検査します。
 
@@ -286,12 +323,12 @@ thresholdSatisfied = 観測済み全時間の判定をANDで結合 // 日次総�
 
 範囲外の時間帯は公開しますが、上下限のどちらを超えたか、実際の値は公開しません。
 
-### 10.5 公開台帳への保存
+### 12.5 公開台帳への保存
 
 成功時は、導出した証明IDをキーに`DailyAttestationPublicState`を1件保存します。コミットメント、計測
 グループ、デバイス、しきい値、適用設定、運用期間、観測有無、24個の時間帯別結果、観測時間数／合計件数、版番号、日次総合結果、`verified: true`を含みます。時間別の最小値・最大値と証明用乱数は保存しません。
 
-## 11. 純粋回路と内部補助回路
+## 13. 純粋回路と内部補助回路
 
 ```mermaid
 flowchart LR
@@ -305,10 +342,11 @@ flowchart LR
 | `deriveOperatorAuthority` | 領域分離した運用管理者秘密値のハッシュ | なし。純粋回路 |
 | `deriveDeviceAuthority` | 領域分離したデバイス秘密値のハッシュ | なし。純粋回路 |
 | `deriveAttestationId` | デバイス・計測グループ単位の台帳キー | なし。純粋回路 |
-| `assertOperatorAuthorized` | 5つの管理回路が共用する内部の権限一致検査 | 呼び出し元の証明へ内包 |
+| `derivePolicyAssignmentStreamKey` | 適用設定の順序を管理するデバイス・センサー系列キー | なし。純粋回路 |
+| `assertOperatorAuthorized` | 7つの管理回路が共用する内部の権限一致検査 | 呼び出し元の証明へ内包 |
 | `assertDeviceAuthorized` | 日次提出が使う登録・有効・秘密値検査 | 日次証明へ内包 |
 
-## 12. 証明範囲
+## 14. 証明範囲
 
 日次回路が証明するのは次の内容です。
 
@@ -322,7 +360,7 @@ flowchart LR
 最大値集計の正しさ、ファームウェア完全性、未観測の変動がなかったことは証明しません。これらには別の
 データ来歴・ハードウェア対策が必要です。
 
-## 13. 開発専用回路プロファイル
+## 15. 開発専用回路プロファイル
 
 `midnight/experiments/daily-attestation-cost/src/generated/`には、固定24／96／1,440件のプロファイルがあります。固定した
 日次構造でコンパイル時間、証明規模、費用を比較するために生成したものです。それぞれ独自の
@@ -332,16 +370,16 @@ flowchart LR
 説明してはいけません。運用回路へ渡すのは、生の測定件数が24、96、1,440件またはそれ以上であっても、
 常に24個の時間別最小値・最大値です。
 
-## 14. ソース、生成物、検証
+## 16. ソース、生成物、検証
 
 現行の互換性は次のとおりです。
 
 ```text
 Compactコンパイラ／ツールチェーン  0.31.1
 Compact言語                      0.23
-日次仕様版                       6
-日次回路版                       4
-運用証明回路                     6
+日次仕様版                       7
+日次回路版                       5
+運用証明回路                     8
 ```
 
 ソースと生成物の対応は次のとおりです。
@@ -349,8 +387,8 @@ Compact言語                      0.23
 - ソース：`midnight/contracts/sensor-registry/src/sensor-registry.compact`
 - 非公開入力の供給：`midnight/contracts/sensor-registry/src/witnesses.ts`
 - コンパイラ回路一覧：`midnight/contracts/sensor-registry/src/managed/sensor-registry/compiler/contract-info.json`
-- 6組のZKIR／BZKIR：`midnight/contracts/sensor-registry/src/managed/sensor-registry/zkir/`
-- 6組の証明鍵／検証鍵：`midnight/contracts/sensor-registry/src/managed/sensor-registry/keys/`
+- 8組のZKIR／BZKIR：`midnight/contracts/sensor-registry/src/managed/sensor-registry/zkir/`
+- 8組の証明鍵／検証鍵：`midnight/contracts/sensor-registry/src/managed/sensor-registry/keys/`
 - シミュレーターテスト：`midnight/contracts/sensor-registry/src/test/sensor-registry.test.ts`
 
 生成物を直接編集せず、次のコマンドで再生成・検証します。
@@ -362,11 +400,9 @@ npm run typecheck -w @midnight-demo/sensor-registry-contract
 ```
 
 テストは、範囲内、正しい範囲外、一部／全時間停止、虚偽判定の拒否、コミットメント／観測有無の改ざん、
-同じ計測グループの再利用、不正なデバイス／運用管理者秘密値、別デバイスの適用設定、無効化、権限交換、
-権限再利用の拒否を確認します。
+同じ計測グループの再利用、不正なデバイス／運用管理者秘密値、別デバイスの適用設定、適用設定の
+重複・版・終了規則、無効化、デバイス／運用管理者権限の交換、安全な秘密値有効化、権限再利用の拒否を確認します。
 
 現行ソース／シミュレーター検証と、過去に事前公開ネットワークへ配備したコントラクトは別の証拠です。
-ローカルのコンパイルやシミュレーター成功だけでは、回路版`4`の配備・確定を証明できません。
-
-運用管理者権限の交換と、デバイス所有者によるしきい値交換は、上記6回路に含まれない将来のコントラクト変更です。
-対象範囲と完了条件は[将来機能バックログ](future_features.md)で管理します。
+ローカルのコンパイルやシミュレーター成功だけでは、互換性のない現行8回路コントラクトの配備・確定を
+証明できません。配備証跡には、正確なコントラクトアドレスとトランザクションを別途記録します。

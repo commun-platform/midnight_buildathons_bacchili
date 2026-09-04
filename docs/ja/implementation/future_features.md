@@ -2,7 +2,7 @@
 
 [English](../../implementation/future_features.md)
 
-状態：2026-08-31 JST時点の将来計画。現在の実装済み機能には含みません。
+状態：2026-09-03 JST時点の将来計画。現在の実装済み機能には含みません。
 製品：BACCHIRI!━━Verifiable Measurement Layer
 
 ## 1. 目的
@@ -72,6 +72,7 @@
 | `FF-O11` | P0 | 監査・解析・運用ダッシュボード | Logと処理状態は主に開発・審査用途です。 | Security上重要な操作のAudit Trail、秘匿化済み構造化Log、Metric、Health、Queue Depth、Retry、Alert、Recovery Controlを認可済みSystem Operatorが確認できます。 |
 | `FF-O12` | P1 | パートナーPilot運用 | Wave 1では実Partner業務を本番Serviceとして運用していません。 | 実際の現場業務を合意期間運用し、信頼性、支援工数、原価、顧客価値、価格評価を測定します。 |
 | `FF-O13` | P1 | Proof Serverの水平スケーリング | 現行Deployは、名前を固定した`standard-2` Proof Server Container 1台、Proof Queue Consumer同時実行数1、全体のProof Admission Lease 1件で動作します。`max_instances`を増やすだけでは処理を分散できません。 | StatelessなProof Serverを設定可能な台数でPool化し、明示的なInstance SlotとD1 Leaseで割り当てます。Queue同時実行数とAdmission Capacityを台数に合わせ、Retryの冪等性、Busy Instanceへの重複割当防止、未使用時のScale-to-zeroを維持します。Sponsor Walletは単一Instanceのままとし、Backlog負荷試験でProofの並列処理を確認します。 |
+| `FF-O14` | P1 | 公式Container RolloutとWallet安全配備 | 現在は両Containerとも`max_instances: 1`で、明示的なRollout Grace Periodはありません。Sponsor Walletには`SIGTERM`、定期・終了時Checkpoint、Job Lease、未確定取引の再照合がありますが、配備時のAdmission停止とWallet引継ぎは未整備です。 | Cloudflare Container RolloutsとWorker Versionsを配備の基盤とし、現在のContainer名を維持します。Image Rollout前に新旧互換のWorkerを配備し、明示的なGrace PeriodとWorkload別のRollout方針を設定します。Sponsorの新規Admission停止、実行中処理の完了または再照合、暗号化Wallet Checkpointの保存・復元、同期・Readiness確認後の再開を順序化します。Walletごとに有効なSignerを常に1台とし、旧Instanceからの送信を防止します。Rollout開始と完了を区別し、D1／R2／Checkpointの後方互換性を維持して、前進配備と制御されたRollbackを確認します。Proof Serverと状態を持つSponsor Walletには別々の手順を定めます。 |
 
 デバイスは証明提出時にしきい値を選びません。所有者が認可し、Midnightで確定済みのしきい値と適用設定だけを
 受け取ります。新しい設定は次の計測期間境界から有効とし、保留中または過去期間の証明は元の版を維持します。
@@ -106,6 +107,6 @@
 5. 本番Role／Application分離、組織／Project／Role認可、保護されたSystem Operations Applicationを実装し、Operator SecretをBrowserへ公開しません。
 6. Audit Trail、秘匿化済み解析Log、Metric、Health、Queue／Retry可視化、Alert、Recovery Controlを追加します。
 7. 所有者によるしきい値変更を実装し、Midnight確定後に設定Revisionを公開して現場起動時同期へつなげます。
-8. 日次自動実行、スポンサー取引の完了処理、制御されたUpdate／Rollbackを追加します。
+8. `FF-O14`を実装してから、日次自動実行、スポンサー取引の完了処理、制御されたUpdate／Rollbackを追加します。
 9. Wave 2 Partner Pilotを行い、信頼性、支援、原価、価値、価格の実測をWave 3投資判断に使います。
 10. Hardware保護Identity、Lifecycle来歴、商用Service Controlを追加し、継続売上、契約更新、利用拡大、Unit Economicsを確認してからPMFを主張します。

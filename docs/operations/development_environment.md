@@ -42,12 +42,19 @@ Measured results and the standard 1,440-reading procedure are maintained in the 
 npm run cloudflare:deploy
 npm run development:wallet
 npm run development:funding
-npm run development:deploy:cloudflare -- --device-authority <public-32-byte-hex>
+npm run development:deploy:cloudflare -- \
+  --device-authority <public-32-byte-hex> \
+  --policy-id <new-policy-id> \
+  --assignment-id <new-assignment-id>
 npm run cloudflare:config:network
 npm run cloudflare:config:contract
 npm run development:status
 ./edge-device/release/package_archive.sh
 ```
+
+Use identifiers that do not already exist in the D1 audit mirror when replacing a contract.
+The deployment command fails before acquiring proof capacity if either identifier is retained
+from a previous deployment.
 
 The network label and deployed contract address are Worker environment bindings and are not committed. `edge-device/release/package_archive.sh` exports compiled artifacts and builds a secret-free operational archive. Transfer only the generated firmware archive and checksum to the Edge Device; never transfer `tools/midnight-operator/.env.development`, `.dev.vars`, `.state/development/`, development-wallet recovery material, or private development inputs.
 

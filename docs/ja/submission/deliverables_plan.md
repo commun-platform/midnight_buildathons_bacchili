@@ -80,11 +80,13 @@
 | 4 | Live Product: Register | User管理Account、証明対象、Public Policy、Validity | GUI |
 | 5 | Private Evidence | Raw Reading、固定24 Slot入力、STOPPED Hour | 非公開境界図 |
 | 6 | Live Product: Prove | 計測前に登録したPolicyに対するProof生成 | GUI |
-| 7 | Live Product: Authorize | User認可とService Fee負担の分離 | GUI |
+| 7 | Engineering Innovation: Sponsor | 必要時だけ起動するServer側Sponsor WalletがDUSTだけを負担し、Device Authorityを保持したまま待機Costを抑える | 英語構成図 |
 | 8 | Live Product: Verify | Public Policy、Result、Commitment、TX Evidence | GUI／Explorer |
 | 9 | Exact Claim Boundary | 証明すること、非公開にすること、証明しないこと | Claim Boundary図 |
 
 最終9枚は2分18秒の英語動画と同期します。顧客価値から制御された証明経路へ進み、実際の審査Flowを示して、最後に正確なClaim境界を提示します。詳細Architecture、Test、Cost、RoadmapはPitch Slideを増やさずLink先文書で示します。
+
+日本語12枚Technical Referenceでは、Slide 8をこの構成図の日本語版へ更新しています。これは日英で技術説明を確認するための参考資料であり、動画と同期する最終日本語9枚Pitchとは区別します。
 
 ## 6. Demo / Video Pitch設計
 

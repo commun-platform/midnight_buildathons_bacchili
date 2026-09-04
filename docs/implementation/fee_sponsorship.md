@@ -204,8 +204,11 @@ npm run cloudflare:config:sponsor
 
 `cloudflare:config:sponsor` passes the seed to Wrangler over standard input and does not print it. The
 encrypted synchronization checkpoint is stored at `sponsor-wallet/preprod/checkpoint.enc` in the
-private `SPONSOR_STATE` R2 binding. See the [deployment and review runbook](../operations/demo_runbook.md)
-for Device provisioning and full operational order.
+private `SPONSOR_STATE` R2 binding. The Wallet can run continuously for judging or use a D1-controlled
+daily batch window without changing keys or deploying code. Outside the window, accepted Jobs remain
+durable and the operations dashboard does not wake the Container. See
+[Sponsor Wallet daily processing](../operations/sponsor_wallet_operating_hours.md) and the
+[deployment and review runbook](../operations/demo_runbook.md).
 
 ## Current integration boundary
 

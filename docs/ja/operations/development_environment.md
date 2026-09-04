@@ -42,12 +42,18 @@ ATTESTATION_SAMPLE_COUNTS=24 npm run attestation:compile
 npm run cloudflare:deploy
 npm run development:wallet
 npm run development:funding
-npm run development:deploy:cloudflare -- --device-authority <public-32-byte-hex>
+npm run development:deploy:cloudflare -- \
+  --device-authority <public-32-byte-hex> \
+  --policy-id <new-policy-id> \
+  --assignment-id <new-assignment-id>
 npm run cloudflare:config:network
 npm run cloudflare:config:contract
 npm run development:status
 ./edge-device/release/package_archive.sh
 ```
+
+Contract置換時は、D1監査Mirrorに存在しないIDを使用します。以前のDeployから保持されているPolicy IDまたは
+Assignment IDと衝突する場合、Proof Capacityを取得する前にCommandが停止します。
 
 Network LabelとDeploy済みContract AddressはWorker環境Bindingであり、Commitしません。`edge-device/release/package_archive.sh`はCompile済みArtifactをExportし、秘密情報を含まない運用Archiveを生成します。Edge Deviceへ渡すのは生成ArchiveとChecksumだけです。`tools/midnight-operator/.env.development`、`.dev.vars`、`.state/development/`、開発Wallet復旧情報、Private開発Inputは転送しません。
 

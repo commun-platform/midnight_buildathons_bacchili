@@ -2,13 +2,13 @@
 
 [日本語版](../ja/submission/technical_gate_checklist.md)
 
-Last local check: 2026-09-02 JST
+Last local check: 2026-09-03 JST
 
 | Gate | Status | Evidence / action |
 | --- | --- | --- |
 | Operational Compact contract exists | PASS | midnight/contracts/sensor-registry/src/sensor-registry.compact |
-| Compact compilation | PASS | 6 circuits compiled; submitDailyAttestation 28,699 rows, k=15 |
-| Repository tests | PASS | 355 / 355 passed across nine workspaces |
+| Compact compilation | PASS | 8 circuits compiled; submitDailyAttestation 28,699 rows, k=15 |
+| Repository tests | PASS | 448 / 448 passed across nine workspaces and the mock counterpart service |
 | Type checking | PASS | All configured workspaces |
 | Production builds | PASS | Dashboard, CLI, Device workspaces |
 | Cloudflare package validation | PASS | Wrangler deploy dry-run and deployed Worker version `68a511ba-0703-479c-91df-8cdb5c19c4a5` |
@@ -21,7 +21,7 @@ Last local check: 2026-09-02 JST
 | Final submission commit | PASS | The validated change set is frozen on the current `main` branch |
 | Final GUI screenshots | PASS (LOCAL) | Six reviewed English stills and a 1920×1080 submission thumbnail are under `docs/submission/captures/` |
 | Demo / video pitch | PASS (LOCAL) | English H.264/AAC 1080p video produced: `bacchiri-demo-pitch-en.mp4` (2:18); public URL remains external |
-| Slide package | PASS (LOCAL) | English 9-slide PPTX and independently generated 9-page PDF match the 2:18 video story |
+| Slide package | PASS (LOCAL) | English 9-slide PPTX / 9-page PDF retain the video story and update slide 7; Japanese Technical Reference remains 12 slides / 12 pages and updates slide 8 with the localized Sponsor Wallet architecture and the same bounded `standard-4` cost comparison |
 | Slide public link | PENDING EXTERNAL | Publish the generated deck/PDF and add the public URL |
 | AKINDO form and Official Rules | PENDING EXTERNAL | Recheck deadline time, limits, team and link fields |
 

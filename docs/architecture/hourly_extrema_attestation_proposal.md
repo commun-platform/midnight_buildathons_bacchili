@@ -205,7 +205,7 @@ Edge Agent -> keep raw readings locally
            -> emit immediate anomaly state transitions
 Wallet Agent -> aggregate private 24-slot extrema
              -> request a Proof Job without threshold bounds
-D1 backlog -> 02:00–06:00 JST admission -> Cloudflare Queue
+D1 backlog -> daily 02:00 JST cutoff -> Cloudflare Queue -> drain and stop
 Wallet Agent -> stream private proving request through Worker to Proof Server Container
 Proof Server -> produce proof using the contract ledger policy
 Edge Device -> sign and submit one Midnight attestation transaction

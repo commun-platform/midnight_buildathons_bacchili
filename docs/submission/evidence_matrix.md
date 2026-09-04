@@ -2,13 +2,13 @@
 
 [日本語版](../ja/submission/evidence_matrix.md)
 
-Validation date: 2026-09-02 JST
+Validation date: 2026-09-03 JST
 Local baseline: current working tree
-Preprod evidence date: 2026-09-02 JST
+Preprod evidence date: 2026-09-03 JST
 
-Local source validation and recorded Preprod transactions are intentionally separate. The latest
-runtime evidence is a new Device-originated operational-day attestation, not an inference from the
-Worker/GUI deployment.
+Local source validation and recorded Preprod transactions are intentionally separate. The runtime
+evidence includes both a Device-originated operational-day attestation and a walletless Managed API
+Attestation; neither is inferred from a Worker/GUI deployment.
 
 | ID | Review claim | Source / design evidence | Current local validation | Runtime / Preprod evidence | Boundary |
 | --- | --- | --- | --- | --- | --- |
@@ -19,11 +19,12 @@ Worker/GUI deployment.
 | CLAIM-05 | Missing hours are represented as NO DATA | Wave 1 specification and daily input utilities | Canonical no-data slot test passed | Public result exposes a NO DATA status for the corresponding UTC hour | Missing data is not fraud detection |
 | CLAIM-06 | User transaction authority, field API identity, and service fee authority are separate | browser authorization and supporting field-agent boundaries | Frontend, identity-agent, and transaction-agent tests passed | Authorized Preprod transaction recorded | Hardware-protected attestation is future work |
 | CLAIM-07 | The proof service cannot authorize as the user | proof flow and transaction-authorization source | Boundary and execution-lock tests passed | Recorded flow authorizes the call after proof generation | Backend remains trusted for proof input |
-| CLAIM-08 | Browser APIs expose only public or authorized redacted state | Gateway API tests and frontend responsibility design | 151 Gateway and 69 Dashboard tests passed | Public verifier accepts a TX hash and shows the operational date/boundary, 24 hourly results, policy/validity, Device Commitment, block, and TX | Browser directly compares public Indexer transaction and Contract action state but does not rerun the ZK verifier locally |
+| CLAIM-08 | Browser APIs expose only public or authorized redacted state | Gateway API tests and frontend responsibility design | 224 Gateway and 75 Dashboard tests passed | Public verifier accepts a TX hash and shows the operational date/boundary, 24 hourly results, policy/validity, Device Commitment, block, and TX | Browser directly compares public Indexer transaction and Contract action state but does not rerun the ZK verifier locally |
 | CLAIM-09 | The PoC handles 1,440 readings/day with one fixed 24-slot proof | aggregation utilities and cost benchmark | 24 / 96 / 1,440 fixed-shape tests passed | Device-originated 1,440-reading operational-day WITHIN TX confirmed in block 2,369,094 | One simulated source/day is not a fleet load test |
-| CLAIM-10 | The required operational Compact contract compiles | midnight/contracts/sensor-registry | All 6 circuits compiled on 2026-09-02 | Operational-day contract and attestation confirmed on Preprod | The validated change set is frozen on the current `main` branch |
-| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 355 tests, typecheck, build, Wrangler dry-run passed | Worker version `68a511ba-0703-479c-91df-8cdb5c19c4a5` deployed on 2026-09-02 JST | Initial restricted Docker dry-run could not update buildx state; the host-access dry-run passed |
-| CLAIM-12 | The GUI connects the simulated measurement workflow to public verification | dashboard source, routes, and tests | Dashboard build and 69 tests passed | TX-hash-only hosted verification completed without a D1 API request | Combined review UI is not production role separation; English demo pitch produced, public URL pending |
+| CLAIM-10 | The required operational Compact contract compiles | midnight/contracts/sensor-registry | All 8 circuits compiled on 2026-09-03 | Prior six-circuit operational-day contract and attestations are confirmed on Preprod | The incompatible eight-circuit contract still requires a fresh Preprod deployment |
+| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 448 tests, typecheck, build, API SCT, 22-checkpoint GUI SCT, Wrangler dry-run passed | Prior Worker version `dc5f990d-9943-4242-8066-21a55645aab9` deployed on 2026-09-03 JST | Current hardening changes are locally validated but not yet deployed |
+| CLAIM-12 | The GUI connects the simulated measurement workflow to public verification | dashboard source, routes, and tests | Dashboard build and 75 tests passed | TX-hash-only hosted verification completed without a D1 API request | Combined review UI is not production role separation; English demo pitch produced, public URL pending |
+| CLAIM-13 | A registered cloud API can complete a walletless Managed Attestation | Managed Source adapter, Queue consumer, encrypted private R2 artifact, separated authority/Sponsor Wallet flow, and independent `/managed-proof/` GUI | Mock counterpart, failure classification, idempotency, and Managed GUI tests passed | Two consecutive 1,440-reading days confirmed on the prior Preprod deployment; the scheduled post-fix Run completed on first fetch/proof attempts in block 2,380,338 and TX-hash verification contacted the public Indexer without a D1 API request | The Backend and registered source remain trusted; the source's truthfulness is not guaranteed |
 
 ## Current validation command
 
@@ -36,15 +37,16 @@ The explicit TMPDIR is required in this WSL environment so tsx creates its IPC s
 | Workspace | Passed |
 | --- | ---: |
 | Shared | 20 |
-| sensor-registry Contract | 15 |
-| Dashboard | 69 |
+| sensor-registry Contract | 18 |
+| Dashboard | 75 |
 | Development CLI | 5 |
 | Device Auth | 6 |
 | Edge Agent | 15 |
 | Device Wallet Agent | 32 |
-| Proof Gateway | 151 |
-| Sponsor Wallet | 42 |
-| Total | 355 |
+| Proof Gateway | 224 |
+| Sponsor Wallet | 49 |
+| Mock Measurement Source | 4 |
+| Total | 448 |
 
 ## Recorded Preprod reference
 
@@ -54,5 +56,21 @@ The explicit TMPDIR is required in this WSL environment so tsx creates its IPC s
 - Result: WITHIN, verified=true, thresholdSatisfied=true
 - Public policy: 10–35 °C
 - Raw readings, hourly extrema, and nonce: not disclosed
+
+Managed API acceptance reference:
+
+- Proof Job: `proof-b7cce717a5a6d8d3ed30fbcb610dfcce520ded59d74a640cca4648ddbdc3890c`
+- Transaction hash: [`7464966f8ecbcd9088564e8ec1d8e130fa240795fc4d68496109a49d375b49a7`](https://preprod.midnightexplorer.com/transactions/7464966f8ecbcd9088564e8ec1d8e130fa240795fc4d68496109a49d375b49a7)
+- Block height: 2,375,455
+- Input/result: 1,440 API records, 24 observed hours, 24 WITHIN results
+- Public verification: four checks passed; no D1 API request was used in the TX-hash path
+
+Autonomous post-fix regression reference:
+
+- Proof Job: `proof-de93c256b03322e49702ba144d0628814c5b1bf59284ae2131e1256dad0b332b`
+- Transaction hash: [`42e77f4e65ee03fe634feffdbba634e9099b220f55ed0b1de0a66391f718b12d`](https://preprod.midnightexplorer.com/transactions/42e77f4e65ee03fe634feffdbba634e9099b220f55ed0b1de0a66391f718b12d)
+- Block height: 2,380,338
+- Input/result: 1,440 API records, 24 observed hours, 24 WITHIN results
+- Execution: scheduled automatically; fetch attempt 1, proof attempt 1, no manual retry
 
 The final release audit must replace the local baseline description with a frozen commit SHA and rerun the same command.

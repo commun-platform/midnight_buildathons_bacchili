@@ -198,7 +198,10 @@ npm run cloudflare:config:sponsor
 
 `cloudflare:config:sponsor`は復旧元を標準入力でWranglerへ渡し、画面へ表示しません。暗号化した同期
 チェックポイントは、非公開`SPONSOR_STATE` R2の`sponsor-wallet/preprod/checkpoint.enc`へ保存します。
-デバイス初期登録を含む全体の順序は[配備・確認手順](../operations/demo_runbook.md)を参照してください。
+Walletは審査中の常時運転と、D1で制御する日次バッチ時間を鍵変更やコード再配備なしで切り替えられます。
+Jobは24時間受け付け、日次処理開始まで保持し、運用ダッシュボードからContainerを誤起動しません。詳細は
+[Sponsor Wallet日次処理](../operations/sponsor_wallet_operating_hours.md)と
+[配備・確認手順](../operations/demo_runbook.md)を参照してください。
 
 ## 現在の連携境界
 

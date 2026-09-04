@@ -598,6 +598,34 @@ Maximum compute total per active minute         = $0.0021504
 
 CPU is charged from actual active CPU usage; memory and disk are charged from provisioned capacity. This formula excludes the $5/month Workers Paid base plan, included usage, Worker and Durable Object requests, D1, logs, network egress, and Midnight DUST fees. Final customer pricing must use the measured active durations and current invoice rates rather than multiplying by the maximum CPU line unconditionally.
 
+## Managed API Attestation acceptance measurement
+
+The 2026-09-03 JST walletless Managed API run used the same operational 24-slot circuit and the
+System/Sponsor Wallet. The registered source returned 1,440 minute records in a 115,047-byte response;
+the Gateway reduced them to 24 hourly slots before proving. The primary Proof Server `/prove` request
+took 45.667 seconds. The proof was generated at 01:08:40.250 JST and the transaction was confirmed at
+01:09:11.230 JST in block 2,375,455, with a fee of 703,370,000,000,001 specks. This measurement is an
+additional delivery-path observation, not a second per-sample cost profile: the circuit and one-TX
+cost shape remain fixed after aggregation.
+
+The corresponding transaction hash is
+[`7464966f8ecbcd9088564e8ec1d8e130fa240795fc4d68496109a49d375b49a7`](https://preprod.midnightexplorer.com/transactions/7464966f8ecbcd9088564e8ec1d8e130fa240795fc4d68496109a49d375b49a7).
+After adding bounded Managed Source recovery, the final repository verification compiled 6 circuits
+and passed 417 tests, all type checks and builds, and the Wrangler/Container dry-run in 85.41 seconds
+wall time (`83.75 s` user, `32.27 s` system, 809,392 KiB maximum RSS). It used Compact `0.31.1`,
+Proof Server `8.1.0`, Wallet SDK `1.2.0`, Midnight.js `4.1.1`, and Wrangler `4.127.0`.
+
+The next scheduled UTC day provided a post-fix autonomous regression measurement. Cron created the
+Run at 09:15:54 JST, fetch attempt 1 completed at 09:15:59 with 1,440 records, proof attempt 1 started
+at 09:16:04, generated the ZKP at 09:16:55, and confirmed at 09:17:20. Total Run latency was 86.863
+seconds. The 9,371-byte transaction cost 704,620,000,000,001 specks and confirmed in block 2,380,338
+with transaction hash
+[`42e77f4e65ee03fe634feffdbba634e9099b220f55ed0b1de0a66391f718b12d`](https://preprod.midnightexplorer.com/transactions/42e77f4e65ee03fe634feffdbba634e9099b220f55ed0b1de0a66391f718b12d).
+The recovery deployment, including Compact compilation and Container image publication, took 74.99
+seconds wall time (`26.36 s` user, `11.37 s` system, 689,204 KiB maximum RSS). The subsequent
+single-asset Managed GUI deployment took 21.80 seconds (`2.58 s` user, `2.45 s` system, 399,544 KiB
+maximum RSS).
+
 ## Operational Edge Device benchmark procedure
 
 After the Edge Device P-256 identity is registered in D1 and the Edge Device Worker/Proof URLs are configured, run the

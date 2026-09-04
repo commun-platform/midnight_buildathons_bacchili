@@ -556,6 +556,31 @@ Active 1分あたりの最大Compute合計               = $0.0021504
 
 CPUは実際のActive CPU使用量、MemoryとDiskはProvisioned容量で課金されます。この式にはWorkers Paidの月額$5、Included usage、Worker／Durable Object request、D1、Log、Network egress、Midnight DUST feeを含みません。最終的な顧客価格は、CPU上限行を無条件に掛けず、実測Active時間と最新Invoice単価を使用します。
 
+## Managed API Attestation受入実測
+
+2026-09-03 JSTのWallet不要Managed API Runでは、同じ運用24 Slot回路とSystem／Sponsor Walletを
+使用した。登録済みSourceは115,047-byte Responseで1分ごとの1,440件を返し、GatewayはProof前に
+24時間Slotへ集約した。主Proof Server `/prove`は45.667秒、Proof生成は01:08:40.250 JST、TX確定は
+01:09:11.230 JST、Block 2,375,455、Feeは703,370,000,000,001 specksだった。この値は追加の配信経路
+実測であり、Sample数別の別Cost Profileではない。集約後は同じ回路と1 TXのCost形状になる。
+
+Transaction Hashは
+[`7464966f8ecbcd9088564e8ec1d8e130fa240795fc4d68496109a49d375b49a7`](https://preprod.midnightexplorer.com/transactions/7464966f8ecbcd9088564e8ec1d8e130fa240795fc4d68496109a49d375b49a7)
+である。Managed Sourceの上限付きRecovery追加後、最終Repository検証は85.41秒
+（User 83.75秒、System 32.27秒、最大RSS 809,392 KiB）でCompact 6回路、417 Test、全Type
+Check／Build、Wrangler／Container dry-runに成功した。使用VersionはCompact `0.31.1`、Proof
+Server `8.1.0`、Wallet SDK `1.2.0`、Midnight.js `4.1.1`、Wrangler `4.127.0`である。
+
+次のUTC日次処理を修正後の自動回帰実測とした。Cronは09:15:54 JSTにRunを作成し、Fetch試行1回目が
+09:15:59に1,440件で完了、Proof試行1回目が09:16:04に開始、09:16:55にZKP生成、09:17:20に
+確定した。Run全体は86.863秒だった。9,371-byte TXのFeeは704,620,000,000,001 specks、Blockは
+2,380,338、Transaction Hashは
+[`42e77f4e65ee03fe634feffdbba634e9099b220f55ed0b1de0a66391f718b12d`](https://preprod.midnightexplorer.com/transactions/42e77f4e65ee03fe634feffdbba634e9099b220f55ed0b1de0a66391f718b12d)
+である。
+Recovery配備はCompact CompileとContainer Image公開を含め74.99秒（User 26.36秒、System 11.37秒、
+最大RSS 689,204 KiB）だった。その後のManaged GUI 1 Assetだけの配備は21.80秒（User 2.58秒、
+System 2.45秒、最大RSS 399,544 KiB）だった。
+
 ## 運用Edge Device Benchmark手順
 
 Edge Device P-256 IdentityをD1へ登録し、Edge DeviceのWorker／Proof URLを設定した後、導入済みDevice Release上で

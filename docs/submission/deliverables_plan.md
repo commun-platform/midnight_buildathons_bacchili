@@ -57,7 +57,7 @@ Supporting artifacts should include a screenshot pack, judge Q&A, one-page brief
 | 4 | Live Product: Register | User-controlled account, proof subject, public policy, and validity |
 | 5 | Private Evidence | Raw readings, fixed 24-slot private input, and STOPPED hours |
 | 6 | Live Product: Prove | Generate the proof against the policy registered before measurement |
-| 7 | Live Product: Authorize | Separate user authorization from service-funded submission |
+| 7 | Engineering Innovation: Sponsor | On-demand server-side Sponsor Wallet pays DUST only, preserves Device authority, and reduces idle Container time |
 | 8 | Live Product: Verify | Show public policy, result, commitment, and transaction evidence |
 | 9 | Exact Claim Boundary | State what is proved, kept private, and not established |
 

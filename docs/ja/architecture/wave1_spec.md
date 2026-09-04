@@ -347,12 +347,12 @@ Private `DailyExtremaInput`はMeasurement Group／Device／Policy／Assignment B
 
 ## 10. Proof Admissionと処理
 
-Default Proof Server Admission時間は02:00～06:00 JSTです。時間外もIngestion／Anomaly Alertは継続します。
+費用最適化プロファイルは24時間受付し、02:00 JSTに締切バッチを開始します。Ingestion／Anomaly Alertは独立して継続します。
 
 1. Deviceが登録済み運用日をCloseし、Private 24 Slot Attestationを準備
 2. `proofJobId`を`zjb_<UUIDv7>`として生成・永続化し、Public Metadataだけを送信する。再送でも同じIDを使う
 3. WorkerがD1 Policy／Assignment Mirrorを検査し、`daily_proof_jobs`へ`pending`で1件保存
-4. 営業時間内にCronがDue RowをConditional Claimし、Job参照をQueueへ送信
+4. 日次開始後、Cronが今回の締切以前に受け付けたDue RowだけをConditional Claimし、Job参照をQueueへ送信
 5. Queue Consumerが短い`ready_for_input` Leaseを付与しContainerをWarm Up
 6. Wallet AgentがJobをPollし、Admit後にPrivate `/check`／`/prove` BodyをStream
 7. 現場Transaction AgentまたはBrowser WalletがFeeを支払わずProof済みTXをBindして一度Upload。WorkerはPrivate R2へ保存し、D1を`awaiting_sponsor`にしてJob参照だけをQueueへ入れ、`202 Accepted`を返す
@@ -360,7 +360,7 @@ Default Proof Server Admission時間は02:00～06:00 JSTです。時間外もIng
 9. Sponsor Wallet同期後、ConsumerがPrivate R2 ArtifactとHashを再検証し、DUSTだけを追加して直ちにTX送信
 10. D1へTX ID／Hash、Block Height、Sponsorship Attempt、次回Retry、Error Code、Confirmationを保存しDeviceからPoll可能にする
 
-DeviceがOfflineならLease Expiry後にBacklogへ戻します。06:00以降は新規AdmissionせずIn-flight処理は完了可能です。Queueはat-least-onceなのでStable ID、Unique制約、Conditional State ChangeでRetryを冪等化します。Queue MessageにPrivate Inputを入れません。
+DeviceがOfflineならLease Expiry後にBacklogへ戻します。締切後のJobは翌日の開始まで待ち、対象Jobを処理し終えるとContainerは非活動猶予後に停止します。Queueはat-least-onceなのでStable ID、Unique制約、Conditional State ChangeでRetryを冪等化します。Queue MessageにPrivate Inputを入れません。
 
 初期CapacityはContainer 1台です。Cloudflare QueuesをPriority Queueとして扱いません。将来Premium SLAはPremium／Standard Queueを分離し、Starvation防止付きReserved Capacityを設けます。Scale判断は実測Proof時間、Memory、Queue Age、Failure Rate、Active Container Costで行います。
 
@@ -373,8 +373,6 @@ Sponsor未Ready／一時失敗 -> awaiting_sponsor
 Device TX失効／競合 -> reproof_required -> pending
 terminal failure -> dead_lettered
 ```
-
-監督下の結合試験だけ、Authenticated Wranglerで`--confirm-integration-test`を指定し、Named Pending Job 1件を時間外Admissionできます。Public／Device APIではありません。
 
 ## 11. Storage配分
 

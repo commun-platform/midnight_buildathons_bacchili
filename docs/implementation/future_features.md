@@ -2,7 +2,7 @@
 
 [日本語](../ja/implementation/future_features.md)
 
-Status: planned work; not part of the current implemented claim as of 2026-08-31 JST
+Status: planned work; not part of the current implemented claim as of 2026-09-03 JST
 Product: BACCHIRI!━━Verifiable Measurement Layer
 
 ## 1. Purpose
@@ -75,6 +75,7 @@ These items use the contract capabilities above but do not require further circu
 | `FF-O11` | P0 | Audit, diagnostics, and operations dashboard | An Access-protected read-only console now shows Sponsor Wallet synchronization and DUST, D1 workflow state, daily metrics, redacted customer-UC events, alert thresholds, Discord incidents, and Sponsor receipts. | Validate the alert policy during partner operation, add explicit audited recovery controls, and integrate longer-term log export if the measured support volume requires it. |
 | `FF-O12` | P1 | Partner-pilot operations | No real partner workflow is operated as a production service in Wave 1. | A real field workflow runs for an agreed period with measured reliability, support effort, cost, customer value, and price feedback. |
 | `FF-O13` | P1 | Horizontally scaled Proof Server pool | The deployment uses one named `standard-2` Proof Server Container, one concurrent Proof Queue consumer, and one global proof-admission lease. Increasing `max_instances` alone does not distribute work. | A configurable pool of stateless Proof Server instances uses explicit instance slots and D1-backed leases; Queue concurrency and admission capacity match the pool size; retries remain idempotent; busy instances are not assigned additional work; inactive instances still scale to zero; and a backlog load test demonstrates parallel processing without changing the singleton Sponsor Wallet. |
+| `FF-O14` | P1 | Official Container rollout and Wallet-safe deployment | Both Containers currently use `max_instances: 1` without an explicit rollout grace period. The Sponsor Wallet already handles `SIGTERM`, periodic and shutdown checkpoints, job leases, and pending-transaction reconciliation, but deployment does not yet coordinate admission drain and Wallet handoff. | Use Cloudflare Container Rollouts and Worker Versions as the deployment foundation while retaining the existing Container names. Deploy a backward-compatible Worker before an image rollout; apply an explicit grace period and workload-appropriate rollout policy; stop new Sponsor admission; finish or reconcile in-flight work; persist and restore the encrypted Wallet checkpoint; and resume only after synchronization and readiness checks. Keep exactly one active signer per Wallet, prevent stale instances from submitting, distinguish rollout start from rollout completion, preserve backward-compatible D1/R2/Checkpoint state, and verify both forward rollout and controlled rollback. Proof Server rollout and stateful Sponsor Wallet handoff have separate procedures. |
 
 The Device never chooses its own threshold during proof submission. It receives only a Policy and
 Assignment already authorized by the owner and confirmed on Midnight. A new configuration becomes
@@ -115,7 +116,8 @@ owner and cannot change the threshold or the Device-authorized transaction.
    alerting, and recovery controls.
 7. Implement owner-authorized threshold changes, then publish confirmed configuration revisions for
    field startup synchronization.
-8. Add autonomous daily execution, sponsored-transaction cleanup, and controlled update/rollback.
+8. Implement `FF-O14`, then add autonomous daily execution, sponsored-transaction cleanup, and
+   controlled update/rollback.
 9. Run the Wave 2 partner pilot and use measured reliability, support, cost, value, and pricing data
    as the gate for Wave 3 investment.
 10. Add hardware-protected identity, lifecycle provenance, and commercial service controls, then

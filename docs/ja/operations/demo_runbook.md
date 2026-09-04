@@ -22,8 +22,8 @@ npm run cloudflare:config:sponsor
 
 `tools/midnight-operator/.env.development`とOwner-only Sponsor Credential Fileは分離して安全にBackupします。運用開始前に
 `sponsor:wallet`が表示したSponsor AddressだけへtNIGHTを送ります。Cloudflare DeployはWorker、D1 Migration
-`0022`まで、Queue／DLQ、GUI、Proof Server Container、Sponsor Wallet Container、暗号化Sponsor Checkpoint用
-R2 Bindingを作成します。`cloudflare:config:sponsor`はSeedを標準入力でWranglerへ渡し、表示しません。
+`0034`まで、Queue／DLQ、GUI、Proof Server Container、分離したSponsor／Fleet Authority／Managed Attestor
+Wallet Container、暗号化Wallet Checkpoint用R2 Bindingを作成します。`cloudflare:config:sponsor`はSeedを標準入力でWranglerへ渡し、表示しません。
 
 ## 2. Edge Device導入・登録
 
@@ -66,6 +66,9 @@ npm run development:deploy:cloudflare -- \
 npm run cloudflare:config:contract
 ```
 
+Contractを置き換える場合は、新しいPolicy IDとAssignment IDを指定します。旧ContractのConfirmed Recordは
+不変のD1監査履歴として残します。Deploy前検査はID衝突を、Proof Capacity取得やTransaction送信より前に拒否します。
+
 Confirmed Midnight Mirrorが存在してからPending P-256 API Identityを有効化します。`--confirm-replace`は承認済みP-256 Rotationだけに使います。
 
 ```bash
@@ -87,7 +90,7 @@ curl http://127.0.0.1:8788/health
 
 説明時は`SENSOR_MODE=synthetic`を設定できます。本番Defaultは`hardware`です。疑似値はDeviceから発生し、通常と同じ1時間集計／Anomaly経路を通ります。CloudflareへRaw Time-seriesは送りません。
 
-Deviceには入金しません。専用Sponsor Walletは24時間同期します。ContainerはActivity Timeout時に停止せず期限を更新し、開発環境では1分間隔のCron TriggerがHealth確認とCrash／Rollout後の復旧を担います。同期進捗を取得できた後、Workerは同期中は最大5分に1回、Ready後は最大30分に1回、暗号化R2 Checkpointを保存します。`SIGTERM`または`SIGINT`を受けると、Containerは最新Stateを暗号化して非公開のContainer-to-Worker経路からR2へ退避してからWallet SDKを停止します。置換後のContainerはWallet初期化前に限りR2から復元します。NIGHT／DUSTは中央で管理します。02:00～06:00 JSTの時間帯はProof JobのAdmissionだけを制御し、Sponsor Walletの同期時間は制限しません。Sponsorは適格なDevice Bind済みTXへFeeだけを追加して送信します。Device Identity／Contract Authority SecretはSponsorへ送りません。
+Deviceには入金しません。審査中は専用Sponsor Walletを`always-on`プロファイルで運転し、1分間隔のCronで同期状態を維持します。費用を優先する運用では、コード再配備や鍵変更なしで同じWalletをD1管理の日次JST 02:00処理開始へ切り替えられます。Walletが必要なJobは24時間受け付け、日次締切までD1で保持します。同期進捗を取得できた後、Workerは同期中は最大5分に1回、Ready後は最大30分に1回、暗号化R2 Checkpointを保存します。`SIGTERM`または`SIGINT`を受けると、Containerは最新Stateを暗号化して非公開のContainer-to-Worker経路からR2へ退避してからWallet SDKを停止します。置換後のContainerはWallet初期化前に限りR2から復元します。NIGHT／DUSTは中央で管理します。Sponsorは適格なDevice Bind済みTXへFeeだけを追加して送信します。Device Identity／Contract Authority SecretはSponsorへ送りません。詳細は[Sponsor Wallet日次処理](sponsor_wallet_operating_hours.md)を参照してください。
 
 ## 3. Proof Job・Midnight TX
 
@@ -100,15 +103,7 @@ npm run device:submit -- --input /secure/path/to/real-records.json \
   --assignment edge-temp-001-temperature-v1-wave1
 ```
 
-DeterministicなD1 Proof Jobを作成してPollします。Default Admission Windowは02:00～06:00 JSTです。Admit後、Job ID付きでCloudflare Proof Serverへ接続し、PiでFeeなしTXをBindして認証済みSponsor Endpointへ送ります。SponsorがDUSTを追加してMidnightへSubmitし、Device TXとSponsored TXのEvidenceをD1へ保存します。Sponsor Policy境界を通れないLoopback-only Device Submitは拒否します。
-
-監督下の結合試験に限り、認証済み開発Operatorは営業時間外にPending Jobを1件だけJob ID指定でAdmissionできます。Device APIではなく、明示的な確認Flagが必須です。Container 1台のCapacity Checkと2時間のPrivate Input Leaseは通常経路と同じです。本番運用ではScheduled Queue経路を使用します。
-
-```bash
-npm run development:admit-proof-job -- \
-  --job-id <proofJobId> \
-  --confirm-integration-test
-```
+DeterministicなD1 Proof Jobを作成してPollします。費用最適化時は次の対象バッチをJST 02:00に開始します。Admit後、Job ID付きでCloudflare Proof Serverへ接続し、DeviceでFeeなしTXをBindして認証済みSponsor Endpointへ送ります。SponsorがDUSTを追加してMidnightへSubmitし、Device TXとSponsored TXのEvidenceをD1へ保存します。Sponsor Policy境界を通れないLoopback-only Device Submitは拒否します。
 
 コントラクトは公開判定を証明します。範囲内は、観測された全時間について提出した最小値・最大値が登録済みしきい値以内であること、範囲外は少なくとも1時間がしきい値外であることを意味します。対象日、観測時間、件数、版番号、登録済みしきい値、判定結果、取引証拠は公開します。欠測時間は公開の停止状態として扱います。時間別の最小値・最大値は開示しません。物理測定値の正しさ、測定の完全性、集計処理の正しさは証明しません。
 

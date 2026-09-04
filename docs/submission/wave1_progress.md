@@ -17,10 +17,10 @@ Current source validation and Midnight preproduction-network transactions record
 | --- | --- | --- |
 | Zero-knowledge proof | Check against a public threshold, determine WITHIN / OUTSIDE, and use a fixed format with 24 hourly slots | All 6 proof circuits compile; 15 contract tests pass |
 | Supporting field integration | Measurement collection, hourly aggregation, API authentication, transaction authorization, update, and rollback code for later field operation | 15 collection, 6 authentication, and 32 transaction-agent tests pass; autonomous production operation is not claimed |
-| Backend | Device authentication, proof-request admission, workflow-state storage, proof generation, and APIs that return public information only | 151 Backend API tests and the Cloudflare pre-deployment check pass |
-| Frontend | Combined review workflow with operator steps, a third-party public view, and English / Japanese display | 69 Frontend tests and the production build pass |
+| Backend | Device authentication, proof-request admission, workflow-state storage, proof generation, and APIs that return public information only | 200 Backend API tests and the Cloudflare pre-deployment check pass |
+| Frontend | Combined review workflow with operator steps, a third-party public view, and English / Japanese display | 74 Frontend tests and the production build pass |
 | Midnight integration | Public threshold, target proof subject, and a user-authorized daily transaction | Simulator tests and the 2026-08-28 preproduction-network transactions were confirmed |
-| Safety | Tamper rejection, duplicate prevention, execution locking, configuration-downgrade rejection, and corrupt-state quarantine | These failure cases are included in the 355 automated tests |
+| Safety | Tamper rejection, duplicate prevention, execution locking, configuration-downgrade rejection, and corrupt-state quarantine | These failure cases are included in the 448 automated tests |
 | Judge materials | Architecture, privacy boundary, demo procedure, measured cost, English / Japanese figures, and submission package | Documents are categorized and cross-links are checked |
 
 See the [claim-to-evidence map](evidence_matrix.md) for detailed commits and validation locations.
@@ -38,7 +38,7 @@ See the [claim-to-evidence map](evidence_matrix.md) for detailed commits and val
 
 - Repository portability validation passed.
 - All 6 `sensor-registry` proof circuits compiled.
-- All 355 automated tests passed across 9 workspaces.
+- All 448 automated tests passed across 9 workspaces and the mock counterpart service.
 - All workspace type checks and Frontend / TypeScript builds passed.
 - The Cloudflare pre-deployment check passed.
 

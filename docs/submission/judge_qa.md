@@ -45,7 +45,7 @@ Each UTC hour is published as WITHIN, OUTSIDE, or NO DATA. The hourly extrema re
 
 ## What has been verified so far?
 
-For the current source on 2026-09-02, all 6 proof circuits compiled, 355 automated tests passed, and the type checks, builds, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records, the 2026-08-30 Sponsor-funded schema-5 record, and the 2026-09-02 missing-hour, stopped-day, and OUTSIDE conformance records. Source validation and dated network records are separate evidence.
+For the current source on 2026-09-03, all 8 proof circuits compiled, 448 automated tests passed, and the type checks, builds, API SCT, 22-checkpoint GUI SCT, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records, the 2026-08-30 Sponsor-funded schema-5 record, the 2026-09-02 missing-hour, stopped-day, and OUTSIDE conformance records, and the 2026-09-03 walletless Managed API Attestation. Those transactions remain evidence for the prior deployed contract; the incompatible eight-circuit source requires a fresh deployment and E2E record.
 
 ## Can the third-party view verify independently?
 

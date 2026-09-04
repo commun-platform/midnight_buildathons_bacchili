@@ -22,8 +22,9 @@ npm run cloudflare:config:sponsor
 
 Back up `tools/midnight-operator/.env.development` and the owner-only Sponsor credential file separately. Fund only the
 Sponsor address printed by `sponsor:wallet` with tNIGHT before enabling operations. The Cloudflare
-deployment creates the Worker, D1 migrations through `0022`, Queue/DLQ, GUI assets, Proof Server
-Container, Sponsor Wallet Container, and encrypted Sponsor checkpoint R2 binding. The
+deployment creates the Worker, D1 migrations through `0034`, Queue/DLQ, GUI assets, Proof Server
+Container, isolated Sponsor/Fleet Authority/Managed Attestor Wallet Containers, and encrypted
+Wallet checkpoint R2 binding. The
 `cloudflare:config:sponsor` command sends the seed to Wrangler over stdin and never prints it. No
 Device private key is created on this host.
 
@@ -70,6 +71,10 @@ npm run development:deploy:cloudflare -- \
 npm run cloudflare:config:contract
 ```
 
+For a replacement contract, use new Policy and Assignment IDs. Confirmed records from the
+superseded contract remain immutable D1 audit history; the deployment preflight rejects an ID
+collision before acquiring proof capacity or submitting a transaction.
+
 Only after that confirmed Midnight mirror exists, activate the pending P-256 API identity. Use
 `--confirm-replace` only for an approved P-256 rotation:
 
@@ -94,17 +99,18 @@ curl http://127.0.0.1:8788/health
 
 For a demonstration, set `SENSOR_MODE=synthetic`. Production defaults to `hardware`. Synthetic values originate on the device and follow the same hourly aggregate/anomaly upload path; Cloudflare receives no raw time series.
 
-The Device is never funded. The dedicated Sponsor Wallet remains synchronized continuously. Its
-Container renews its activity timeout instead of scaling to zero, while the development deployment's
-one-minute Cron Trigger checks health and recovers the instance after a crash or rollout. Once
-synchronization progress is available, the Worker persists an encrypted R2 checkpoint at most once
-every five minutes while synchronizing and once every 30 minutes after readiness. On `SIGTERM` or
-`SIGINT`, the Container first serializes and uploads its latest encrypted state through a private
-Container-to-Worker route, and only then stops the Wallet SDK. A replacement restores R2 state only
-when its Wallet initialization has not started. It synchronizes NIGHT/DUST centrally, adds only the
-fee to an eligible bound Device transaction, and submits it. The 02:00–06:00 JST window controls
-Proof Job admission, not Sponsor Wallet synchronization. No Device identity or Contract Authority
-secret is sent to the Sponsor.
+The Device is never funded. During judging, the dedicated Sponsor Wallet uses the `always-on`
+profile and the one-minute Cron keeps synchronization current. Cost-oriented operation can switch
+the same Wallet to the D1-controlled daily 02:00 JST processing start without deploying code or
+changing keys. Wallet-dependent Jobs are accepted continuously and remain durable until their daily
+cutoff. Once synchronization progress is
+available, the Worker persists an encrypted R2 checkpoint at most once every five minutes while
+synchronizing and once every 30 minutes after readiness. On `SIGTERM` or `SIGINT`, the Container
+first serializes and uploads its latest encrypted state through a private Container-to-Worker route,
+and only then stops the Wallet SDK. A replacement restores R2 state only when its Wallet
+initialization has not started. It synchronizes NIGHT/DUST centrally, adds only the fee to an
+eligible bound Device transaction, and submits it. No Device identity or Contract Authority secret
+is sent to the Sponsor. See [Sponsor Wallet daily processing](sponsor_wallet_operating_hours.md).
 
 ## 3. Proof Job and Midnight transaction
 
@@ -117,20 +123,13 @@ npm run device:submit -- --input /secure/path/to/real-records.json \
   --assignment edge-temp-001-temperature-v1-wave1
 ```
 
-The command deterministically creates a D1 Proof Job and polls it. The default admission window is
-02:00–06:00 JST; the process can wait up to `MIDNIGHT_PROOF_JOB_WAIT_TIMEOUT_MS`. When admitted, it
+The command deterministically creates a D1 Proof Job and polls it. The cost-optimized profile starts
+the next eligible batch at 02:00 JST; the process can wait up to `MIDNIGHT_PROOF_JOB_WAIT_TIMEOUT_MS`.
+When admitted, it
 uses the job ID for Cloudflare Proof Server requests, binds the proved transaction on the Edge Device
 without fees, and sends the finalized bytes to the authenticated Sponsor endpoint. The Sponsor adds
 DUST, submits to Midnight, and D1 records both Device and sponsored transaction evidence. A
 loopback-only Device submission is rejected because it cannot cross the Sponsor policy boundary.
-
-An authenticated development operator may admit exactly one named pending Job outside the window for a supervised integration test. This is not a Device API and requires an explicit confirmation flag. It performs the same one-Container capacity checks and creates the same two-hour private-input lease; normal deployments must use the scheduled Queue path:
-
-```bash
-npm run development:admit-proof-job -- \
-  --job-id <proofJobId> \
-  --confirm-integration-test
-```
 
 The contract publishes one proved result per UTC hour: WITHIN, OUTSIDE, or NO DATA. The daily Boolean
 is only a summary. The device does not submit bounds, and no hourly result reveals the extrema. The

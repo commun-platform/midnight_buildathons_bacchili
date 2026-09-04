@@ -42,7 +42,7 @@ Wave 1審査経路では、Browser上の疑似計測元が生成し、Raw Captur
 
 ## 現時点でどこまで検証済みですか
 
-2026-09-02の現行ソースで、6つの証明回路のコンパイル、355件の自動テスト、型検査、ビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークには、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録があります。ソース検証と日付付きネットワーク記録は別のEvidenceです。
+2026-09-03の現行ソースで、8つの証明回路のコンパイル、448件の自動テスト、型検査、ビルド、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークには、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録、2026-09-03のWallet不要Managed API Attestationがあります。これらは旧配備ContractのEvidenceであり、互換性のない現行8回路Sourceには再配備とE2E記録が必要です。
 
 ## 第三者画面だけで独立検証できますか
 

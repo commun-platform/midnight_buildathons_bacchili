@@ -426,14 +426,15 @@ not change the circuit or proving key. The reported count is bound but remains d
 
 ## 10. Proof admission and processing
 
-The default Proof Server admission window is 02:00–06:00 JST. Ingestion and anomaly alerts continue
-outside the window.
+The cost-optimized profile accepts work for 24 hours and starts a cutoff batch at 02:00 JST.
+Ingestion and anomaly alerts continue independently.
 
 1. The device closes the registered operational day and prepares the private 24-slot attestation.
 2. It creates and persists `proofJobId` as `zjb_<UUIDv7>`, then posts only public metadata. A retry
    reuses that ID.
 3. The Worker checks the D1 policy/assignment mirror and stores one `daily_proof_jobs` row as `pending`.
-4. During the window, Cron conditionally claims due rows and sends job references to Queue.
+4. At and after the daily start, Cron conditionally claims due rows accepted no later than that
+   run's cutoff and sends job references to Queue.
 5. The Queue consumer grants a short `ready_for_input` lease and warms the Container.
 6. The Wallet Agent polls its job and streams private `/check` and `/prove` bodies when admitted.
 7. The field transaction agent or Browser Wallet binds the proved transaction without paying fees and uploads that finalized
@@ -447,9 +448,11 @@ outside the window.
 10. D1 stores TX ID/hash, block height, sponsorship attempt, retry time, error code, and confirmation
     status for Device polling.
 
-If the device is offline, the lease expires and the job returns to the backlog. At 06:00 no new work is
-admitted; in-flight work may finish. Queue delivery is at-least-once, so stable IDs, unique constraints,
-and conditional state changes make retries idempotent. Queue messages never contain private input.
+If the device is offline, the lease expires and the job returns to the backlog. Work accepted after
+the cutoff waits for the next daily start; eligible work continues until drained and then the
+Containers stop after their inactivity grace periods. Queue delivery is at-least-once, so stable IDs,
+unique constraints, and conditional state changes make retries idempotent. Queue messages never
+contain private input.
 
 Initial capacity is one Container. Cloudflare Queues is not treated as a priority queue. A future
 premium SLA should use separate premium/standard queues and reserved capacity with starvation
@@ -465,9 +468,6 @@ Sponsor unavailable/transient failure -> awaiting_sponsor
 expired or conflicting Device TX -> reproof_required -> pending
 terminal failure -> dead_lettered
 ```
-
-For supervised integration only, authenticated Wrangler access may admit one named pending job outside
-the window using `--confirm-integration-test`. It is not a public or Device API.
 
 ## 11. Storage allocation
 

@@ -19,7 +19,7 @@ Integration Evidenceとして、次の現場Runtime境界も実装していま�
 | Workers／Static Assets | API認証・認可・入力検査、証明依頼の受付、管理者画面と第三者画面の配信 |
 | D1 | デバイス公開鍵、Session Hash、1時間Summary、しきい値・対象デバイスの表示用複製、日次Proof Job、取引状態、公開結果 |
 | Queues／DLQ | Proof Admission／Sponsor処理のJob参照だけを配送し、失敗時に再試行またはDLQへ移送 |
-| Cron Trigger | 開発環境では1分ごとにD1の待機中JobとSponsor Healthを確認し、営業時間内の処理をQueueへ投入 |
+| Cron Trigger | 1分ごとにD1の待機中Jobを確認し、日次締切へ含まれた処理だけをQueueへ投入 |
 | Proof Server Container | 非公開の時間別MIN／MAXからMidnight用Proofを生成。`standard-2`、最大1 instance |
 | Sponsor Wallet Container | デバイス署名済み取引を検査し、DUST Feeだけを追加してMidnightへ送信。Warm Restore実測済みの`standard-2`、最大1 instance |
 | Durable Objects | 2つのContainerを起動・ルーティングするCloudflare内部Binding。Device SessionやReadingの保存には使用しない |
@@ -75,7 +75,7 @@ Cloudflare ContainersはPlatform内部要件としてDurable Object Bindingを�
 
 標準Device-to-cloud通信はSensor Streamごとの1時間集計1件と即時Anomaly Transitionです。Raw Sampling Frequencyを上げてもRaw SampleごとのCloud Storage Writeは増えません。
 
-Proof Server営業時間は02:00–06:00 JSTです。D1がDurable Backlog、QueueがAt-least-once Deliveryを担い、Stable Proof Job IDとConditional StateでDuplicate Admissionを無害化します。Private 24 Slot ExtremaはQueueへ入れず、AdmitされたDeviceからContainerへ直接Streamします。DeviceはPolicy／Assignment Identifierだけを送りThreshold Boundは送らず、回路がMidnightからPublicなAssignment済みPolicyを読みます。
+費用最適化プロファイルは24時間受付を行い、02:00 JSTに締切バッチを開始します。D1がDurable Backlog、QueueがAt-least-once Deliveryを担い、Stable Proof Job IDとConditional StateでDuplicate Admissionを無害化します。ProjectはD1のWeb2管理情報で、オンチェーン処理はPolicy、Device／Assignment、ZKP生成、Sponsor送信の依存順で進みます。締切後のJobは翌日分とし、対象処理が空になるとProof ServerとServer Walletを停止します。Private 24 Slot ExtremaはQueueへ入れず、AdmitされたDeviceからContainerへ直接Streamします。DeviceはPolicy／Assignment Identifierだけを送りThreshold Boundは送らず、回路がMidnightからPublicなAssignment済みPolicyを読みます。
 
 Development Deployには`contract_deploy`、Deploy後のDevice管理には`contract_admin` Purposeの30分Operator Proof Leaseを使い、Device Keyは使いません。認証済みWrangler操作で発行し、平文LeaseはProcess内だけに置いて終了時にRevokeします。D1 HashはProof ServerのCapacity上限を共有します。Lifecycle正本は[`device_registry.md`](../security/device_registry.md)です。
 

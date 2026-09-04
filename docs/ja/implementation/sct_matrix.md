@@ -18,7 +18,7 @@ npm run sct
 | 非同期Midnight登録 | `202` Operation、Token保護Status、Wallet同期中の遅延再Queue、Terminal Error | Job ID表示、`IN PROGRESS`解除、Stepperは`WAIT`、後続Device／Assignment TX ID、Terminal Error時のみBrowser再試行を有効化 |
 | 非公開1,440値から24時間集計 | Aggregate Validation、Device所有History | 選択可能なUTC 2日、選択日ごとに1,440件と時間別Rowが正確に24件 |
 | Anomaly Transition | 認証済みAnomaly、Dashboard分離 | 管理者画面のAnomaly Row、6段階完了 |
-| Proof Admission／生成 | 営業時間、認可、Result Validation、Proof Server境界 | Admit済みJobからZKP／TX Actionが有効化 |
+| Proof Admission／生成 | 日次締切、認可、Result Validation、Proof Server境界 | Admit済みJobからZKP／TX Actionが有効化 |
 | Sponsored TX | Quota、同一Byte冪等性、R2／Queue、Wallet Ready、Intent Allow-list、Checkpoint、Retry、Replay Protection時の送信結果回収、Backend所有Indexer確定 | History再読込後もSponsor TX／Fee Evidence表示 |
 | Public検証／Privacy | ConfirmedかつTX ID／Hash／Block完備のみのHash検索、正しい24時間別結果、Private Field拒否 | TX hash検索、運用日／境界、24個のしきい値以内／範囲外／計測なし、適用しきい値／有効期間、Device Commitment、Indexer進捗、Explorer Link、Private Extrema非表示 |
 
