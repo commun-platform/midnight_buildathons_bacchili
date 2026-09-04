@@ -18,6 +18,7 @@
 | 明確なREADME | Top READMEと詳細文書 | Project、Setup、Architecture、Midnight Integration、審査手順が一巡できる |
 | Slide Deck | 最終英語9枚。日本語版は必要な場合のみ別制作 | PDFまたは公開Linkで閲覧でき、2分18秒の最終英語動画と主張が一致する |
 | Demo / Video Pitch | 最終英語2分18秒。日本語版は必要な場合のみ別制作 | GUI、Proof処理、Midnight結果、Evidenceを実画面で確認できる |
+| 現行Release Evidence | 現行Release追補とEvidence Matrix | 配備済みContract、現行E2E TX、検証Baseline、動画確定後の追加機能を固定動画のStoryと分離する |
 | Wave中のProgress説明 | Progress Record | Wave 1で新規実装・改善した内容とEvidenceが日付付きで分かる |
 | Compact ContractのCompile | Technical Gate Evidence | sensor-registryが指定ToolchainでCompile成功する |
 | Midnight関連CodeのApache 2.0 | License Audit | 対象範囲と依存関係を確認し、Repository上で明示する |
@@ -29,7 +30,7 @@
 
 | 審査項目 | 配点 | 最も強く見せるEvidence |
 | --- | ---: | --- |
-| Engineering & Implementation | 40% | Compact Compile、Private State、Dual Ledger、4領域Architecture、Preprod Transaction |
+| Engineering & Implementation | 40% | 8回路Compile／配備、Private Input境界、現行Managed API／認証済みDeviceのPreprod TX、Public／Private MCPの分離境界 |
 | QA & Reliability | 15% | Test結果、改ざんReject Case、固定24 Slot、再現可能なRunbook |
 | Product & Vision | 15% | Raw Data非公開という課題、対象利用者、段階的Roadmap |
 | UX & Design | 15% | 管理者画面、第三者Verifier、状態とEvidenceの読みやすさ |
@@ -62,6 +63,8 @@
    - Wave期間中の追加・改善をBefore / After / Evidenceで記録する。
 8. Technical Gate Checklist
    - Compile、Test、Apache 2.0、Public Repository、midnightntwrk Topicを提出前に機械的確認する。
+9. Current Release Addendum
+   - 配備済み8回路Contract、現行E2E Record、公開Verification再確認、動画確定後の追加機能を記録する。
 
 ### P1: 審査を強くする補助物
 
@@ -120,7 +123,7 @@ Captureは成功経路だけでなく、OUTSIDEまたは改ざんRejectを一つ
 | CLAIM-09 | Standard 1,440 readings/dayを処理する | Benchmark、Cost Report、Run Log |
 | CLAIM-10 | 審査対象ContractがCompileする | Compile Log、Toolchain Version、Commit SHA |
 
-Evidence Matrixには、確認日、実行Command、Commit SHA、公開可能なLogまたはScreenshot、Validation Boundaryを追加します。計画中の機能をEvidence欄へ混ぜません。
+Evidence Matrixには、確認日、実行Command、Commit SHA、公開可能なLogまたはScreenshot、Validation Boundaryを追加します。現行の同一Contractに対するManaged APIのOUTSIDE Recordと、認証済みDeviceのWITHIN Recordも含めます。計画中の機能をEvidence欄へ混ぜません。動画／Deck確定後に追加したEvidenceは[現行Release追補](current_release_addendum.md)を参照します。
 
 ## 8. README設計
 
@@ -164,7 +167,7 @@ Progressは機能一覧ではなく、Wave開始時点との差分として書�
 - 導入単位: まず一つの業務・少数の計測元、次に複数現場、最終的に複数組織間のVerification。
 - 価値: Data最小化、改ざん耐性のあるPolicy / Result履歴、監査時の共有範囲削減。
 - 収益仮説: 計測元／現場単位の運用Subscriptionと、Attestation／Retention Tier。
-- 実証計画: Wave 1はCore Proof PoC、Wave 2は実際の現場計測システムを使う有償パートナー実証、Wave 3はHardware保護Identityと来歴を含む商用運用およびPMF検証。
+- 実証計画: Wave 1はCore Proof PoC、Wave 2は実装済みの運用Console、監査、Alert、Support基盤を実際の現場計測システムと有償Partner Pilotの負荷で本番水準へ強化し、Wave 3はHardware保護Identityと来歴を含む商用運用およびPMF検証。
 
 市場規模や法令適合は裏付けが整うまで断定せず、現在は対象者、利用場面、採用経路を中心に説明します。
 

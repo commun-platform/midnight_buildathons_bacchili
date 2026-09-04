@@ -12,7 +12,7 @@ Prove whether sensor values are within a registered threshold without showing th
 
 ## Short description
 
-BACCHIRI!━━Verifiable Measurement Layer reduces one synthetic operational day to private hourly minima and maxima and publishes a proven WITHIN, OUTSIDE, or NO DATA result for each of its 24 hours. In the Wave 1 review flow, a user-authorized browser client acts as the simulated measurement source and authorizes the Midnight transaction.
+BACCHIRI!━━Verifiable Measurement Layer reduces one synthetic operational day to private hourly minima and maxima and publishes a proven WITHIN, OUTSIDE, or NO DATA result for each of its 24 hours. In the Wave 1 review flow, a user-authorized browser client acts as the simulated measurement source and authorizes the Midnight transaction. The same proof model now also accepts registered cloud APIs without requiring a customer Wallet.
 
 ## Problem
 
@@ -35,22 +35,28 @@ Midnight separates private values from a result record that anyone can check. Ho
 
 Wave 1 produced the reviewable core-proof PoC: project-scoped proof-subject and policy registration, synthetic daily records, a fixed private 24-slot proof input, proof-request management, managed proof generation, user-authorized and service-funded Midnight transactions, and a combined operator / third-party review interface.
 
+Post-capture engineering added a walletless registered-cloud-API path, a consolidated Server Wallet,
+an Access-protected operations console with redacted audit/metrics and Discord alerts, a private
+read-only Support MCP, and a separately deployed public TX-verification MCP. These operational
+foundations are current capabilities; partner-period production maturity remains a Wave 2 outcome.
+
 The repository also contains supporting field-runtime authentication, collection, transaction, packaging, and rollback code. That code is integration evidence for the next stage; Wave 1 does not claim autonomous long-running field operation or production separation of roles and applications.
 
-The current working source was validated on 2026-09-02 JST:
+Implementation baseline `af90ad8` was validated on 2026-09-04 JST:
 
 - all 8 proof circuits compiled;
 - all 496 automated tests passed;
 - all workspace type checks and builds passed; and
 - the Cloudflare pre-deployment check passed.
 
-Midnight preproduction-network records from 2026-08-28 JST include both WITHIN and OUTSIDE. The OUTSIDE transaction produced from a day with 1,440 readings is:
+The current eight-circuit Contract was deployed on 2026-09-03 JST. Its Managed API OUTSIDE transaction produced from a day with 1,440 records is:
 
-- Contract: 8338d5588fe5662fce86ce3c221f0bd5260a14cdbf372c1dddd58be41e5b3c68
-- Transaction: 00e12efda5f33b4804f3659a811d2f5e86c9ce838255a63028d41df85cb0762da9
-- Block: 2,302,213
+- Contract: 48636e2f7ae8b1705134b026ec0d5a910357cac990a60adce2c2672e1a78a732
+- Transaction: [35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532](https://preprod.midnightexplorer.com/transactions/35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532)
+- Block: 2,385,826
+- Result: OUTSIDE, with 2 of 24 observed hours outside the public 10–35 °C Policy
 
-Source validation and dated Midnight preproduction-network records remain separate evidence. The current Worker and GUI were deployed on 2026-09-02 JST; no new daily attestation was manufactured merely to update this document.
+An authenticated field Device independently produced a WITHIN record in [block 2,385,898](https://preprod.midnightexplorer.com/transactions/7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40). On 2026-09-05, the public Verification MCP resolved both hashes from the public Midnight Indexer and completed all five current ledger checks without D1 or private input. Source validation and live-network records remain separate evidence; see the [current release addendum](current_release_addendum.md).
 
 ## Exact proof claim
 
@@ -67,10 +73,10 @@ The team is discussing a field proof of concept with an industry partner using e
 ## Three-stage delivery plan
 
 - Wave 1 — Core Proof PoC: validate the privacy value with a simulated measurement source, synthetic daily records, and one review-oriented interface.
-- Wave 2 — Operational Partner Pilot: connect real field measurement systems, automate daily operation, separate roles and interfaces, add production authorization, audit, diagnostics, monitoring, recovery, and complete a paid partner pilot.
+- Wave 2 — Operational Partner Pilot: connect real field measurement systems, automate daily operation, complete organization/role isolation, harden the implemented operations and support foundations under partner load, and complete a paid partner pilot.
 - Wave 3 — Trust Minimization and PMF: add hardware-protected identity and provenance, operate across organizations and sites, and validate recurring revenue, renewal, expansion, and sustainable unit economics.
 
-The browser independently checks public Midnight transaction and Contract state today. The complete product and business plan is the [three-wave roadmap](../architecture/three_wave_roadmap.md); Wave 2 and Wave 3 are planned rather than current capabilities.
+The browser and public MCP independently check public Midnight transaction and Contract state today. The complete product and business plan is the [three-wave roadmap](../architecture/three_wave_roadmap.md); Wave 2 and Wave 3 outcomes remain planned even though some operational foundations were implemented early.
 
 ## Submission links
 
@@ -80,6 +86,7 @@ The browser independently checks public Midnight transaction and Contract state 
 - Video pitch: `bacchiri-demo-pitch-en.mp4` produced (2:18); add the final public URL
 - Submission thumbnail and six-shot review pack: [captures/](captures/)
 - Claim-to-evidence map: [evidence_matrix.md](evidence_matrix.md)
+- Current release evidence: [current_release_addendum.md](current_release_addendum.md)
 - Judge review path: [README](../../README.md)
 
 ## Required pre-submission confirmations

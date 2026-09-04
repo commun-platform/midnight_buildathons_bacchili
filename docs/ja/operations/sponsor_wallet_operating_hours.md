@@ -1,10 +1,11 @@
-# Sponsor Walletの処理プロファイル
+# Server Walletの処理プロファイル
 
 ![オンデマンドZK証明・Midnight記録アーキテクチャ](../../assets/guides/on-demand-zkp-midnight-architecture-ja.png)
 
 ## 目的
 
-Sponsor Walletは状態を持ち、認可済みトランザクションへDUSTを追加する前に同期が必要です。
+統合Server Walletは状態を持ち、Sponsor Roleが認可済みトランザクションへDUSTを追加する前に同期が必要です。
+同じ直列Runtimeが、別々に認可された管理処理とManaged Attestor処理も実行します。
 `standard-4` Containerを1か月常時稼働するより、受付済みJobがあるときだけ起動する方が費用を
 抑えられます。公開API、D1の状態、R2データ、連携元APIからの取得、Job受付は24時間稼働します。
 1分CronはContainerを起こさずD1のJobを確認します。`on-demand`ではJob検知後の次回確認までに
@@ -13,7 +14,7 @@ Walletを起動し、`scheduled`では日次締切に含まれるJobだけを対
 待機せずに次のCronで再試行します。
 
 処理開始時刻はWorkerのビルド設定ではなく、D1の運用設定です。切替時にコードの再配備、Containerの
-置換、Wallet鍵の変更は行いません。
+置換、論理Authorityの統合、Wallet鍵の変更は行いません。
 
 ## 運転プロファイル
 

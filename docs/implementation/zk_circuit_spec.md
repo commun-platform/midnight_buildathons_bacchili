@@ -397,8 +397,8 @@ Current compatibility:
 ```text
 Compact compiler/toolchain  0.31.1
 Compact language            0.23
-Daily schema                6
-Daily circuit               4
+Daily schema                7
+Daily circuit               5
 Operational proof circuits  8
 ```
 
@@ -424,7 +424,8 @@ presence tampering, duplicate measurement groups, wrong Device/Operator secrets,
 Assignment reuse, Assignment overlap/version/closure rules, disabling, Device and Operator Authority
 rotation, recovery-safe Operator secret activation, and Authority reuse rejection.
 
-Current source/simulator validation and any previously deployed Preprod contract are separate evidence.
-A local compile or simulator pass does not establish that this incompatible eight-circuit contract is
-deployed or confirmed on Preprod. Deployment evidence must identify the exact contract address and
-transaction separately.
+Source/simulator validation and Preprod deployment remain separate evidence. The current
+eight-circuit Contract was deployed and exercised through both Managed API and authenticated Device
+paths on 2026-09-03 JST; exact Contract and transaction references are recorded in the
+[current release evidence addendum](../submission/current_release_addendum.md). A future source change
+must again be treated as un-deployed until a new Contract and transaction record are produced.

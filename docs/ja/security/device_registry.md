@@ -33,8 +33,8 @@ policyAssignments[assignmentKey]
   └ { policyKey, deviceCommitment, validFrom, validUntil, version }
 ```
 
-Operator Authority秘密値は開発／運用ホストと、PrivateなSponsor Wallet ContainerのDeploy Secretとして
-保持します。Development Walletは管理対象Edge Deviceを操作し、Sponsor WalletはWallet認可済みBrowser Review
+Operator Authority秘密値は開発／運用ホストと、PrivateなServer WalletのSecret境界で保持します。
+Development Walletは管理対象Edge Deviceを操作し、Server Walletの管理RoleはWallet認可済みBrowser Review
 Flowに限り、同じ固定Device登録Circuitを実行します。Domain分離したOperator AuthorityがCompact回路内の
 認可を証明します。Device Contract Authority秘密値は該当Deviceだけに置きます。Publicな
 Self-enrollment Circuitは設けず、すべてOperator-only Circuitを実行します。
@@ -106,7 +106,7 @@ Policyを公開します。登録済みDevice Assignmentを無効にしないよ
 3. Browser WalletがDevice ID、P-256 Key ID、Device Authority、Policy、Challenge、Nonce、TimestampのCanonical
    Messageを`signData`で署名
 4. WorkerがWallet署名を検証してDevice IDを再計算し、Wallet Verification Key／ProjectごとにReview Device 1台を強制
-5. Private Sponsor Wallet Containerが`registerDevice`と`registerPolicyAssignment`だけを実行
+5. Private Server Wallet Containerの管理Roleが`registerDevice`と`registerPolicyAssignment`だけを実行
 6. IndexerでDevice、Authority、Policy、Assignment、Versionの完全一致を確認
 7. 確認後に限り、D1のP-256 KeyとPublic Mirrorを1 Batchで有効化
 
@@ -190,7 +190,7 @@ WITHIN Attestationは2026-08-30 JSTに別途確定したSponsorship境界のEvid
 
 1. 現場Transaction AgentまたはBrowser WalletがProof済みTransactionをFeeなしでBind
 2. 認証済みSponsor Endpointが対応Proof Jobにつき1回だけ受理
-3. 専用Sponsor WalletがDUSTだけを追加して送信
+3. Server WalletのSponsor RoleがDUSTだけを追加して送信
 4. 重複、不一致、Size超過、不正State、改変Requestを拒否するか同じ冪等Resultを返す
 5. GUI撮影前にConfirmed Preprod TXとSponsorship時間／Feeを記録
 

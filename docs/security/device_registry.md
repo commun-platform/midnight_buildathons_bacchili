@@ -33,9 +33,9 @@ policyAssignments[assignmentKey]
   └ { policyKey, deviceCommitment, validFrom, validUntil, version }
 ```
 
-The Operator Authority secret is held on the development/operations host and as a deployment secret
-inside the private Sponsor Wallet Container. The development wallet performs controlled Edge Device
-administration; the Sponsor Wallet performs the same fixed Device-registration circuits for the
+The Operator Authority secret is held on the development/operations host and in the private Server
+Wallet secret boundary. The development wallet performs controlled Edge Device administration; the
+Server Wallet's administrative role performs the same fixed Device-registration circuits for the
 Wallet-authorized browser review flow. The domain-separated Operator Authority proves authorization inside
 the Compact circuit. A Device Contract Authority secret is held only by its Device. A public
 self-enrollment circuit is forbidden: every registration still executes the Operator-only circuit.
@@ -113,7 +113,7 @@ readable so already registered Device assignments are not invalidated.
 3. the Browser Wallet signs the canonical Device ID, P-256 key ID, Device Authority, Policy, challenge, nonce, and
    timestamp with `signData`;
 4. the Worker verifies the Wallet signature, recomputes the Device ID, and enforces one review Device per Wallet verification key and Project;
-5. the private Sponsor Wallet Container executes only `registerDevice` and
+5. the private Server Wallet Container's administrative role executes only `registerDevice` and
    `registerPolicyAssignment` with the configured Operator Authority;
 6. the Indexer must show the exact Device, Authority, Policy, Assignment, and versions; and
 7. only then does one D1 batch activate the P-256 key and public mirrors.
@@ -220,7 +220,7 @@ The current Sponsor-funded release gate replaces step 6 with:
 
 1. the field transaction agent or Browser Wallet binds the proved transaction with no fee;
 2. the authenticated Sponsor endpoint accepts it once for the matching Proof Job;
-3. the dedicated Sponsor Wallet adds only DUST and submits it;
+3. the Server Wallet's sponsorship role adds only DUST and submits it;
 4. duplicate, mismatched, oversized, wrong-state, or altered requests are rejected or return the
    same idempotent result; and
 5. the confirmed Preprod transaction and sponsorship timing/fee are recorded before GUI capture.

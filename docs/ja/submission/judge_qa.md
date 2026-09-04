@@ -32,6 +32,10 @@ Wave 1審査経路では、Browser上の疑似計測元が生成し、Raw Captur
 
 できません。管理Backendは証明を生成しますが、UserのTransaction Authorityを持ちません。User管理Accountが正確なCallを認可し、分離されたServiceは送信手数料だけを負担します。
 
+Managed API Modeは別のTrust Modelです。顧客がCloud Sourceを登録し、ServiceはそのSource専用のManaged
+Attestor Authorityを使います。User／Deviceになりすますものではなく、Trusted Serviceが受信した値から
+導ける内容だけを証明します。
+
 ## なぜ1日を24個の時間枠にするのですか
 
 測定間隔が1時間でも1分で1秒でも、証明回路の入力形式を変えないためです。生の測定値を1時間ごとの最小値・最大値にまとめ、24時間分を固定形式で証明します。ただし、これは集計自体の正しさを証明するものではありません。
@@ -42,7 +46,7 @@ Wave 1審査経路では、Browser上の疑似計測元が生成し、Raw Captur
 
 ## 現時点でどこまで検証済みですか
 
-2026-09-04の現行ソースで、8つの証明回路のコンパイル、496件の自動テスト、型検査、ビルド、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークには、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録、2026-09-03のWallet不要Managed API Attestationがあります。これらは旧配備ContractのEvidenceであり、互換性のない現行8回路Sourceには再配備とE2E記録が必要です。
+実装基準`af90ad8`は、8回路Compile、496 Test、全Type Check／Build、API SCT、22 Checkpoint GUI SCT、Wrangler dry-run、Portability検査に成功しています。現行8回路Contractは2026-09-03に配備済みです。Managed APIの1,440件はBlock 2,385,826でOUTSIDE、認証済みDeviceの1,440件はBlock 2,385,898でWITHINとして確定しました。2026-09-05に公開Verification MCPから両HashをMidnight Indexerへ問い合わせ、D1／Private Inputなしで現行5 Ledger Checkすべてに成功しました。
 
 ## 第三者画面だけで独立検証できますか
 
@@ -50,7 +54,13 @@ Public Chain Evidenceは独立に照合できます。Wallet、Private Input、D
 
 ## 誰がどの鍵を持ちますか
 
-User Transaction Authority、現場API Identity、管理Authority、Service Fee Authority、Deploy Authorityを分離しています。証明を生成する管理BackendはUserのTransaction Authorityを持ちません。
+User Transaction Authority、現場API Identity、Operator／Managed Attestor Compact Authority、Wallet Fee Authority、Deploy Authorityを論理分離しています。同期Costの重複を避けるため1つの統合Server Wallet RuntimeがBackend Wallet更新を直列化しますが、Compact認可Secretは独立しています。Proof ServiceはUser／DeviceのTransaction Authorityを持ちません。
+
+## 運用情報をPublicへ出さず、Supportから確認できますか
+
+Access保護されたSupport MCP Workerが、Redact済みD1観測情報を6つのRead-only Toolで返します。公開
+Verification MCPは別Workerであり、運用Storage／Runtime Bindingを一切持たず、TX Hash検証Tool 1つだけを
+公開します。そのためPublic AccessからWallet状態、Job、Audit Event、Source設定、Support Toolは見えません。
 
 ## 多数デバイスに拡大できますか
 

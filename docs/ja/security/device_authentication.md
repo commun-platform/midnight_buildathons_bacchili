@@ -7,14 +7,15 @@
 ![P-256 Device Identity ChallengeからScope付きOpaque API SessionまでのSequence](../assets/review/device-session-sequence-ja.png)
 
 各Key Domainは用途を1つに限定し、独立してRotationします。認証ComponentとProof Serverが受け取るのは
-Device公開鍵またはHashだけで、Edge DeviceやOperatorの代理署名はできません。分離したSponsor Wallet
-Componentは自身のFee Keyだけを保持します。
+Device公開鍵またはHashだけで、Edge DeviceやOperatorの代理署名はできません。統合Server Walletは同期済み
+Wallet Runtimeを共有しますが、管理、Managed Attestor、DUSTだけを付与するSponsorの境界は、分離した認可
+SecretとAdmission Policyで維持します。
 
 顧客へ示す価値はシンプルです。第三者が見るのは、提出されたSensor値が登録済みThreshold以内かどうかであり、Sensor値そのものではありません。以下のSequenceは、その価値を支える各Use Caseで、どのCredentialを使うかを示す補足Security Evidenceです。現行Sessionは暗号鍵ではなくOpaque Bearer Credentialです。
 
 ## 境界と保存先
 
-Device Identityは、Device Transaction Identity、Sponsor Wallet、Operator Authority、Deployment Wallet
+Device Identityは、Device Transaction Identity、Server Wallet Seed、Operator Authority、Managed Attestor Authority、Deployment Wallet
 とは独立したECDSA P-256鍵Pairです。秘密PKCS#8鍵はowner-only権限でEdge Device内に保持し、Cloudflare
 認証へは公開JWKだけを登録します。
 
@@ -29,7 +30,8 @@ Device Identityは、Device Transaction Identity、Sponsor Wallet、Operator Aut
 | 開発Midnight Wallet | 開発ホストのみ | Contract deployと管理 |
 | Device Transaction Identity | Edge Deviceの`device-wallet/`のみ | 値移動を含まないProof済みTXをFeeなしでBind |
 | Device Contract Authority | Edge Deviceの`device-wallet/<network>/contract-authority/`のみ | Compact Private認可。公開値だけをDeployに使用 |
-| Sponsor Wallet Seed | Sponsor ContainerのDeploy Secretだけ | 適格なDevice Bind済みTXへDUSTを追加して送信 |
+| Server Wallet Seed | Server Wallet ContainerのDeploy Secretだけ | 1回の同期状態を共有し、管理／Managed Attestor／適格なDUST付与TXを直列送信 |
+| Operator／Managed Attestor Secret | 分離したServer Wallet Secret Binding | 各Compact回路だけを認可し、Device Callは認可しない |
 | Sponsor同期Checkpoint | Ephemeral Container Disk外の暗号化Object | Seedを開示せずSponsorのDUST履歴同期を再開 |
 | 短命Operator Proof Lease Hash | D1の`operator_proof_leases` | Deploy／Contract管理用途限定。平文はProcess内だけ |
 

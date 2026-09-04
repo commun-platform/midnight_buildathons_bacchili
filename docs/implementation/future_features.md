@@ -2,7 +2,7 @@
 
 [日本語](../ja/implementation/future_features.md)
 
-Status: planned work; not part of the current implemented claim as of 2026-09-03 JST
+Status: remaining plans with explicit current-state annotations as of 2026-09-05 JST
 Product: BACCHIRI!━━Verifiable Measurement Layer
 
 ## 1. Purpose
@@ -12,25 +12,27 @@ be added later in the Backend, Frontend, or operational tooling. Contract-first 
 before a long-lived deployment because adding them later changes circuits, proving artifacts,
 contract addresses, and verification evidence.
 
-Nothing in this document is a claim of current implementation.
+Only text explicitly labeled as current state or implemented foundation is a current implementation
+claim. Completion conditions remain future work.
 Product and business outcomes are defined by the
 [`three-wave roadmap`](../architecture/three_wave_roadmap.md). This backlog translates those outcomes
 into implementation work; it does not replace the roadmap.
 
-## 2. Contract-first backlog
+## 2. Contract foundation and remaining contract-first backlog
 
-These are the two current priorities that require changes to `sensor-registry`.
+Operator Authority rotation was completed before this update. Device-owner authority remains the
+contract-first priority.
 
 ### `FF-C01` Operator Authority rotation
 
-| Field | Plan |
+| Field | Status |
 | --- | --- |
-| Priority | P0 — before production administration is delegated to the Backend |
-| Current constraint | `operatorAuthority` is fixed at construction. Loss or compromise of the private Operator secret has no in-contract recovery path. |
+| Priority | Implemented foundation |
+| Current state | `operatorAuthorityVersion` and `rotateOperatorAuthority` are implemented, compiled, and deployed in the current eight-circuit Contract. The prior Authority stops authorizing after the versioned rotation is confirmed. |
 | Target use case | An authorized Operator replaces the current Operator Authority without redeploying the whole registry. |
 | Contract work | Add an Operator-authorized rotation circuit and versioned public state. The old secret must stop authorizing future administrative calls after confirmation. |
 | Required tests | Wrong old secret, empty or unchanged new Authority, non-increasing version, successful rotation, rejection of the old secret, and acceptance of the new secret. |
-| Completion evidence | Compact compile, simulator rejection tests, generated prover/verifier artifacts, client/type updates, redeployment record, and Preprod transaction evidence. |
+| Completion evidence | Compact compile, simulator rejection tests, generated prover/verifier artifacts, client/type updates, and the current deployment are recorded in the [current release evidence](../submission/current_release_addendum.md). A live rotation should still be executed before relying on emergency rotation in partner operation. |
 
 The contract authorizes the change by proving knowledge of the current Operator secret. Transaction
 submission and DUST sponsorship remain separate from this administrative authority.
@@ -40,9 +42,9 @@ submission and DUST sponsorship remain separate from this administrative authori
 | Field | Plan |
 | --- | --- |
 | Priority | P0 — before Device-owner self-service threshold changes |
-| Current constraint | Only the Operator can register a Policy and Assignment. Assignments are immutable and may overlap, so registering a new Assignment does not retire an older one that is still valid. |
+| Current constraint | The Operator can register a Policy, close the current Assignment, and register a higher-version non-overlapping successor. There is no separate Device Owner Authority or owner self-service transition. |
 | Target use case | The Device owner changes the threshold for its own Device from the Frontend, while the Device runtime cannot change it automatically and third parties can identify the authoritative Assignment for each measurement period. |
-| Contract work | Bind a separate Device Owner Authority during Device registration and add an owner-authorized threshold replacement transition. Keep it separate from `deviceAuthority`, define the cutover period, and reject the retired Assignment for periods on or after cutover while preserving historical attestations. Include an Operator-controlled owner-recovery or ownership-transfer path. |
+| Contract work | Bind a separate Device Owner Authority during Device registration and add an owner-authorized threshold replacement transition over the existing close/successor rules. Keep it separate from `deviceAuthority`, define the cutover period, and preserve historical attestations. Include an Operator-controlled owner-recovery or ownership-transfer path. |
 | Required tests | Wrong Owner Authority, owner of another Device, use of `deviceAuthority` as owner authority, unknown old/new Assignment, invalid cutover, overlapping active Assignments, historical-period acceptance, post-cutover old-Assignment rejection, and Owner Authority recovery. |
 | Completion evidence | Compact compile, transition and boundary tests, regenerated artifacts, Backend mirror migration, client/type updates, redeployment record, and Preprod transaction evidence. |
 
@@ -104,16 +106,16 @@ owner and cannot change the threshold or the Device-authorized transaction.
 
 ## 7. Planned implementation order
 
-1. Specify and implement `FF-C01` and `FF-C02`, including separate Operator, Owner, and Device authorities, together with rejection tests.
+1. Specify and implement `FF-C02`, including separate Owner and Device authorities, over the already deployed versioned Operator and Assignment lifecycle.
 2. Recompile Compact, regenerate all affected artifacts, update clients and D1 mirrors, and redeploy.
-3. Validate the new contract lifecycle on Preprod without treating local tests as network evidence.
+3. Validate owner-authorized replacement and Operator recovery on Preprod without treating local tests as network evidence.
 4. Before production identifiers and history are frozen, implement `FF-O08`, including the D1
    migration, Device write-ahead persistence, compatibility reads, and controlled Device/Commitment
    transition or a documented clean Preprod reset.
-5. Implement production role/application separation, organization/project/role authorization, and the
-   protected system-operations application without exposing Operator secrets to the browser.
-6. Add audit trails, redacted diagnostics, metrics, health monitoring, queue/retry visibility,
-   alerting, and recovery controls.
+5. Complete production role/application separation and organization/project/role authorization
+   around the already protected system-operations and MCP foundations.
+6. Validate the implemented audit, redacted diagnostics, metrics, health monitoring, queue/retry
+   visibility, and alerting under partner load; then add audited recovery controls.
 7. Implement owner-authorized threshold changes, then publish confirmed configuration revisions for
    field startup synchronization.
 8. Implement `FF-O14`, then add autonomous daily execution, sponsored-transaction cleanup, and

@@ -2,13 +2,16 @@
 
 [English](../../submission/README.md)
 
-このディレクトリに審査成果物を集約します。完成した画面を使った英語デモ動画は作成済みで、提出用の公開URL設定だけが残っています。
+このディレクトリに審査成果物を集約します。完成した画面を使った英語デモ動画は作成済みです。撮影後の
+Engineering Evidenceは別の現行リリース補足へまとめ、動画のStory、現行Source、現行Preprod配備を
+混同しない構成にします。
 
 | 成果物 | 状態 | ファイル |
 | --- | --- | --- |
 | 詳細制作設計 | 作成済み | [deliverables_plan.md](deliverables_plan.md) |
 | 提出文 | 作成済み、公開URL待ち | [submission_copy.md](submission_copy.md) |
-| 主張と証拠の対応表 | 作成済み、最終コミット待ち | [evidence_matrix.md](evidence_matrix.md) |
+| 主張と証拠の対応表 | 作成済み、実装基準`af90ad8`を記録 | [evidence_matrix.md](evidence_matrix.md) |
+| 現行リリース証拠補足 | 撮影後のManaged API、Device、運用、MCP、現行Contract Evidenceを反映済み | [current_release_addendum.md](current_release_addendum.md) |
 | Wave 1進捗 | 作成済み | [wave1_progress.md](wave1_progress.md) |
 | 提出前の技術確認表 | 作成済み、外部確認待ち | [technical_gate_checklist.md](technical_gate_checklist.md) |
 | 審査員向けQ&A | 作成済み | [judge_qa.md](judge_qa.md) |
@@ -31,6 +34,10 @@ Sponsor Wallet、D1／R2、独立したProof Server、限定付きCost Evidence�
 `build-on-demand-zkp-architecture.cjs`が編集可能な英語SVGと1672 × 941 PNGを生成し、
 `include-on-demand-architecture-in-pitch.cjs`が最終9枚PPTX／PDFのSlide／Page 7だけを検査付きで
 差し替えます。
+
+動画確定後に、運用ConsoleやMCPの詳細をDeckへ追加していません。これらの実装済み拡張と現行8回路
+Preprod証跡は、[現行リリース証拠補足](current_release_addendum.md)と
+[証拠対応表](evidence_matrix.md)で確認できます。
 
 `build-on-demand-zkp-architecture-ja.cjs`は、元の日本語ガイド画像を上書きせず、英語Pitch図と同じ
 主張境界を持つ編集可能な日本語SVGと1672 × 941 PNGを生成します。

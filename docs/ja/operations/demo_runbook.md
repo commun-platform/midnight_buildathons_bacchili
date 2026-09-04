@@ -90,7 +90,7 @@ curl http://127.0.0.1:8788/health
 
 説明時は`SENSOR_MODE=synthetic`を設定できます。本番Defaultは`hardware`です。疑似値はDeviceから発生し、通常と同じ1時間集計／Anomaly経路を通ります。CloudflareへRaw Time-seriesは送りません。
 
-Deviceには入金しません。審査中は専用Sponsor Walletを`always-on`プロファイルで運転し、1分間隔のCronで同期状態を維持します。費用を優先する運用では、コード再配備や鍵変更なしで同じWalletをD1管理の日次JST 02:00処理開始へ切り替えられます。Walletが必要なJobは24時間受け付け、日次締切までD1で保持します。同期進捗を取得できた後、Workerは同期中は最大5分に1回、Ready後は最大30分に1回、暗号化R2 Checkpointを保存します。`SIGTERM`または`SIGINT`を受けると、Containerは最新Stateを暗号化して非公開のContainer-to-Worker経路からR2へ退避してからWallet SDKを停止します。置換後のContainerはWallet初期化前に限りR2から復元します。NIGHT／DUSTは中央で管理します。Sponsorは適格なDevice Bind済みTXへFeeだけを追加して送信します。Device Identity／Contract Authority SecretはSponsorへ送りません。詳細は[Sponsor Wallet日次処理](sponsor_wallet_operating_hours.md)を参照してください。
+Deviceには入金しません。審査中はServer Walletを`always-on`プロファイルで運転し、1分間隔のCronで同期状態を維持します。費用を優先する運用では、コード再配備や鍵変更なしで同じWalletをD1管理の日次JST 02:00処理開始へ切り替えられます。Walletが必要なJobは24時間受け付け、日次締切までD1で保持します。同期進捗を取得できた後、Workerは同期中は最大5分に1回、Ready後は最大30分に1回、暗号化R2 Checkpointを保存します。`SIGTERM`または`SIGINT`を受けると、Containerは最新Stateを暗号化して非公開のContainer-to-Worker経路からR2へ退避してからWallet SDKを停止します。置換後のContainerはWallet初期化前に限りR2から復元します。NIGHT／DUSTは中央で管理します。Sponsor Roleは適格なDevice Bind済みTXへFeeだけを追加して送信します。Device Identity／Contract Authority SecretはSponsor Roleへ送りません。詳細は[Sponsor Wallet日次処理](sponsor_wallet_operating_hours.md)を参照してください。
 
 ## 3. Proof Job・Midnight TX
 
@@ -124,7 +124,7 @@ DApp Connector API 4.x互換Lace WalletをPreprodに設定した通常のChrome 
 録画前に**English**を選択します。Rootは`#/device`から開始します。
 
 LaceへのtNIGHT入金やtDUST生成は不要です。Laceは`payFees: false`でDevice TXを承認・Bindし、Sensor
-Contract Proofは認証済みCloudflare Proof Server、DUST付与とSubmitは専用Sponsor Walletが担当します。
+Contract Proofは認証済みCloudflare Proof Server、DUST付与とSubmitはServer WalletのSponsor Roleが担当します。
 GUIはSponsorshipの処理段階とFee Evidenceを表示します。
 
 1. Laceへ接続し、Wallet側でDApp接続を承認
@@ -143,9 +143,9 @@ Provisioning、Operator経路、Sponsor Wallet Imageのいずれかを変更し�
 `ERROR`が残らず、`/api/v1/provisioning/devices`がHTTP 200を返し、Device登録TX IDとAssignment TX IDの
 両方が返ることを確認します。Operator経路より前で停止するDummy署名確認は、この受入確認の代用になりません。
 
-LaceはBrowser Deviceの登録Identityと明示的なTX承認を担当し、Fee Payerではありません。PrivateなSponsor
-Wallet Containerが承認済みDevice TXへDUSTだけを付与します。Browser登録時には固定されたOperator-onlyの
-Device／Assignment回路も実行しますが、Workerは先にLace署名を検証し、Operator Authorityを公開しません。
+LaceはBrowser Deviceの登録Identityと明示的なTX承認を担当し、Fee Payerではありません。PrivateなServer
+Wallet ContainerのSponsor Roleが承認済みDevice TXへDUSTだけを付与します。別の管理RoleがBrowser登録時に
+固定されたOperator-onlyのDevice／Assignment回路を実行しますが、Workerは先にLace署名を検証し、Operator Authorityを公開しません。
 Wallet接続、登録署名、Device TX承認は明示的なUser Confirmationです。
 
 **センサーデバイス管理者**Routeは同じDevice Sessionを使い、そのDeviceの1時間集計、Anomaly、Proof/TX

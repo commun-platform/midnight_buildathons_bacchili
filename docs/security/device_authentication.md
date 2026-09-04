@@ -8,14 +8,16 @@ This document describes the implemented Wave 1 protocol. The complete normative 
 
 Each key domain has one narrow purpose and is rotated independently. The authentication and Proof
 Server components receive public Device keys or hashes only and cannot sign on behalf of the Edge
-Device or Operator. The separate Sponsor Wallet component holds only its own fee key.
+Device or Operator. The consolidated Server Wallet shares one synchronized Wallet runtime, while
+separate authorization secrets and admission policy preserve the administrative, managed-attestor,
+and DUST-only sponsorship boundaries.
 
 The customer value remains simple: a third party sees whether the submitted sensor values are within the registered threshold, not the sensor values themselves. The sequences below are supporting security evidence showing which credential is used for each use case. The current Session is an opaque Bearer credential, not an encryption key.
 
 ## Boundaries and storage
 
 The Device Identity is an ECDSA P-256 key pair independent of the Device transaction identity,
-Sponsor Wallet, Operator Authority, and deployment wallet. The private PKCS#8 key remains on the
+Server Wallet seed, Operator Authority, Managed Attestor Authority, and deployment wallet. The private PKCS#8 key remains on the
 Edge Device with owner-only permissions. Cloudflare authentication receives only the public JWK.
 
 | Material or state | Location | Purpose |
@@ -29,7 +31,8 @@ Edge Device with owner-only permissions. Cloudflare authentication receives only
 | Development Midnight wallet | Development host only | Contract deployment and administration |
 | Device transaction identity | Edge Device `device-wallet/` only | Bind a value-neutral proved transaction without paying fees |
 | Device Contract Authority | Edge Device `device-wallet/<network>/contract-authority/` only | Compact private authorization; public value is used at deployment |
-| Sponsor Wallet seed | Sponsor Container deployment secret only | Add DUST to an eligible Device-bound transaction and submit it |
+| Server Wallet seed | Server Wallet Container deployment secret only | Synchronize once and submit serialized administrative, managed-attestor, or eligible DUST-funded transactions |
+| Operator / Managed Attestor secrets | Separate Server Wallet secret bindings | Authorize only their respective Compact circuits; never authorize Device calls |
 | Sponsor synchronization checkpoint | Encrypted object outside ephemeral Container disk | Resume Sponsor DUST history without exposing the seed |
 | Ephemeral Operator Proof Lease hash | D1 `operator_proof_leases` | Purpose-limited deployment/contract administration; plaintext exists only in the process |
 

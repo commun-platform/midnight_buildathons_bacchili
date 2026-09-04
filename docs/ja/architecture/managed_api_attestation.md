@@ -192,8 +192,8 @@ Source登録後にManaged Attestor Rootを作り直してはならない。Sourc
 
 ## 12. Preprod受入実績
 
-本章は当時配備した6回路ContractとWorkerの履歴証跡である。互換性のない現行8回路Sourceと分離Wallet
-Runtimeは、Live動作として説明する前に再配備と新しいE2E証跡が必要である。
+本章は最初の6回路受入実績を保持し、その後に現行8回路配備の実績を記録する。履歴TXと現行TXを別の
+Evidenceとして扱う。
 
 2026-09-03 JSTに、Compact Toolchain `0.31.1`、Proof Server `8.1.0`、Wallet SDK `1.2.0`、
 Midnight.js `4.1.1`、Wrangler `4.127.0`、Gateway Version
@@ -238,3 +238,17 @@ ZKPを生成し、09:17:20にBlock 2,380,338で確定した。すべてのManage
 である。Sponsor Feeは704,620,000,000,001 specks、TX Sizeは9,371 bytesだった。TX Hashだけを使う
 第三者GUIはLedger 4検査に再度成功し、Resource TraceはPublic Preprod Indexerへ接続してD1 APIを
 使用しなかった。
+
+### 12.1 現行8回路の受入実績
+
+8回路Contractは2026-09-03 JSTに
+`48636e2f7ae8b1705134b026ec0d5a910357cac990a60adce2c2672e1a78a732`として配備した。配備TXは
+[`00ea92883cba9ff8b753a3308d6d2127ac3f81c2643f09840a449588197a32cbdf`](https://preprod.midnightexplorer.com/transactions/00ea92883cba9ff8b753a3308d6d2127ac3f81c2643f09840a449588197a32cbdf)
+である。統合`midnight-server-wallet`から、1,440件を使う2経路を完了した。
+
+- Managed API TX [`35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532`](https://preprod.midnightexplorer.com/transactions/35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532)：Block 2,385,826、観測24時間、2時間が範囲外のOUTSIDE。
+- 認証済みDevice TX [`7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40`](https://preprod.midnightexplorer.com/transactions/7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40)：Block 2,385,898、観測24時間すべてWITHIN。
+
+2026-09-05 JSTに、別Workerの公開Verification MCPから両方のHashをPublic Preprod Indexerへ問い合わせ、
+D1やPrivate Inputなしで現行5 Ledger Checkすべてに成功した。実装基準`af90ad8`は、8回路Compile、
+496 Test、全Type Check／Build、API／GUI SCT、Wrangler dry-run、Portability検査に成功している。

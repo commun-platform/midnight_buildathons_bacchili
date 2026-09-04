@@ -40,7 +40,7 @@ Backend
 ├ D1: identity/session/business state, policy mirror, daily jobs/TX
 ├ Queue + DLQ: bounded Proof admission and Sponsor-processing references
 ├ Container: Midnight Proof Server 8.1.0
-├ Sponsor Wallet Container: DUST synchronization, fee-only balancing, and submission
+├ Server Wallet Container: serialized administration, managed attestation, DUST funding, and submission
 └ R2: private TX artifacts, optional public reports, and encrypted Sponsor checkpoints; never raw readings
 
 Midnight
@@ -64,17 +64,18 @@ After proof generation, the field transaction agent or user-controlled browser a
 value-neutral transaction without fees. The
 authenticated sponsorship endpoint accepts that finalized serialized transaction once for its Proof
 Job, stores its integrity-addressed private bytes in R2, and queues the Job ID. Exact retries return
-the existing state without another Queue message; conflicting bytes are rejected. A dedicated
-Sponsor Wallet later validates the job and bound call, adds only DUST, and submits it. Its seed is
-separate from Device, Operator, and deployment keys. Encrypted synchronization checkpoints and
+the existing state without another Queue message; conflicting bytes are rejected. A consolidated
+Server Wallet later validates the job and bound call, adds only DUST, and submits it. The same
+synchronized Wallet runtime also serializes Operator-authorized administration and managed-attestor
+transactions, while their Compact authorization secrets remain separate from the Wallet seed,
+Device keys, and deployment credentials. Encrypted synchronization checkpoints and
 temporary private TX artifacts may use R2; neither D1 nor R2 stores the seed in
 plaintext. Sponsor availability is an operational prerequisite, while each Device needs no NIGHT
 funding, DUST registration, or DUST history synchronization.
 
-The Proof Server and Sponsor Wallet remain separate Containers even when both are sized as
-`standard-2`. Sponsor PID 1 is a lightweight Health Supervisor; it serves cached freshness-aware
-health while the lower-priority Wallet SDK child synchronizes. This keeps operational health
-responsive without combining proving keys, Sponsor seed material, or scaling failures. A measured
-warm restore on the single-vCPU Sponsor allocation temporarily made the cached Wallet status
-`degraded`, but the Supervisor endpoint remained responsive and Queue processing stayed gated until
-the Wallet returned to `ready`.
+The Proof Server and Server Wallet remain separate Containers. The current deployment uses one
+`standard-2` Proof Server and one `standard-4` Server Wallet, each limited to one instance. Server
+Wallet PID 1 is a lightweight Health Supervisor; it serves cached freshness-aware health while the
+lower-priority Wallet SDK child synchronizes. This keeps health responsive without combining proving
+keys and Wallet seed material. A measured warm restore can temporarily make cached Wallet status
+`degraded`, but Queue processing remains gated until the Wallet returns to `ready`.

@@ -403,6 +403,7 @@ npm run typecheck -w @midnight-demo/sensor-registry-contract
 同じ計測グループの再利用、不正なデバイス／運用管理者秘密値、別デバイスの適用設定、適用設定の
 重複・版・終了規則、無効化、デバイス／運用管理者権限の交換、安全な秘密値有効化、権限再利用の拒否を確認します。
 
-現行ソース／シミュレーター検証と、過去に事前公開ネットワークへ配備したコントラクトは別の証拠です。
-ローカルのコンパイルやシミュレーター成功だけでは、互換性のない現行8回路コントラクトの配備・確定を
-証明できません。配備証跡には、正確なコントラクトアドレスとトランザクションを別途記録します。
+Source／Simulator検証とPreprod配備は別のEvidenceです。現行8回路Contractは2026-09-03 JSTに配備され、
+Managed APIと認証済みDeviceの両経路で確認済みです。正確なContractとTXは
+[現行リリース証拠補足](../submission/current_release_addendum.md)へ記録しています。今後Sourceを変更した場合は、
+新しいContractとTX Evidenceを作るまで未配備として扱います。

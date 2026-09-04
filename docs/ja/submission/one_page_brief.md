@@ -32,17 +32,21 @@ BACCHIRI!━━Verifiable Measurement Layerは既存の計測機器や管理シ�
 - 8つの証明回路がすべてコンパイル成功。
 - 12のWorkspaceと疑似対向Serviceにまたがる496件の自動テストがすべて成功。
 - 型検査、ビルド、Cloudflare配備前検査が成功。
-- 2026-08-28のMidnight事前公開ネットワーク記録で、範囲内と範囲外の両方を確認。
-- 1日1,440件の測定値を、24個の時間枠を使う1件の日次証明へ集約。
+- 現行8回路ContractをMidnight Preprodへ配備済み。
+- 現行Contractで、Wallet不要Managed APIのOUTSIDEと認証済みDeviceのWITHINを確認。どちらも1,440件を固定24 Slotの1 Proofへ集約。
+- 別Workerの公開Verification MCPからD1／Private Inputなしで両TX hashを確認。
+- Access保護済み運用Console、Redact済みAudit／Metric、Discord Alert／Receipt、非公開Read-only Support MCPを実装。
 
 ## この証明だけでは分からないこと
 
 物理センサーが正しい値を出したか、24時間連続して測定したか、計測元側の集計が正しいかは証明しません。また、現行構成では信頼対象の管理されたバックエンドが、証明生成中の最小値・最大値を処理します。
 
-第三者画面はPublic Midnight IndexerのTX／Block／Contract Stateを直接照合します。Browser内でCompact Proof Verifierを再実行する機能と複数Indexerの比較はWave 2の計画です。
+第三者画面と公開MCPはPublic Midnight IndexerのTX／Block／Contract Stateを直接照合します。Browser内でCompact Proof Verifierを再実行する機能と複数Indexerの比較はWave 2の計画です。
 
 ## 導入への道筋
 
-Wave 1は、審査用PoCとして中核の証明価値を検証します。Wave 2では、実際の現場計測システムを接続して日次運用を自律化し、Role・画面分離と本番運用機能を加え、既存事業者との有償パートナー実証を目指します。Wave 3では、Hardware保護Identityと来歴により計測元への信頼を減らし、継続売上、契約更新、利用拡大、持続可能なUnit Economicsを通じてPMFを検証します。正本は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)です。
+Wave 1は、審査用PoCとして中核の証明価値を検証し、Managed Intakeと運用基盤を先行実装します。Wave 2では、実際の現場計測システムを接続して日次運用を自律化し、組織／Role分離を完成してPartner負荷で運用Controlを検証し、既存事業者との有償パートナー実証を目指します。Wave 3では、Hardware保護Identityと来歴により計測元への信頼を減らし、継続売上、契約更新、利用拡大、持続可能なUnit Economicsを通じてPMFを検証します。正本は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)です。
+
+現行Contract、TX、検証結果は[現行リリース証拠補足](current_release_addendum.md)を参照してください。
 
 リポジトリ、スライド、動画の公開URLは、最終公開後に追加します。

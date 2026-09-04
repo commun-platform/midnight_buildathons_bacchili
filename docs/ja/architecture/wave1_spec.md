@@ -131,7 +131,8 @@ Cloudflare
 ├ D1：Registry、Session Hash、Summary、Event、Policy Mirror、Job／TX状態
 ├ Queue／DLQ：Proof Admission参照とRetry
 ├ Proof Server Container：Proof生成
-├ Sponsor Wallet Container：DUST同期、FeeだけのBalance、TX送信
+├ Server Wallet Container：分離した論理Authorityによる管理、Managed Attestation、DUST同期、
+│ FeeだけのTX送信を直列処理
 └ R2：任意のPublic Artifact／Report。Raw Readingは恒久保存しない
 
 Midnight
@@ -160,7 +161,7 @@ Device側が含めたDUST ActionはBalance前に拒否します。公式Wallet S
 同じPolicyを再検査します。Device Commitment、Assignment、Period、Public Result、Private Hourly
 ExtremaへのCommitmentは、信頼されないSponsor Request MetadataではなくContract Proofで拘束します。
 
-Sponsor Wallet Containerを呼ぶ前に、Workerは認証済み`deviceId`と`proofJobId`に対するJST日次の
+Server Wallet ContainerのSponsor Roleを呼ぶ前に、Workerは認証済み`deviceId`と`proofJobId`に対するJST日次の
 Sponsorship枠をD1へ原子的に予約します。標準上限はDeviceごとにJST 1日5件です。Operatorが登録する
 審査用Deviceは、審査員が一連の操作を繰り返せるよう20件に設定します。予約Tableでは`proofJobId`が
 Uniqueなので、同じJobのRetryは既存予約を返し、回数を追加消費しません。上限後の新しいJobは次のJST
@@ -184,9 +185,10 @@ ConsumerはWallet Ready後だけContainerを呼び、Container内のWallet Mutat
 | Edge Device | 認証済みCloudflare Proof Server Container | Edge Wallet Agent、Feeなし | Sponsor Wallet | Sponsor WalletからMidnightへ送信 |
 | User管理Walletを使う審査用Browser Client | 認証済みCloudflare Proof Server Container | Wallet、`payFees: false` | Sponsor Wallet | Sponsor WalletからMidnightへ送信 |
 
-Proof Server ContainerはProof生成だけを担当し、Midnight Wallet Keyを保持しません。別のSponsor Wallet
-ContainerはSponsorship用の鍵素材だけを保持し、Device Identity、Device Contract Authority、Private
-Extrema、Nonce、Compact Private Stateを受け取りません。Edge DeviceはLocal Proof Server、NIGHT入金、
+Proof Server ContainerはProof生成だけを担当し、Midnight Wallet Keyを保持しません。統合Server Wallet
+ContainerはWallet Seedと、分離された管理／Managed Attestor認可Secretを保持しますが、Device Identity、
+Device Contract Authority、Private Extrema、Nonce、Device Compact Private Stateを受け取りません。
+Sponsor Roleは適格なBind済みCallへのFee付与だけを行います。Edge DeviceはLocal Proof Server、NIGHT入金、
 DUST登録、DUST残高、DUST履歴Scan、DUST Proofを必要としません。このため運用開始時にDeviceごとのDUST生成
 待ちはありません。ただし、ActiveなDevice登録／Assignment、公開運用設定、Proof Job Admission、最新
 Contract State取得、Proof生成、Sponsor Capacityは必要です。
@@ -195,7 +197,7 @@ Contract State取得、Proof生成、Sponsor Capacityは必要です。
 > Compile済みCompact Prover／Verifier Artifactだけです。Sponsor Seed、Operator Authority秘密値、`.env`、
 > `.dev.vars`、Wallet Checkpoint、Wallet Stateを含めてはいけません。本番ではWorkerがCloudflare Secret
 > Bindingから`SPONSOR_WALLET_SEED`と`OPERATOR_AUTHORITY_SECRET`を読み、Container起動時にPrivateな
-> Sponsor Wallet Containerの環境変数へ注入します。ContainerがCloudflare Secret Storeを直接読み出す
+> Server Wallet Containerの環境変数へ注入します。ContainerがCloudflare Secret Storeを直接読み出す
 > 構成ではありません。Local開発ではGit Ignore済みの`.dev.vars`等を環境変数の供給元にできますが、
 > CommitまたはContainer Imageへ含めてはいけません。
 
@@ -214,7 +216,7 @@ Checkpointから復元済みでNIGHT登録済みのWalletは、Spend可能なDUS
 再開できます。Spend可能なDUSTが存在するまでQueue済みTransactionをBalance／Submitしません。Health出力には3 Walletの接続、
 完了、Replay位置を含めます。
 
-Sponsor Containerでは軽量Health SupervisorをPID 1、公式Wallet SDKを低Priorityの別Child Processとして
+Server Wallet Containerでは軽量Health SupervisorをPID 1、公式Wallet SDKを低Priorityの別Child Processとして
 動かします。`/health`はCPU負荷の高いReplay Event Loopを待たず、最後に取得できたWallet Snapshotと鮮度を
 返します。Stale、Degraded、終了済みChildの状態は診断専用で、Transaction Sponsorshipを許可しません。
 これはProcess／Scheduler分離であり、物理Coreの固定予約ではありません。Proof生成とFee Sponsorshipは秘密、
@@ -231,13 +233,15 @@ Wave 1ではSession、Reading、Counter、Job用のApplication Durable Objectを
 | Device Identity | Edge Device | P-256 Cloudflare Challenge署名だけ |
 | Device Contract Authority | Edge Device | `submitDailyAttestation`だけ |
 | Device Transaction Identity | Edge Device | 値移動を含まないTXのPublic KeyとBindだけ。Fee権限なし |
-| Sponsor Wallet | Sponsor Wallet Container | Proof Job Policy下のDUSTだけのBalanceと送信 |
-| Operator Authority | 開発ホスト | Device LifecycleとPolicy／Assignment管理 |
+| Server Wallet Seed | Server Wallet Container | Wallet同期と直列化したTX送信 |
+| Sponsor Role | Server Wallet Container | Proof Job Policy下のDUSTだけのBalanceと送信 |
+| Operator Authority | 開発ホストとServer Wallet Secret境界 | Device LifecycleとPolicy／Assignment管理だけ |
+| Managed Attestor Authority | Server Wallet Secret境界 | 登録済みManaged API Attestationだけ |
 | Deployment Wallet | 開発ホスト | Contract Deployと開発管理 |
 
-開発ホストとDeviceで秘密鍵を共有しません。開発ホストはDevice Identity秘密鍵を持ちません。Sponsor Walletは
-Device Transaction Identity、Operator Authority、Deployment Walletと分離します。1つのKey Domainの
-Rotationで別Domainを暗黙にRotationしてはいけません。
+開発ホストとDeviceで秘密鍵を共有しません。開発ホストはDevice Identity秘密鍵を持ちません。Wallet同期を
+統合しても、Device Transaction Identity、Operator Authority、Managed Attestor Authority、Sponsor Policy、
+Deployment Walletは統合しません。1つのKey DomainをRotationしても別Domainを暗黙にRotationしてはいけません。
 
 DeployにDevice Sessionは使いません。Authenticated Wrangler操作がRandomな30分`contract_deploy` Operator Proof Leaseを作り、D1にはSHA-256 Hashだけを保存し、Container 1台のCapacity上限を共有し、終了直後にRevokeします。
 
@@ -510,6 +514,6 @@ Wave 1は、審査用PoCで次を確認できた時点で完了とします。
 - 第三者画面が運用日／登録済み境界、24個の時間帯別結果、適用Policy、Device Commitmentを公開し、Hourly Extrema／Nonceを公開しない
 - Cost／Version実測記録をBenchmark文書へ追加
 
-Wave 2では、自律的な現場運用、本番Role分離、認証・認可、監査・解析Log、監視、復旧、運用ダッシュボードを追加します。
+Wave 2では、自律的な現場運用と本番Role分離を進め、実装済みの認証、監査、解析、監視、Alert、Support、復旧、運用Console基盤をPartner Pilotの負荷で本番水準へ強化します。
 Wave 3では、Hardware保護Identity、実行・校正の来歴、複数組織での商用運用、PMF検証へ進みます。正本は
 [`three_wave_roadmap.md`](three_wave_roadmap.md)です。

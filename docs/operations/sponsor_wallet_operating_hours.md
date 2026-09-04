@@ -1,11 +1,12 @@
-# Sponsor Wallet processing profiles
+# Server Wallet processing profiles
 
 ![On-demand ZK proof, server-side Sponsor Wallet, cost-aware operation, and Midnight recording architecture](../assets/guides/on-demand-zkp-midnight-architecture-en.png)
 
 ## Purpose
 
-The Sponsor Wallet is stateful and must synchronize before it can add DUST to an authorized
-transaction. Keeping its `standard-4` Container active for an entire month is materially more
+The consolidated Server Wallet is stateful and must synchronize before its Sponsor role can add DUST
+to an authorized transaction. The same serialized runtime also performs separately authorized
+administrative and Managed Attestor operations. Keeping its `standard-4` Container active for an entire month is materially more
 expensive than starting it only for accepted work. Public APIs, D1 state, R2 artifacts, source
 fetches, and Job admission remain available for 24 hours. A one-minute Cron checks durable D1 state
 without waking the Container. In `on-demand` mode, pending work starts the Wallet no later than the
@@ -15,7 +16,7 @@ operation. A stopped Wallet has a 60-second restart cooldown; the Worker never s
 a request and simply retries on a later Cron event.
 
 The schedule is an operational D1 setting, not a Worker build setting. Switching profiles does not
-deploy code, replace the Container, or alter Wallet keys.
+deploy code, replace the Container, merge logical authorities, or alter Wallet keys.
 
 ## Profiles
 

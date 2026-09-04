@@ -2,7 +2,7 @@
 
 [English](../../implementation/future_features.md)
 
-状態：2026-09-03 JST時点の将来計画。現在の実装済み機能には含みません。
+状態：2026-09-05 JST時点の残作業計画。現行状態を各項目へ明記します。
 製品：BACCHIRI!━━Verifiable Measurement Layer
 
 ## 1. 目的
@@ -11,24 +11,24 @@
 後から追加できるものに分けます。コントラクト変更は、回路、証明用生成物、コントラクトアドレス、検証証拠へ
 影響するため、長期運用するコントラクトを配備する前に優先して設計します。
 
-本書に記載する項目は、現在の実装済み機能を示すものではありません。
+「現在の状態」または「実装済み基盤」と明記した記述だけが現行実装のClaimです。完了条件は将来作業です。
 製品・事業の到達成果は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)を正本とします。本書はその成果を
 実装作業へ展開するものであり、ロードマップを置き換えるものではありません。
 
-## 2. コントラクトを先に変更する項目
+## 2. 現行コントラクト基盤と先行変更項目
 
-現時点で優先する`sensor-registry`の変更は次の2件です。
+運用管理者権限の交換は本更新より前に完了しました。デバイス所有者権限が残るContract-first Priorityです。
 
 ### `FF-C01` 運用管理者権限の交換
 
-| 項目 | 計画 |
+| 項目 | 状態 |
 | --- | --- |
-| 優先度 | P0 — 本番バックエンドへ管理操作を移す前 |
-| 現在の制約 | `operatorAuthority`はコントラクト作成時に固定されます。運用管理者秘密値を紛失・漏洩した場合、コントラクト内に復旧手段がありません。 |
+| 優先度 | 実装済み基盤 |
+| 現在の状態 | `operatorAuthorityVersion`と`rotateOperatorAuthority`を現行8回路Contractへ実装・Compile・配備済みです。Version付き交換が確定すると旧Authorityは以後の管理操作を認可できません。 |
 | 対象UC | 認可済みの運用管理者が、レジストリ全体を再配備せずに運用管理者権限を交換します。 |
 | コントラクト変更 | 現在の運用管理者だけが実行できる交換回路と、版番号付き公開状態を追加します。確定後は旧秘密値による管理操作を拒否します。 |
 | 必要なテスト | 誤った旧秘密値、空または同一の新権限、増加しない版番号、正常交換、旧秘密値の拒否、新秘密値の受理。 |
-| 完了証拠 | Compactコンパイル、Simulator拒否テスト、証明鍵・検証鍵、Client／型更新、再配備記録、Preprod取引証拠。 |
+| 完了証拠 | Compact Compile、Simulator拒否Test、証明鍵／検証鍵、Client／型更新、現行配備は[現行リリース証拠](../submission/current_release_addendum.md)へ記録済みです。Partner運用で緊急交換に依存する前にLive Rotationを実施します。 |
 
 交換は、現在の運用管理者秘密値を知っていることの証明によって認可します。取引送信とDUSTスポンサーは、
 この管理権限とは分離したままにします。
@@ -38,9 +38,9 @@
 | 項目 | 計画 |
 | --- | --- |
 | 優先度 | P0 — デバイス所有者によるしきい値変更を提供する前 |
-| 現在の制約 | しきい値と適用設定は運用管理者だけが登録できます。適用設定は変更不可で期間が重複できるため、新しい適用設定を登録しても有効期間内の古い設定は終了しません。 |
+| 現在の制約 | 運用管理者はPolicy登録、現行Assignment終了、Versionが大きく期間非重複の後継Assignment登録を実行できます。独立したDevice Owner AuthorityとOwner Self-service遷移はありません。 |
 | 対象UC | デバイス所有者がFrontendから自分のデバイスのしきい値を変更します。デバイス実行処理は自動変更できず、第三者は計測期間ごとの正式な適用設定を一意に確認できます。 |
-| コントラクト変更 | デバイス登録時に、`deviceAuthority`とは別のデバイス所有者権限を結び付けます。所有者だけが実行できるしきい値交換処理、切替期間、切替後の旧設定拒否を追加し、過去の証明は維持します。所有者権限の復旧・所有権移転は運用管理者が行います。 |
+| コントラクト変更 | デバイス登録時に、`deviceAuthority`とは別のデバイス所有者権限を結び付け、既存の終了／後継規則を使う所有者認可済みしきい値交換を追加します。切替期間を定義し、過去の証明は維持します。所有者権限の復旧・所有権移転は運用管理者が行います。 |
 | 必要なテスト | 誤った所有者権限、別デバイスの所有者、`deviceAuthority`による所有者操作、未登録の旧／新設定、不正な切替時刻、有効設定の重複、過去期間の受理、切替後の旧設定拒否、所有者権限の復旧。 |
 | 完了証拠 | Compactコンパイル、遷移・境界テスト、生成物更新、D1ミラー移行、Client／型更新、再配備記録、Preprod取引証拠。 |
 
@@ -69,7 +69,7 @@
 | `FF-O08` | P1 | Sortableな型付きIDへの移行 | 現行Device IDはOperator入力のSlug、Batch／Event IDはTimestamp埋込み、Proof Job IDは内容Hashです。 | 新規Recordを`dvc`、`zjb`、`mbt`、`aev` Prefix付きの永続化したUUIDv7とし、Retryでは初回IDを再利用します。D1で`deviceCode`／`deviceName`を分離し、既存およびChain Bind済みRecordを暗黙に書き換えず読み取れる状態を維持します。Keyset Pagination、Index局所性、再起動復旧、論理一意性をTestします。 |
 | `FF-O09` | P0 | 本番Role・Application分離 | Wave 1は審査のため運用操作と第三者検証を一つにまとめています。 | Operator、第三者Verifier、System Operatorが、最小権限の別Applicationまたは保護Routeを使います。 |
 | `FF-O10` | P0 | 組織・Project・Role認可 | Wave 1のOwnershipと審査認可はPoC範囲です。 | 全API／Workflow遷移で組織、Project、Role Claimを強制し、Tenant分離とNegative Authorization Testを実施します。 |
-| `FF-O11` | P0 | 監査・解析・運用ダッシュボード | Logと処理状態は主に開発・審査用途です。 | Security上重要な操作のAudit Trail、秘匿化済み構造化Log、Metric、Health、Queue Depth、Retry、Alert、Recovery Controlを認可済みSystem Operatorが確認できます。 |
+| `FF-O11` | P0 | 監査・解析・運用ダッシュボード | Access保護されたRead-only Consoleで、Server Wallet同期／DUST、D1 Workflow、日次Metric、Redact済み顧客UC Event、Alertしきい値、Discord Incident、Sponsor Receiptを確認できます。 | Partner運用でAlert Policyを検証し、監査付きRecovery Controlを追加し、Support量に応じて長期Log Exportを統合します。 |
 | `FF-O12` | P1 | パートナーPilot運用 | Wave 1では実Partner業務を本番Serviceとして運用していません。 | 実際の現場業務を合意期間運用し、信頼性、支援工数、原価、顧客価値、価格評価を測定します。 |
 | `FF-O13` | P1 | Proof Serverの水平スケーリング | 現行Deployは、名前を固定した`standard-2` Proof Server Container 1台、Proof Queue Consumer同時実行数1、全体のProof Admission Lease 1件で動作します。`max_instances`を増やすだけでは処理を分散できません。 | StatelessなProof Serverを設定可能な台数でPool化し、明示的なInstance SlotとD1 Leaseで割り当てます。Queue同時実行数とAdmission Capacityを台数に合わせ、Retryの冪等性、Busy Instanceへの重複割当防止、未使用時のScale-to-zeroを維持します。Sponsor Walletは単一Instanceのままとし、Backlog負荷試験でProofの並列処理を確認します。 |
 | `FF-O14` | P1 | 公式Container RolloutとWallet安全配備 | 現在は両Containerとも`max_instances: 1`で、明示的なRollout Grace Periodはありません。Sponsor Walletには`SIGTERM`、定期・終了時Checkpoint、Job Lease、未確定取引の再照合がありますが、配備時のAdmission停止とWallet引継ぎは未整備です。 | Cloudflare Container RolloutsとWorker Versionsを配備の基盤とし、現在のContainer名を維持します。Image Rollout前に新旧互換のWorkerを配備し、明示的なGrace PeriodとWorkload別のRollout方針を設定します。Sponsorの新規Admission停止、実行中処理の完了または再照合、暗号化Wallet Checkpointの保存・復元、同期・Readiness確認後の再開を順序化します。Walletごとに有効なSignerを常に1台とし、旧Instanceからの送信を防止します。Rollout開始と完了を区別し、D1／R2／Checkpointの後方互換性を維持して、前進配備と制御されたRollbackを確認します。Proof Serverと状態を持つSponsor Walletには別々の手順を定めます。 |
@@ -99,13 +99,13 @@
 
 ## 7. 実装予定順
 
-1. 運用管理者、デバイス所有者、デバイスの権限分離を含め、`FF-C01`と`FF-C02`を拒否テストと合わせて仕様化・実装します。
+1. 配備済みのVersion付きOperator／Assignment Lifecycleを前提に、OwnerとDevice Authorityを分離する`FF-C02`を拒否Testと合わせて仕様化・実装します。
 2. Compactを再コンパイルし、生成物、Client、D1ミラーを更新して再配備します。
-3. ローカルテストとネットワーク証拠を区別し、新しいコントラクトのライフサイクルをPreprodで確認します。
+3. Local TestとNetwork Evidenceを区別し、Owner認可済み交換とOperator RecoveryをPreprodで確認します。
 4. 本番ID／履歴を固定する前に`FF-O08`を実装します。D1 Migration、DeviceでのWrite-ahead永続化、
    旧形式の互換Read、管理されたDevice／Commitment移行、または明記したPreprod Clean Resetを含めます。
-5. 本番Role／Application分離、組織／Project／Role認可、保護されたSystem Operations Applicationを実装し、Operator SecretをBrowserへ公開しません。
-6. Audit Trail、秘匿化済み解析Log、Metric、Health、Queue／Retry可視化、Alert、Recovery Controlを追加します。
+5. 実装済みの保護されたSystem Operations／MCP基盤を前提に、本番Role／Application分離と組織／Project／Role認可を完成させます。
+6. 実装済みAudit Trail、秘匿化済み解析Log、Metric、Health、Queue／Retry可視化、AlertをPartner負荷で検証し、監査付きRecovery Controlを追加します。
 7. 所有者によるしきい値変更を実装し、Midnight確定後に設定Revisionを公開して現場起動時同期へつなげます。
 8. `FF-O14`を実装してから、日次自動実行、スポンサー取引の完了処理、制御されたUpdate／Rollbackを追加します。
 9. Wave 2 Partner Pilotを行い、信頼性、支援、原価、価値、価格の実測をWave 3投資判断に使います。

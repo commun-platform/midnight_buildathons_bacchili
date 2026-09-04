@@ -1,6 +1,10 @@
-# Wave 2 システム運用ダッシュボード
+# システム運用ダッシュボードとWave 2強化
 
 [English](../../architecture/wave2_system_operations.md)
+
+状態：Read-only Console、Audit Trail、Metric、Discord障害／Receipt通知、非公開Support MCPは実装済みです。
+Wave 2では、本番Role／Tenant分離、Partner負荷でのしきい値検証、監査付き復旧操作、必要に応じた長期Log保持を
+完成させます。
 
 ## 1. 目的
 

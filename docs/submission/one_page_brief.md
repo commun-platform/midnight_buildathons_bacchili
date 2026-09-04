@@ -32,17 +32,21 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 - All 8 proof circuits compile.
 - All 496 automated tests pass across 12 workspaces and the mock counterpart service.
 - Type checks, builds, and the Cloudflare pre-deployment check pass.
-- Midnight preproduction-network records from 2026-08-28 include both WITHIN and OUTSIDE.
-- A day with 1,440 readings is reduced to one daily proof with 24 hourly slots.
+- The current eight-circuit Contract is deployed on Midnight Preprod.
+- Current-Contract records include a walletless Managed API OUTSIDE day and an authenticated Device WITHIN day, each with 1,440 readings/records reduced to one 24-slot proof.
+- A separate public Verification MCP resolved both transaction hashes from the public Midnight Indexer without D1 or private input.
+- An Access-protected operations console, redacted audit/metrics, Discord alerts/receipts, and private read-only Support MCP provide operational evidence.
 
 ## What this proof alone cannot establish
 
 It does not prove that a physical sensor produced correct values, that sampling continued for 24 hours, or that a measurement source aggregated the readings correctly. In the current architecture, the trusted managed backend handles hourly minimum / maximum values while generating the proof.
 
-The third-party view directly compares public Midnight transaction and Contract state. Browser-local proof-verifier execution and multi-source Indexer comparison remain planned for Wave 2.
+The third-party view and public MCP directly compare public Midnight transaction and Contract state. Browser-local proof-verifier execution and multi-source Indexer comparison remain planned for Wave 2.
 
 ## Adoption path
 
-Wave 1 validates the core proof as a review-oriented PoC. Wave 2 connects real field measurement systems, automates daily operation, separates roles and interfaces, adds production operations controls, and targets a paid pilot with an established business partner. Wave 3 reduces source trust through hardware-protected identity and provenance, then targets product-market fit through recurring revenue, renewal, expansion, and sustainable unit economics. See the [canonical roadmap](../architecture/three_wave_roadmap.md).
+Wave 1 validates the core proof as a review-oriented PoC and includes early managed-intake and operations foundations. Wave 2 connects real field measurement systems, automates daily operation, completes organization/role isolation, validates those controls under partner load, and targets a paid pilot with an established business partner. Wave 3 reduces source trust through hardware-protected identity and provenance, then targets product-market fit through recurring revenue, renewal, expansion, and sustainable unit economics. See the [canonical roadmap](../architecture/three_wave_roadmap.md).
+
+Current Contract, transaction, and validation references are in the [release evidence addendum](current_release_addendum.md).
 
 Repository, deck, and video URLs will be added after the final public release.

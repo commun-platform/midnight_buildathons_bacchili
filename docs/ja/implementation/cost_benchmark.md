@@ -19,14 +19,15 @@
 
 標準経路では1,440件のRaw値をすべてDevice内に留め、各時間についてPrivateな最小値・最大値を1組作り、
 毎日同じ固定24 Slot Inputへ集約します。その後`submitDailyAttestation` Transactionを1件送ります。
-DeviceはThreshold Boundを送信できず、回路はMidnightへ登録済みPublic Policyを利用します。Schema-5
-Fleet Registry Contract、Device、Policy、Device-bound AssignmentはPreprodへDeploy済みで、導入済み
+DeviceはThreshold Boundを送信できず、回路はMidnightへ登録済みPublic Policyを利用します。過去のSchema-5
+BaselineではFleet Registry Contract、Device、Policy、Device-bound AssignmentをPreprodへDeployし、導入済み
 Edge DeviceからP-256認証、D1 Admission、Cloudflare Proof Server、Device Walletによる処理内容の承認、
 Sponsor WalletによるDUST追加、Midnight確定まで、1,440件の標準経路を完了しました。
 
-現行実装はDevice／Lace TXをFeeなしでBindし、専用Sponsor WalletがDUST付与とSubmitを担当します。
+現行実装はDevice／Browser TXをFeeなしでBindし、統合Server WalletのSponsor RoleがDUST付与とSubmitを担当します。
 2026-08-30 JSTのRunで、Device Serialized Bytes／SHA-256、Sponsor Final Bytes／Hash、Sponsorship時間、
 Sponsor DUST Fee、Confirmation、Component Versionを記録しました。従来の自己負担Runは履歴比較として保持します。
+現行8回路配備と2026-09-05の公開検証再確認は、[現行Release追補](../submission/current_release_addendum.md)に記録しています。
 
 Daily ProfileはReadingごとの処理を展開する別の実験回路です。Edge Deviceへ配布せず、明示的なArchitecture変更なしに顧客向け運用Costとして使用してはいけません。
 
@@ -64,6 +65,10 @@ Setup実測ではwall time、取得可能な場合はuser／system CPU time、�
 Wallet移行Working Treeで計測しました。Node.js `22.15.0`、npm `10.9.2`、TypeScript `6.0.3`、
 Wrangler `4.127.0`、Docker Engine `29.2.0`、Wallet SDK `1.2.0`、Midnight.js `4.1.1`、
 DApp Connector API `4.0.1`、Proof Server `8.1.0`を使用しました。
+
+この表は各時点のSetup実測を追記した履歴です。182件と287件は異なるRevisionで実行した値であり、
+競合する現行総数ではありません。提出時の現行Gateは実装基準`af90ad8`の496 / 496件で、
+[現行Release追補](../submission/current_release_addendum.md)に記録しています。
 
 | Command／操作 | 結果 | Wall | User | System | CPU | 最大RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -122,7 +127,7 @@ Preprod DUST Replay非収束の影響を受けます。このため運用Gateは
 UnshieldedのStrict Completeを必須とし、DUST ReadyはSpend可能なDUST Coinの存在で別に判定します。
 DUSTが利用可能になる前のFee Transactionを許可せず、初期化の永久待機だけを回避します。
 
-### 現行Fleet Registry固定24 Slot実装のLocal Build Baseline
+### Schema-3 Fleet Registry固定24 Slot実装のLocal Build Baseline
 
 2026-08-28 22:36〜22:38 JST頃、上記開発HostでNode.js `22.15.0`、npm `10.9.2`、Compact CLI
 `0.5.2`、Toolchain `0.31.1`、Language `0.23`、Runtime `0.16.0`、Wrangler `4.127.0`を使用して計測しました。

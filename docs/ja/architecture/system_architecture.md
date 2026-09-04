@@ -21,7 +21,7 @@ Integration Evidenceとして、次の現場Runtime境界も実装していま�
 | Queues／DLQ | Proof Admission／Sponsor処理のJob参照だけを配送し、失敗時に再試行またはDLQへ移送 |
 | Cron Trigger | 1分ごとにD1の待機中Jobを確認し、日次締切へ含まれた処理だけをQueueへ投入 |
 | Proof Server Container | 非公開の時間別MIN／MAXからMidnight用Proofを生成。`standard-2`、最大1 instance |
-| Sponsor Wallet Container | デバイス署名済み取引を検査し、DUST Feeだけを追加してMidnightへ送信。Warm Restore実測済みの`standard-2`、最大1 instance |
+| Server Wallet Container | 管理、Managed Attestation、DUST付与、送信を直列化。Warm Restore実測済みの`standard-4`、最大1 instance |
 | Durable Objects | 2つのContainerを起動・ルーティングするCloudflare内部Binding。Device SessionやReadingの保存には使用しない |
 | R2 | 非公開TX Artifact、任意のPublic Report、Sponsor Walletの暗号化同期Checkpointを保存。SeedやRaw値は平文保存しない |
 | Rate Limiter／Observability | 認証・API・ProofのRate制限と、秘密値を除外した構造化Log／処理時間／Byte数の記録 |
@@ -31,7 +31,7 @@ Integration Evidenceとして、次の現場Runtime境界も実装していま�
 1. エッジデバイスは通常のAPI認証と1時間SummaryをWorkersへ送ります。生のセンサー値は送信しません。
 2. D1は処理状態と画面表示用データを保存し、Queuesへ入るのはProof Jobの参照だけです。
 3. 許可された日次処理では、非公開の時間別MIN／MAXがWorkersを通ってProof Server Containerへ送られますが、D1、Queues、R2には保存しません。
-4. Proofを受け取ったエッジデバイスがMidnight取引へ署名し、Sponsor Wallet ContainerはDUST Feeだけを追加して送信します。
+4. Proofを受け取ったエッジデバイスがMidnight取引へ署名し、Server Wallet ContainerのSponsor RoleがDUST Feeだけを追加して送信します。
 5. Midnightで確定した取引識別子と判定結果をD1へ画面表示用に複製します。第三者が判定の基準として確認する公開記録はMidnightです。Public BrowserはCheck完了前に同じTransactionと正確なBlockのFleet Registry Stateを再取得し、Attestation、Policy、Assignment、判定結果を直接照合します。
 
 図の黄色は非公開情報、青は公開Metadata／制御Flow、破線は信頼境界です。Edge DeviceはRaw DataとDevice
@@ -64,7 +64,7 @@ Backend
 ├ D1：Identity／Session／業務State、Policy Mirror、Daily Job／TX
 ├ Queue＋DLQ：Bounded Proof AdmissionとSponsor処理のReference
 ├ Container：Midnight Proof Server 8.1.0
-├ Sponsor Wallet Container：DUST同期、FeeだけのBalance、送信
+├ Server Wallet Container：管理・Managed Attestation・DUST付与・送信の直列処理
 └ R2：非公開TX Artifact、任意のPublic Report、暗号化Sponsor Checkpoint。Raw Readingは保存しない
 
 Midnight
@@ -82,13 +82,14 @@ Development Deployには`contract_deploy`、Deploy後のDevice管理には`contr
 Proof生成後、現場Transaction AgentまたはUser管理のBrowser Accountが、値移動を含まないTransactionをFeeなしでBindします。認証済み
 Sponsorship Endpointは、そのFinalized Serialized TransactionをProof Jobごとに1回だけ受理し、Integrity
 Addressedな非公開BytesをR2へ保存してJob IDをQueueへ投入します。同一再送は追加Queue投入なしで既存状態を
-返し、異なるBytesは拒否します。専用Sponsor Walletが後からJobとBind済みCallを検証し、DUSTだけを追加して
-送信します。Sponsor SeedはDevice、Operator、Deploymentの各鍵と分離します。暗号化した同期Checkpointと
+返し、異なるBytesは拒否します。統合Server Walletが後からJobとBind済みCallを検証し、DUSTだけを追加して
+送信します。同じ同期済みWallet RuntimeがOperator認可済み管理処理とManaged Attestor TXも直列化しますが、
+Compact認可SecretはWallet Seed、Device Key、Deployment Credentialから分離します。暗号化した同期Checkpointと
 一時的な非公開TX ArtifactはR2へ置けますが、D1／R2へSeedを平文保存しません。Sponsor稼働は運用前提ですが、各DeviceにはNIGHT
 入金、DUST登録、DUST履歴同期が不要です。
 
-Proof ServerとSponsor Walletは、両方を`standard-2`にする場合も別Containerのままとします。Sponsorの
-PID 1は軽量Health Supervisorで、低PriorityのWallet SDK Childが同期中でも、鮮度付きCached Healthを
-即座に返します。これによりProof用資材、Sponsor Seed、Scaling障害を混在させずに運用Healthを応答可能に
-保ちます。1 vCPUのSponsorでWarm Restoreした実測ではCached Wallet Statusが一時`degraded`になりましたが、
-Supervisor Endpointは応答を維持し、Walletが`ready`へ戻るまでQueue処理を保留できました。
+Proof ServerとServer Walletは別Containerのままとします。現行配備は`standard-2` Proof Server 1台と
+`standard-4` Server Wallet 1台で、各最大1 instanceです。Server WalletのPID 1は軽量Health Supervisorで、
+低PriorityのWallet SDK Childが同期中でも、鮮度付きCached Healthを即座に返します。Proof用資材とWallet
+Seedを混在させずに運用Healthを維持し、Warm Restore中に状態が`degraded`になっても、Walletが`ready`へ
+戻るまでQueue処理を保留します。

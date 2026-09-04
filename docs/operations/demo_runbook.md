@@ -99,7 +99,7 @@ curl http://127.0.0.1:8788/health
 
 For a demonstration, set `SENSOR_MODE=synthetic`. Production defaults to `hardware`. Synthetic values originate on the device and follow the same hourly aggregate/anomaly upload path; Cloudflare receives no raw time series.
 
-The Device is never funded. During judging, the dedicated Sponsor Wallet uses the `always-on`
+The Device is never funded. During judging, the Server Wallet uses the `always-on`
 profile and the one-minute Cron keeps synchronization current. Cost-oriented operation can switch
 the same Wallet to the D1-controlled daily 02:00 JST processing start without deploying code or
 changing keys. Wallet-dependent Jobs are accepted continuously and remain durable until their daily
@@ -156,7 +156,7 @@ is:
 
 Lace needs neither tNIGHT nor generated tDUST. It approves and binds the Device transaction with
 `payFees: false`; the authenticated Cloudflare Proof Server creates the sensor-contract proof and the
-dedicated Sponsor Wallet adds DUST and submits. The GUI shows the sponsorship stages and fee evidence.
+Server Wallet's Sponsor role adds DUST and submits. The GUI shows the sponsorship stages and fee evidence.
 
 1. connect Lace and approve the DApp connection in the Wallet;
 2. create an ECDSA P-256 Device Identity in browser-private storage;
@@ -179,8 +179,8 @@ steps are visibly complete, no `ERROR` notice remains, `/api/v1/provisioning/dev
 stops before the Operator path does not satisfy this acceptance check.
 
 Lace provides the Browser Device's registration identity and explicit transaction approval; it is not
-the fee payer. The private Sponsor Wallet Container adds only DUST to the approved Device
-transaction. For browser registration it also executes the fixed Operator-only Device and Assignment
+the fee payer. The private Server Wallet Container's Sponsor role adds only DUST to the approved Device
+transaction. Its separate administrative role executes the fixed Operator-only Device and Assignment
 circuits; the Worker verifies Lace first and does not expose the Operator Authority. Wallet connection,
 registration signature, and Device transaction approval remain explicit user confirmations.
 

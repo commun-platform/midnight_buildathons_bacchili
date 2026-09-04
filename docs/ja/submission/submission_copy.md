@@ -12,7 +12,7 @@ BACCHIRI!━━Verifiable Measurement Layer
 
 ## 短い説明
 
-BACCHIRI!━━Verifiable Measurement Layerは、疑似のUTC 1日分を非公開の時間別最小値・最大値にまとめ、24時間それぞれの「しきい値以内／範囲外／計測なし」を公開します。Wave 1の審査経路では、ユーザーが認可したブラウザクライアントを疑似計測元とし、Midnight取引を認可します。
+BACCHIRI!━━Verifiable Measurement Layerは、疑似の運用日1日分を非公開の時間別最小値・最大値にまとめ、24時間それぞれの「しきい値以内／範囲外／計測なし」を公開します。Wave 1の審査経路では、ユーザーが認可したブラウザクライアントを疑似計測元とし、Midnight取引を認可します。同じProof Modelを、顧客Wallet不要の登録済みCloud APIにも適用できます。
 
 ## 課題
 
@@ -35,22 +35,27 @@ BACCHIRI!━━Verifiable Measurement Layerは、疑似のUTC 1日分を非公�
 
 Wave 1では、審査可能なCore Proof PoCとして、Project単位の証明対象・Policy登録、疑似の日次計測データ、固定24 Slotの非公開Proof Input、Proof Request管理、管理された証明生成、User認可・Service Fee負担のMidnight取引、運用者／第三者の統合審査画面を構築しました。
 
+撮影後のEngineeringとして、Wallet不要の登録済みCloud API経路、統合Server Wallet、Redact済み
+Audit／MetricとDiscord Alertを持つAccess保護済み運用Console、非公開Read-only Support MCP、別Workerの
+公開TX検証MCPを追加しました。これらは現行機能ですが、Partner運用期間での成熟はWave 2の成果です。
+
 リポジトリには、現場側Runtimeの認証、収集、取引、配布、Rollback実装も含まれます。これは次段階に向けたIntegration Evidenceであり、Wave 1では長期間の自律現場運用や本番Role分離まで完了したとは主張しません。
 
-2026-09-02 JSTに現在の作業中ソースを検証した結果:
+実装基準Commit `af90ad8`を2026-09-04 JSTに検証した結果:
 
 - 8つの証明回路がすべてコンパイル成功
 - 496件の自動テストがすべて成功
 - 全構成領域の型検査とビルドが成功
 - Cloudflare配備前検査が成功
 
-2026-08-28 JSTのMidnight事前公開ネットワーク記録には、範囲内と範囲外の両方が含まれます。1日1,440件の測定値を使った範囲外判定の取引は次のとおりです。
+現行8回路Contractは2026-09-03 JSTに配備済みです。Managed APIから1日1,440件を使った範囲外判定は次のとおりです。
 
-- Contract: 8338d5588fe5662fce86ce3c221f0bd5260a14cdbf372c1dddd58be41e5b3c68
-- Transaction: 00e12efda5f33b4804f3659a811d2f5e86c9ce838255a63028d41df85cb0762da9
-- Block: 2,302,213
+- Contract: 48636e2f7ae8b1705134b026ec0d5a910357cac990a60adce2c2672e1a78a732
+- Transaction: [35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532](https://preprod.midnightexplorer.com/transactions/35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532)
+- Block: 2,385,826
+- Result: 公開10–35 °C Policyに対し、観測24時間中2時間が範囲外のOUTSIDE
 
-Source検証と日付付きMidnight事前公開ネットワーク記録は別の証拠です。現行Worker／GUIは2026-09-02 JSTにDeploy済みですが、文書更新だけを目的とした新しいDaily Attestationは作っていません。
+認証済み現場Deviceも、別に[Block 2,385,898](https://preprod.midnightexplorer.com/transactions/7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40)でWITHINを確定しました。2026-09-05に公開Verification MCPから両HashをPublic Midnight Indexerへ問い合わせ、D1／Private Inputなしで現行5 Ledger Checkすべてを再確認しました。Source検証とLive Network Recordは別Evidenceです。詳細は[現行リリース補足](current_release_addendum.md)を参照してください。
 
 ## 正確に何を証明するか
 
@@ -67,10 +72,10 @@ Source検証と日付付きMidnight事前公開ネットワーク記録は別の
 ## 3段階の展開計画
 
 - Wave 1 — Core Proof PoC：疑似計測元、疑似の日次計測データ、一つの審査用統合画面で非公開証明の中核価値を検証します。
-- Wave 2 — Operational Partner Pilot：実際の現場計測システムを接続し、日次運用の自律化、Role・画面分離、本番認証・認可、監査、解析、監視、復旧を実装して、有償パートナー実証を行います。
+- Wave 2 — Operational Partner Pilot：実際の現場計測システムを接続し、日次運用の自律化、組織／Role分離を完成し、実装済み運用・Support基盤をPartner負荷で強化して、有償パートナー実証を行います。
 - Wave 3 — Trust Minimization and PMF：Hardware保護Identityと来歴を追加し、複数組織・複数現場で商用運用して、継続売上、契約更新、利用拡大、持続可能なUnit Economicsを検証します。
 
-現行BrowserはPublic Midnight TX／Contract Stateを独立照合します。製品・事業計画の正本は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)です。Wave 2とWave 3は現行機能ではなく計画です。
+現行Browserと公開MCPはPublic Midnight TX／Contract Stateを独立照合します。製品・事業計画の正本は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)です。一部運用基盤は先行実装済みですが、Wave 2とWave 3の成果目標は計画です。
 
 ## 提出リンク
 
@@ -79,6 +84,7 @@ Source検証と日付付きMidnight事前公開ネットワーク記録は別の
 - 英語スライド: [PPTX](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf)
 - 紹介動画: `bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、提出用公開URLを追加
 - 主張と証拠の対応表: [evidence_matrix.md](evidence_matrix.md)
+- 現行リリース証拠: [current_release_addendum.md](current_release_addendum.md)
 - 審査の入口: [README](../../../README.md)
 
 ## 提出前に必ず確認すること

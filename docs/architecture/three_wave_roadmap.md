@@ -3,7 +3,7 @@
 [日本語版](../ja/architecture/three_wave_roadmap.md)
 
 Status: product roadmap
-Last updated: 2026-08-31 JST
+Last updated: 2026-09-05 JST
 
 This roadmap is intentionally outcome-oriented. Product and business documents describe capabilities,
 trust boundaries, and adoption goals without depending on a particular Wallet product, reference
@@ -46,6 +46,12 @@ Supporting field-runtime, authentication, packaging, and recovery code exists in
 autonomous long-running field operation is not the primary Wave 1 review path and is not claimed as a
 completed production service.
 
+Wave 1 also delivered several foundations ahead of their Wave 2 operational maturity gate: a
+walletless managed-cloud intake path, an Access-protected operations console, redacted audit and
+daily metrics, incident/receipt notifications, a private read-only Support MCP, and a separately
+deployed public transaction-verification MCP. These are implemented and tested capabilities, but
+their existence does not by itself satisfy the Wave 2 partner-operation outcome.
+
 Wave 1 succeeds when a reviewer can reproduce the complete simulated-data proof flow and understand
 exactly what the proof establishes, keeps private, and does not establish.
 
@@ -57,10 +63,10 @@ submission, status reporting, retries, and recovery must continue without routin
 
 The product target includes:
 
-- separate operator, public-verifier, and system-operator interfaces;
+- complete production separation of operator, public-verifier, and system-operator interfaces;
 - organization-, project-, and role-based authentication and authorization;
-- audit trails for administrative and security-sensitive actions;
-- diagnostic logs, processing metrics, health monitoring, and an operations dashboard;
+- validate and extend the implemented audit trail, diagnostics, processing metrics, health
+  monitoring, operations console, notifications, and support automation under partner load;
 - bounded asynchronous processing, idempotent retries, failure recovery, and alerting;
 - lifecycle management for multiple field measurement sources;
 - controlled software update and rollback procedures; and
@@ -72,7 +78,8 @@ operational cost and customer value, validates a viable price, and aims to becom
 remaining a laboratory demonstration.
 
 Wave 2 succeeds when a partner uses autonomously produced daily proofs in a real workflow for an
-agreed evaluation period, with measurable reliability, support effort, and commercial feedback.
+agreed evaluation period, with measurable reliability, support effort, security/tenant isolation,
+and commercial feedback. Source code completion alone does not satisfy this gate.
 
 ## Wave 3 — Trust Minimization and Commercial Readiness
 

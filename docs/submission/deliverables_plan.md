@@ -16,6 +16,7 @@ This is the production brief for the Wave 1 submission. The central message is:
 | Clear README | Top README and detailed guides | Covers project, setup, architecture, Midnight integration, and evaluation |
 | Slide deck | English 16:9 nine-slide pitch synchronized with the final video; Japanese version only if required | Claims, screenshots, and evidence boundaries match the final video |
 | Demo / video pitch | English 2:18 version complete; Japanese version only if required | Concept slides and GUI footage are matched one-to-one with narration |
+| Current release evidence | Current-release addendum and evidence matrix | Deployed Contract, current E2E transactions, validation baseline, and post-video additions are separated from the frozen video story |
 | Wave progress | Dated progress record | Distinguishes pre-existing work from Wave 1 additions |
 | Compiling Compact contract | Technical-gate evidence | sensor-registry compiles with the pinned toolchain |
 | Apache 2.0 Midnight code | License audit | Scope and attribution are explicit |
@@ -27,7 +28,7 @@ Recheck the exact submission time, field limits, upload constraints, and Officia
 
 | Category | Weight | Primary evidence |
 | --- | ---: | --- |
-| Engineering & Implementation | 40% | Proof-circuit compilation, private-input boundary, four-domain architecture, and Midnight preproduction-network transaction |
+| Engineering & Implementation | 40% | Eight-circuit compilation and deployment, private-input boundary, current Managed API and authenticated Device Preprod transactions, and separated public/private MCP boundaries |
 | QA & Reliability | 15% | Tests, tamper rejection, fixed 24-slot input, reproducible runbook |
 | Product & Vision | 15% | Privacy problem, target users, realistic roadmap |
 | UX & Design | 15% | Operator UI, public verifier, clear state and evidence |
@@ -44,6 +45,7 @@ Recheck the exact submission time, field limits, upload constraints, and Officia
 6. Evidence matrix connecting each claim to source, tests, runtime proof, and validation boundary.
 7. Dated Wave 1 progress record.
 8. Technical-gate checklist for compile, tests, license, repository visibility, and topic.
+9. Current-release addendum that records the deployed eight-circuit Contract, current E2E records, public verification recheck, and additions made after the video was frozen.
 
 Supporting artifacts should include a screenshot pack, judge Q&A, one-page brief, and a release snapshot tied to a commit and checksums.
 
@@ -82,13 +84,13 @@ Include one OUTSIDE or tamper-rejection path. Prerecorded fallback captures must
 
 ## Evidence and README
 
-The initial evidence set covers private synthetic inputs, the threshold registered before the selected day, private hourly minimum / maximum values, WITHIN / OUTSIDE, STOPPED hours, authority separation, a proof service that cannot authorize for the user, public-only verification responses, 1,440 readings/day, and proof-circuit compilation. Supporting field-runtime behavior is identified separately from the primary Wave 1 review path. Each row must include date, command, commit SHA, publishable evidence, and validation boundary.
+The evidence set covers private synthetic inputs, the threshold registered before the selected day, private hourly minimum / maximum values, WITHIN / OUTSIDE, STOPPED hours, authority separation, a proof service that cannot authorize for the user, public-only verification responses, 1,440 readings/day, and eight-circuit compilation and deployment. It includes one current Managed API OUTSIDE record and one authenticated Device WITHIN record against the same deployed Contract. Supporting field-runtime behavior is identified separately from the primary Wave 1 review path. Each row must include date, command, commit SHA, publishable evidence, and validation boundary. See the [current-release addendum](current_release_addendum.md) for the evidence added after the video and deck were frozen.
 
 The top README should cover value, problem, exact claim, four-domain architecture, Midnight integration, demo, quick verification, evidence and limitations, repository map, detailed guides, Wave 1 progress, roadmap, license, attribution, and topic.
 
 ## Production and completion
 
-Use the canonical [three-wave product and business roadmap](../architecture/three_wave_roadmap.md). It defines Wave 1 as the Core Proof PoC, Wave 2 as an operational partner pilot with real field measurement systems and production controls, and Wave 3 as trust minimization plus PMF through recurring commercial use.
+Use the canonical [three-wave product and business roadmap](../architecture/three_wave_roadmap.md). It defines Wave 1 as the Core Proof PoC, Wave 2 as an operational partner pilot that hardens the already implemented operations, audit, alerting, and support foundations under real field-system load, and Wave 3 as trust minimization plus PMF through recurring commercial use.
 
 Freeze the evidence inventory and technical gates first. Then finalize submission copy and README, generate language-specific diagrams and screenshots, build the decks, capture the demo, and audit terminology, links, numbers, commits, and language separation.
 

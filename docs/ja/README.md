@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-現行ソースは、8つの証明回路のコンパイル、496件の自動テスト、全構成領域の型検査とビルド、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録、2026-09-03のWallet不要Managed API Attestationを確認しています。これらの日付付きTXは旧配備Contractの証跡であり、互換性のない現行8回路SourceをLive Evidenceとするには再配備が必要です。
+実装基準Commit `af90ad8`は、8つの運用回路のCompile、496件の自動Test、全構成領域のType Check／Build、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。現行8回路Contractは2026-09-03にMidnight Preprodへ配備済みです。Wallet不要のManaged API経路と認証済み現場Device経路の両方が、統合Server Walletを通じて確定済みTXへ到達し、公開Verification MCPからD1やPrivate Inputを使わず再検証できました。以前の日付付きTXは旧Schemaの履歴Evidenceとして分離します。
 
 | 審査成果物 | 文書 |
 | --- | --- |
@@ -18,6 +18,7 @@
 | 日本語Technical Reference | [PPTX](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) — 提出対象は最終英語9枚 |
 | Cloudflare UC別技術補足 | [説明](architecture/cloudflare_use_cases.md)・[PPTX](submission/deck/cloudflare-use-cases-ja.pptx)・[PDF](submission/deck/cloudflare-use-cases-ja.pdf) |
 | 主張と検証証拠 | [証拠対応表](submission/evidence_matrix.md) |
+| 現行リリース補足 | [撮影後の実装・Preprod Evidence](submission/current_release_addendum.md) |
 | Wave進捗 | [Wave 1進捗](submission/wave1_progress.md) |
 | 想定質問 | [審査員向けQ&A](submission/judge_qa.md) |
 | 英語デモ動画 | `bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、提出用公開URL待ち — [録画台本と撮影記録](submission/demo_script.md) |
@@ -47,9 +48,9 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 | [`architecture/`](architecture/) | 製品仕様、4領域の構成、Cloudflare UC別構成、24個の時間枠を使う日次証明 |
 | [`security/`](security/) | 非公開情報の境界、鍵と認証、複数デバイスの管理 |
 | [`operations/`](operations/) | 開発環境、配備・確認手順、デバイス用ソフトウェアの導入・復旧 |
-| [`implementation/`](implementation/) | 仕様と実装の対応、6つの運用ZK回路、将来機能バックログ、DUST送信手数料のスポンサー、ウォレット同期中のトランザクション保留、費用実測、保存先の移行設計 |
+| [`implementation/`](implementation/) | 仕様と実装の対応、8つの運用ZK回路、将来機能バックログ、DUST送信手数料のスポンサー、ウォレット同期中のトランザクション保留、費用実測、保存先の移行設計 |
 
-Wave 2の運用可視化、Wallet同期、処理件数、顧客UCのAPI証跡は[システム運用ダッシュボード仕様](architecture/wave2_system_operations.md)にまとめています。
+実装済みの運用可視化、Wallet同期、処理件数、顧客UCのAPI証跡と、Wave 2で残る運用強化は[システム運用ダッシュボード仕様](architecture/wave2_system_operations.md)にまとめています。
 [MCPのセキュリティ境界](architecture/mcp_security_boundary.md)には、非公開サポートMCPと公開TX検証MCPを別Workerへ分離する構成、認証認可、返却禁止情報、配備順序をまとめています。
 [Sponsor Wallet日次処理](operations/sponsor_wallet_operating_hours.md)には、24時間受付、JST 02:00の締切バッチ、依存順制御、安全な停止、切替コマンドをまとめています。
 
@@ -61,7 +62,7 @@ Wave 2の運用可視化、Wallet同期、処理件数、顧客UCのAPI証跡は
 
 | 第三者に表示する項目 | 何を示すか |
 | --- | --- |
-| 計測日 | `YYYY-MM-DD`。UTCの00:00～24:00に固定します。 |
+| 計測日 | `YYYY-MM-DD`。Projectへ事前登録した固定UTC Offsetと開始時刻から24時間を決めます。 |
 | 時間帯別結果 | UTCの1時間ごとに、しきい値以内／範囲外／計測なしを表示します。 |
 | 適用しきい値 | 下限・上限・単位・スケール・バージョン・有効期間です。 |
 | 証明対象 | `deviceCommitment`。証明としきい値の適用設定を同じ仮名デバイスに結び付けます。 |
@@ -89,7 +90,7 @@ TX hashを貼り付けると、Browserは成功したMidnight TX、そのBlock�
 | 証明処理 | 非公開入力の送信許可から、証明生成、取引結果までを管理する一連の処理です。 |
 | 証明生成サーバー | コントラクト用の証明を生成するCloudflare上のサーバーです。デバイスの署名鍵は持ちません。 |
 | API認証鍵／Midnight取引署名鍵 | 用途が異なる2つの鍵です。前者はCloudflare APIへの認証、後者はデバイスがMidnight取引を承認したことの署名に使います。 |
-| 送信手数料用ウォレット | デバイスが署名済みの取引へ、送信手数料に必要なDUSTだけを追加するバックエンド専用ウォレットです。署名済み内容は変更できません。 |
+| Server Wallet／Sponsor Role | 1つのBackend Midnight Walletが同期状態を共有し、管理・Managed Attestor処理を直列化し、適格なDevice Bind済みTXへDUSTだけを追加します。論理認可Secretは分離します。 |
 | 証明記録 | 公開する判定内容と、それを裏付ける証明・取引をまとめた記録です。別コントラクト`daily-attestation`は費用実験用であり、通常の運用経路ではありません。 |
 
 ## 推奨する読書順
@@ -119,14 +120,14 @@ Wave 2の到達点です。
 | --- | --- | --- |
 | エッジデバイス | センサー収集、生の測定値の保持、24時間分の集計、API認証、Midnight取引への署名 | 生の測定値、時間別の最小値・最大値、証明用入力、署名鍵を内部に保持 |
 | 画面 | User認可済み疑似計測Workflowと第三者Public View | 疑似CaptureをBrowser Private Stateに保持し、第三者ViewへはRedacted Public Evidenceだけを表示 |
-| バックエンド | 認証、API入力検査、処理状態の保存、同時実行数の制限、証明生成 | 証明生成中は非公開入力を扱う信頼対象だが、デバイスの代理署名はできない |
+| バックエンド | 認証、API入力検査、処理状態保存、同時実行数制限、証明生成、管理、Managed Attestation、Fee Sponsorship | 証明生成中は非公開入力を扱う信頼対象。管理、Managed API認可、DUSTだけを付与するSponsorは別の論理Authorityで拘束し、Sponsor RoleはDevice Callを変更・代理認可できない。 |
 | Midnight | しきい値、対象デバイス、コミットメント、確定済み判定の記録 | 第三者が確認する公開記録を保持し、生のセンサー値は保存しない |
 
 詳細な信頼境界とデータの流れは[システム構成](architecture/system_architecture.md)を参照してください。
 
 ## Midnightとの連携
 
-運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の非公開時間枠を検査し、各時間帯の判定と日次の総合結果をMidnightへ記録します。User管理Accountまたは現場Transaction Agentが取引内容を認可し、専用の手数料用ウォレットが送信に必要なDUSTだけを追加します。このウォレットは、認可済み内容を変更できません。
+運用コントラクトは`sensor-registry`で、現在の日次提出処理は`submitDailyAttestation`です。コントラクトは運用前に登録した公開しきい値と対象デバイスを読み込み、24個の非公開時間枠を検査し、各時間帯の判定と日次の総合結果をMidnightへ記録します。User管理Accountまたは現場Transaction AgentはFeeなしCallを認可でき、Managed API Modeは別のManaged Attestor Authorityを使います。統合Server Walletはこれらの処理を直列化し、適格なCallへDUSTだけを追加して送信します。Sponsor RoleはDevice Contract Authority Proofを生成したり、認可済み内容を変更したりできません。
 
 ブラウザには、ユーザー管理のMidnight Accountを使う疑似計測Workflow、運用者向けの処理状況、第三者向けの公開画面があります。TX hashを貼り付けると、確定済みRecordを特定し、Public Midnight Indexerへ直接問い合わせます。同じTX／BlockのContract Ledgerから運用日／登録済み境界、24個の時間帯別結果、適用しきい値／有効期間、Device Commitmentを照合します。Raw Sensor値やPrivate Openingは使いません。Browser内でCompact Proof Verifierを再実行するのではなく、MidnightがTX受理時に検証した公開Stateを確認します。
 
@@ -196,7 +197,10 @@ TMPDIR=/tmp npm run verify
 
 ## 現在の連携状況
 
-- 現場連携の補助Evidenceとして、Service Fee負担経路をMidnight事前公開ネットワークで一連確認済みです。現場API認証、公開しきい値とDevice-bound Assignment、標準1,440件を固定24時間枠へまとめた証明、管理BackendでのProof生成、Feeなし認可、Service Fee負担、Block確定、同一Byte列での冪等復旧、第三者向けRedacted Resultまで確認しました。[Wallet同期中のトランザクション保留](implementation/fee_sponsorship.md#現在の連携境界)と[費用実測](implementation/cost_benchmark.md#標準1440件preprod-e2ecost実測)に記録しています。
+- 現行8回路ContractはPreprodで稼働しています。登録済みCloud APIと認証済み現場Deviceから、それぞれ1,440件の1日分を統合Server Wallet経由で送信し、2026-09-05に両方のTX hashを公開Verification MCPで再確認しました。詳細は[現行リリース証拠](submission/current_release_addendum.md)を参照してください。
+- Wallet不要のManaged API Modeは、完了済みの固定運用日を取得・検査して24個のPrivate Slotへ集約し、同じProof／公開検証モデルを再利用します。上流API値の物理的真正性は主張しません。
+- Access保護された運用Console、Redact済み顧客操作Audit、日次Metric、日本語Discord障害／Receipt、非公開Support MCPは実装済みの基盤です。Wave 2ではPartner運用期間の検証、組織／Role分離、監査付き復旧操作、長期安定運用を完成させます。
+- 公開Verification MCPは運用DBやRuntime Bindingを持たず、TX hash検証Toolを1つだけ公開します。結果はD1ではなくPublic Midnight Indexerから取得します。
 - 日次提出には運用担当者の操作が必要です。`device:submit`は証明処理を要求して状態を確認しますが、デバイス用ウォレットは常時自動送信する仕組みではありません。
 - 24件、96件、1,440件の入力で同じ固定形状の回路を使えること、時刻情報への署名、外れ値理由を追記保存する仕組みは開発用実験として実装済みです。
 - ブラウザはPublic Midnight Indexerへ直接問い合わせ、同じTX／BlockのContract StateからCommitment、Result、Policy、Device-bound Assignmentを照合します。Browser内でZK Verifierを再実行したりWitnessを開示したりはしません。
@@ -208,14 +212,14 @@ TMPDIR=/tmp npm run verify
 ![3 Wave製品・事業ロードマップ](assets/review/three-wave-roadmap-ja.png)
 
 - Wave 1 — Core Proof PoC：疑似計測元と審査用統合画面で、非公開証明の中核価値を検証します。
-- Wave 2 — Operational Partner Pilot：実際の現場計測システムを接続して日次処理を自律化し、画面と役割の分離、本番認証・認可、監査、解析、監視、復旧、運用ダッシュボードを実装します。
+- Wave 2 — Operational Partner Pilot：実際の現場計測システムを接続して日次処理を自律化し、組織／Roleを分離し、実装済みの監査、解析、監視、Alert、Support MCP、復旧、運用Console基盤を有償Partner Pilotで強化します。
 - Wave 3 — Trust Minimization and PMF：ハードウェア保護Identityと来歴を導入し、複数組織・複数現場で商用運用して、継続売上、契約更新、利用拡大、持続可能なUnit Economicsを検証します。
 
-Wave 2とWave 3は現行機能ではなく計画です。製品・提出資料はCapabilityで表現し、具体的な製品、Infrastructure Service、Algorithm、参照Hardwareは、再現に必要な実装・運用文書だけに記載します。
+一部の運用基盤は先行実装済みですが、Wave 2とWave 3の成果目標は計画段階です。製品・提出資料はCapabilityで表現し、具体的な製品、Infrastructure Service、Algorithm、参照Hardwareは、再現に必要な実装・運用文書だけに記載します。
 
 ## 秘密情報の管理境界
 
-開発用ウォレットはGit管理外の`tools/midnight-operator/.env.development`だけを復旧元とし、暗号化したオフラインバックアップを保持します。デバイス用ウォレットは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。導入後の運用設定は`config/device.env`で、準備用の`edge-device/release/.env.device`は削除され、復旧用単語列や秘密鍵の種は含みません。エッジデバイスへ渡すのはコンパイル済みの実行物だけで、Compactのソースや鍵生成ツールは渡しません。ブラウザ向けAPIにも秘密値を公開しません。
+開発用ウォレットはGit管理外の`tools/midnight-operator/.env.development`だけを復旧元とし、暗号化したオフラインバックアップを保持します。デバイス用ウォレットは`~/.midnight/midnight-cloudflare-demo/device-wallet/`だけに置きます。統合Server Walletは配備Secretと暗号化同期Checkpointを使い、管理、Managed Attestor、Device／Sponsor境界は別々のCompact認可Secretで維持します。復旧元をD1、R2平文、Worker Source、Device Firmwareへ保存しません。導入後の運用設定は`config/device.env`で、準備用の`edge-device/release/.env.device`は削除され、復旧用単語列や秘密鍵の種は含みません。エッジデバイスへ渡すのはコンパイル済みの実行物だけで、Compactのソースや鍵生成ツールは渡しません。ブラウザ向けAPIにも秘密値を公開しません。
 
 詳細は[`system_architecture.md`](architecture/system_architecture.md)、[`private_spec.md`](security/private_spec.md)、[`demo_runbook.md`](operations/demo_runbook.md)を参照してください。
 

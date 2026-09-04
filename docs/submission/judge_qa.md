@@ -35,6 +35,10 @@ In the Wave 1 review path, the browser-based simulated measurement source create
 
 No. The managed backend generates the proof but does not hold the user's transaction authority. The user-controlled account authorizes the exact call, while a separate service pays only the submission fee.
 
+Managed API mode is a different trust model: the customer registers a cloud source, and the service
+uses a separate managed-attestor authority for that source. It never impersonates a user or Device,
+and the proof states only what follows from values received by the trusted service.
+
 ## Why normalize one day into 24 hourly slots?
 
 It keeps the proof input format unchanged whether readings arrive hourly, every minute, or every second. Raw readings are reduced to the minimum and maximum for each hour, and the 24 hourly slots are proved in one fixed format. This does not prove that the aggregation itself was correct.
@@ -45,7 +49,7 @@ Each UTC hour is published as WITHIN, OUTSIDE, or NO DATA. The hourly extrema re
 
 ## What has been verified so far?
 
-For the current source on 2026-09-04, all 8 proof circuits compiled, 496 automated tests passed, and the type checks, builds, API SCT, 22-checkpoint GUI SCT, and Cloudflare pre-deployment check succeeded. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records, the 2026-08-30 Sponsor-funded schema-5 record, the 2026-09-02 missing-hour, stopped-day, and OUTSIDE conformance records, and the 2026-09-03 walletless Managed API Attestation. Those transactions remain evidence for the prior deployed contract; the incompatible eight-circuit source requires a fresh deployment and E2E record.
+Implementation baseline `af90ad8` compiled all 8 circuits, passed 496 automated tests, all type checks/builds, API SCT, the 22-checkpoint GUI SCT, Wrangler dry-runs, and portability checks. The current eight-circuit Contract was deployed on 2026-09-03. A 1,440-record Managed API day confirmed OUTSIDE in block 2,385,826 and an authenticated 1,440-reading Device day confirmed WITHIN in block 2,385,898. On 2026-09-05, the public Verification MCP resolved both hashes from the Midnight Indexer and completed all five current ledger checks without D1 or private input.
 
 ## Can the third-party view verify independently?
 
@@ -53,7 +57,18 @@ Yes for the public chain evidence. Without a Wallet, private input, or D1 lookup
 
 ## Who holds which keys?
 
-User transaction authority, field API identity, administrative authority, service fee authority, and deployment authority are separated. The managed backend that generates the proof does not hold the user's transaction authority.
+User transaction authority, field API identity, Operator and managed-attestor Compact authorities,
+Wallet fee authority, and deployment authority are logically separated. One consolidated Server
+Wallet runtime serializes Backend Wallet mutations to avoid repeated synchronization cost, but its
+Compact authorization secrets remain independent. The proving service does not hold a user's or
+Device's transaction authority.
+
+## How can support inspect the system without exposing operations publicly?
+
+An Access-protected Support MCP Worker exposes six read-only tools over redacted D1 observations.
+The public Verification MCP is a different Worker with no operational storage/runtime bindings and
+only one transaction-hash verification tool. Public access therefore cannot discover Wallet status,
+jobs, audit events, source configuration, or support tools.
 
 ## Can it scale to many Devices?
 

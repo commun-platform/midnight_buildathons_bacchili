@@ -151,7 +151,8 @@ Cloudflare
 ├ D1: registries, Session hashes, summaries, events, policies mirror, jobs/TX status
 ├ Queue/DLQ: proof admission references and retries
 ├ Proof Server Container: proof generation
-├ Sponsor Wallet Container: DUST synchronization, fee-only balancing, and TX submission
+├ Server Wallet Container: serialized administration, managed attestation, DUST synchronization,
+│ and fee-only submission under separate logical authorities
 └ R2: optional public artifacts/reports; never permanent raw readings
 
 Midnight
@@ -183,7 +184,7 @@ the official Wallet SDK adds the Sponsor's DUST fee. Device commitment, assignme
 result, and the commitment to private hourly extrema remain constrained by the contract proof rather
 than being accepted as untrusted Sponsor request metadata.
 
-Before invoking the Sponsor Wallet Container, the Worker atomically reserves one JST-day sponsorship
+Before invoking the sponsorship role in the Server Wallet Container, the Worker atomically reserves one JST-day sponsorship
 slot in D1 for the authenticated `deviceId` and `proofJobId`. The default limit is five distinct Proof
 Jobs per Device per JST day. An Operator-provisioned review Device receives 20 so a reviewer can repeat
 the complete workflow. The `proofJobId` is unique in the reservation table, so retries of the same Job
@@ -204,9 +205,11 @@ mutations remain serialized.
 | Edge Device | Authenticated Cloudflare Proof Server Container | Edge Wallet Agent, no fee | Sponsor Wallet | Sponsor Wallet to Midnight |
 | Browser review client with a user-controlled Wallet | Authenticated Cloudflare Proof Server Container | Wallet with `payFees: false` | Sponsor Wallet | Sponsor Wallet to Midnight |
 
-The Proof Server Container only generates proofs and holds no Midnight wallet key. The separate
-Sponsor Wallet Container holds only sponsorship key material; it receives no Device Identity,
-Device Contract Authority, private extrema, nonce, or Compact private state. The Edge Device needs no
+The Proof Server Container only generates proofs and holds no Midnight wallet key. The consolidated
+Server Wallet Container holds the Wallet seed and separate administrative and managed-attestor
+authorization secrets, but it receives no Device Identity, Device Contract Authority, private
+extrema, nonce, or Device Compact private state. Its sponsorship role can only fund an eligible bound
+call. The Edge Device needs no
 local Proof Server and no NIGHT funding, DUST registration, DUST balance, DUST history scan, or DUST
 proof. Starting operation therefore has no per-Device DUST-generation delay. It still requires an
 active Device registration and assignment, public operation configuration, Proof Job admission,
@@ -216,7 +219,7 @@ current contract-state lookup, proof generation, and Sponsor capacity.
 > dependencies, and compiled Compact prover/verifier artifacts only. They must not contain the
 > Sponsor seed, Operator Authority secret, `.env`, `.dev.vars`, wallet checkpoints, or wallet state.
 > In production, the Worker reads `SPONSOR_WALLET_SEED` and `OPERATOR_AUTHORITY_SECRET` from
-> Cloudflare Secret bindings and injects them into the private Sponsor Wallet Container environment
+> Cloudflare Secret bindings and injects them into the private Server Wallet Container environment
 > when the Container starts; the Container does not read the Cloudflare secret store directly. Local
 > development may use ignored `.dev.vars` values as the environment source, but those files must
 > never be committed or included in a Container image.
@@ -248,7 +251,7 @@ whose NIGHT is already registered may continue when it has a spendable DUST coin
 registration. No queued transaction is balanced or submitted until spendable DUST exists. Health output includes
 connection, completion, and replay-position state for all three wallets.
 
-The Sponsor Container runs a lightweight Health Supervisor as PID 1 and the official Wallet SDK in a
+The Server Wallet Container runs a lightweight Health Supervisor as PID 1 and the official Wallet SDK in a
 separate lower-priority child process. `/health` returns the last successful Wallet snapshot and its
 freshness without waiting for the CPU-intensive replay event loop. A stale, degraded, or exited child
 is diagnostic-only and cannot sponsor a transaction. This is process and scheduler isolation, not a
@@ -268,13 +271,16 @@ Session store.
 | Device Identity | Edge Device | P-256 Cloudflare challenge signatures only |
 | Device Contract Authority | Edge Device | `submitDailyAttestation` only |
 | Device transaction identity | Edge Device | Value-neutral transaction public keys and binding only; no fee authority |
-| Sponsor Wallet | Sponsor Wallet Container | DUST-only balancing and submission under Proof Job policy |
-| Operator Authority | Development host | Device lifecycle and policy/assignment administration |
+| Server Wallet seed | Server Wallet Container | Wallet synchronization and serialized transaction submission |
+| Sponsor role | Server Wallet Container | DUST-only balancing and submission under Proof Job policy |
+| Operator Authority | Development host and Server Wallet secret boundary | Device lifecycle and policy/assignment administration only |
+| Managed Attestor Authority | Server Wallet secret boundary | Registered Managed API attestation only |
 | Deployment wallet | Development host | Contract deployment and development administration |
 
 No private key is shared between development and device hosts. The development host has no Device
-Identity private key. The Sponsor Wallet is distinct from the Device transaction identity, Operator
-Authority, and deployment wallet. Rotating one key domain must not silently rotate another.
+Identity private key. Consolidating Wallet synchronization does not merge the Device transaction
+identity, Operator Authority, Managed Attestor Authority, sponsorship policy, or deployment wallet.
+Rotating one key domain must not silently rotate another.
 
 Deployment does not use a Device Session. Authenticated Wrangler access creates a random 30-minute
 `contract_deploy` Operator Proof Lease, stores only its SHA-256 hash in D1, shares the one-Container
@@ -651,8 +657,9 @@ Wave 1 is accepted when the review-oriented PoC demonstrates that:
   but no hourly extrema or nonce; and
 - measured cost/version records are added to the benchmark documentation.
 
-Wave 2 adds autonomous field operation, production role separation, authentication and authorization,
-audit and diagnostic logs, monitoring, recovery, and a system-operations dashboard. Wave 3 adds
+Wave 2 adds autonomous field operation and production role separation, then hardens the implemented
+authentication, audit, diagnostic, monitoring, alerting, support, recovery, and system-operations
+foundations under partner-pilot load. Wave 3 adds
 hardware-protected identity, execution and calibration provenance, commercial multi-organization
 operation, and PMF validation. The canonical plan is
 [`three_wave_roadmap.md`](three_wave_roadmap.md).

@@ -6,11 +6,15 @@
 スポンサー経路を説明します。「ガス代のスポンサー」は一般的な呼び方であり、この経路でMidnightの
 送信手数料として使うのは**DUST**です。
 
-> 連携状況 — 2026-08-30 JST：現行作業ツリーには、バックエンドでの非同期受付、非公開R2での保留、
+> 過去のDevice経路確認 — 2026-08-30 JST：当時のRevisionには、バックエンドでの非同期受付、非公開R2での保留、
 > Sponsor Queue、ウォレット準備完了の判定、DUSTだけを追加する規則、エッジデバイス上の所有者限定
 > 保留ファイル、デバイス側の`202`受付・状態確認・同一バイト列による再開処理があります。1,440件の
 > 日次証明をスポンサー負担でPreprodへ送信・確定し、同一バイト列による復旧でもProof生成、Sponsor試行、
 > 利用枠予約が増えないことを確認しました。確定後に全保留データを自動削除する処理は未完成です。
+
+2026-09-05時点の現行BaselineはWallet同期をServer Wallet Runtimeへ統合していますが、Sponsor Policyと
+Device Authorityは分離したままです。現行Contractを使う認証済みDevice TXとManaged API TXは、
+[現行Release追補](../submission/current_release_addendum.md)に記録しています。
 
 ## 目的
 
@@ -34,7 +38,7 @@
 | P-256デバイス認証鍵 | エッジデバイス | デバイス用セッションを発行するチャレンジ認証に使用 | Midnightコントラクトの承認、スポンサー資金の使用 |
 | デバイス用セッション | エッジデバイス | `transaction:submit`権限を持つAPI呼び出しに使用 | デバイスの取引署名鍵やスポンサーの復旧元を代替 |
 | デバイスの取引署名鍵／コントラクト権限 | エッジデバイス | 手数料を付けず、証明済み`submitDailyAttestation`の内容を承認・固定 | スポンサーのDUST使用、デバイス台帳の管理 |
-| 送信手数料用ウォレットの復旧元 | Cloudflareの秘密情報 | ウォレット状態を同期し、適格なトランザクションのDUSTを負担 | デバイスのコントラクト権限証明の生成、承認済み処理内容の変更 |
+| Server Walletの復旧元 | Cloudflareの秘密情報 | Wallet Runtimeを同期し、Sponsor Roleが適格なトランザクションのDUSTを負担 | デバイスのコントラクト権限証明の生成、承認済み処理内容の変更 |
 | 運用管理者権限 | 運用管理者の管理領域 | この処理より前にデバイス、しきい値、対象デバイスへの設定を登録 | 通常の手数料スポンサー処理への参加 |
 
 送信手数料用ウォレットの復旧元は、エッジデバイス、D1、Queue、ブラウザ、ログへ送りません。デバイスの
@@ -49,7 +53,7 @@ sequenceDiagram
     participant W as Worker API / D1
     participant R as 非公開R2
     participant Q as Sponsor Queue
-    participant S as 送信手数料用Wallet Container
+    participant S as Server Wallet / Sponsor Role
     participant M as Midnight
 
     E->>E: 証明を生成し、手数料なしのデバイストランザクションを確定

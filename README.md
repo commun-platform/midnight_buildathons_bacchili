@@ -10,7 +10,7 @@
 
 ## Judge review
 
-The current review tree compiles all 8 operational proof circuits and passes 496 automated tests, every configured type check and build, the API SCT, the 22-checkpoint GUI SCT, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records, the 2026-08-30 Sponsor-funded schema-5 record, the 2026-09-02 missing-hour, stopped-day, and OUTSIDE conformance records, and the 2026-09-03 walletless Managed API Attestation. Those dated transactions use the prior deployed contract; the incompatible eight-circuit source requires a fresh deployment before it can be claimed as live evidence.
+The implementation baseline `af90ad8` compiles all 8 operational proof circuits and passes 496 automated tests, every configured type check and build, the API SCT, the 22-checkpoint GUI SCT, and the Cloudflare pre-deployment check. The current eight-circuit Contract was deployed to Midnight Preprod on 2026-09-03. A walletless Managed API day and an authenticated field-Device day each reached confirmed state through the consolidated Server Wallet, and the public Verification MCP independently resolved both transaction hashes without D1 or private inputs. Earlier dated transactions remain historical evidence for prior schemas and are not mixed with the current Contract claim.
 
 | Review artifact | Link |
 | --- | --- |
@@ -18,6 +18,7 @@ The current review tree compiles all 8 operational proof circuits and passes 496
 | Editable slide deck | [English PPTX](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) — 9 slides synchronized with the 2:18 pitch |
 | Review slide deck | [English PDF](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) — 9 pages synchronized with the 2:18 pitch |
 | Claim-to-evidence map | [Evidence matrix](docs/submission/evidence_matrix.md) |
+| Current release supplement | [Post-capture implementation and Preprod evidence](docs/submission/current_release_addendum.md) |
 | Wave progress | [Wave 1 progress](docs/submission/wave1_progress.md) |
 | Judge questions | [Judge Q&A](docs/submission/judge_qa.md) |
 | English demo pitch | Produced as `bacchiri-demo-pitch-en.mp4` (2:18); public submission URL pending — [script and capture record](docs/submission/demo_script.md) |
@@ -39,7 +40,9 @@ The central idea is to prove whether submitted hourly minimum and maximum values
 
 For review, start with the [exact proof claim and non-claims](docs/architecture/wave1_spec.md#3-exact-proof-claim-and-non-claims), continue with the [system architecture](docs/architecture/system_architecture.md), and finish with the [deployment and review runbook](docs/operations/demo_runbook.md).
 
-The documentation is organized by purpose. Submission copy, English / Japanese decks, evidence, Wave 1 progress, pre-submission checks, Q&A, and the final-GUI recording script are collected under [`docs/submission/`](docs/submission/).
+The documentation is organized by purpose. Submission copy, English / Japanese decks, evidence, the
+current-release addendum, Wave 1 progress, pre-submission checks, Q&A, and the final-GUI recording
+script are collected under [`docs/submission/`](docs/submission/).
 
 | Category | Contents |
 | --- | --- |
@@ -92,7 +95,7 @@ not require D1, a Wallet, or private proof input.
 | Proof Job | The D1 workflow record that controls when a device may send private proof input and tracks the resulting transactions. |
 | Proof Server | The Cloudflare Container that generates the contract proof. It holds no wallet key. |
 | Device Identity / Device transaction identity | Separate keys: P-256 authenticates Cloudflare API calls; the transaction identity binds the Device-authorized transaction without paying fees. |
-| Sponsor Wallet | A dedicated Backend Midnight wallet that synchronizes DUST, adds only the fee to an already Device-bound transaction, and submits it. |
+| Server Wallet / sponsorship role | The consolidated Backend Midnight Wallet synchronizes once, serializes administrative and managed-attestor mutations, and adds only DUST to eligible Device-bound transactions. Its logical authorization secrets remain separate. |
 | Attestation | The public claim and evidence lifecycle. The separate `daily-attestation` contracts are development-only cost experiments, not the operational path. |
 
 ## Recommended reading order
@@ -116,21 +119,21 @@ not require D1, a Wallet, or private proof input.
 
 This figure includes the supporting field-runtime boundary. The primary Wave 1 review path uses the
 Frontend as a simulated measurement source, then the trusted Backend and Midnight. Autonomous field
-operation and production separation of operator, verifier, and system-operator applications are Wave
-2 outcomes.
+operation and production separation of operator, verifier, and system-operator applications remain
+Wave 2 outcomes.
 
 | Zone | Primary responsibility | Explicit boundary |
 | --- | --- | --- |
 | Edge Device | Sensor collection, local raw retention, private 24-hour aggregation, Device authentication, proof authorization, and transaction signing | Raw readings, hourly minimum / maximum values, proof input, and Device keys stay at the edge |
 | Frontend | User-authorized simulated measurement workflow and public third-party view | Keeps the simulated capture in browser-private state and exposes only redacted public evidence to the third-party view |
-| Backend | Authentication, API validation, D1 workflow state, bounded admission, proof generation, and fee sponsorship | Trusted for proving requests in transit; the Sponsor can add DUST but cannot alter or authorize the bound Device call |
+| Backend | Authentication, API validation, D1 workflow state, bounded admission, proof generation, administration, managed attestation, and fee sponsorship | Trusted for proving requests in transit. Separate logical authorities constrain administration, Managed API authorization, and DUST-only sponsorship; the Sponsor role cannot alter or authorize a bound Device call. |
 | Midnight | Public threshold, target Device, commitment, and confirmed result | Holds the public record a third party checks; does not store raw sensor readings |
 
 The detailed trust and data-flow model is in [System Architecture](docs/architecture/system_architecture.md).
 
 ## Midnight integration
 
-The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the 24 verified hourly results plus a daily summary on Midnight. A user-controlled account or field transaction agent authorizes and binds the contract call without fees; the dedicated Sponsor Wallet adds only DUST and submits it. The Sponsor cannot produce the Device Contract Authority proof or alter the bound call.
+The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the 24 verified hourly results plus a daily summary on Midnight. A user-controlled account or field transaction agent can authorize and bind the call without fees; Managed API mode derives a separate managed-attestor authority. The consolidated Server Wallet serializes those roles, adds DUST only to an eligible call, and submits it. The sponsorship role cannot produce a Device Contract Authority proof or alter the bound call.
 
 The browser includes a guided, user-authorized simulated measurement workflow, operator evidence, and the third-party public view. After a transaction hash is pasted, the public view locates the confirmed record and compares the UTC date, 24 hourly results, applied policy/validity, Device Commitment, transaction, block, and Contract Ledger state directly with the public Midnight Indexer. It does not rerun the Compact proof verifier locally; Midnight performed that verification when accepting the transaction.
 
@@ -200,10 +203,13 @@ The expected review result is 8 compiled operational proof circuits, 496 passing
 
 ## Current integration status
 
-- As supporting field-integration evidence, the Sponsor-funded path is verified end to end on the Midnight preproduction network: field API authentication, public threshold and Device-bound assignment, a standard 1,440-reading day reduced to one fixed 24-slot proof, managed proof generation, fee-free authorization, service-funded submission, block confirmation, idempotent same-byte recovery, and the redacted third-party result. See the [transaction hold during Wallet synchronization](docs/implementation/fee_sponsorship.md#current-integration-boundary) and [cost evidence](docs/implementation/cost_benchmark.md#standard-1440-reading-preprod-e2e-and-cost-measurement). The 24- and 96-reading runs confirm only that the proof input shape remains fixed.
+- The current eight-circuit Contract is live on Preprod. A registered cloud API and an authenticated field Device each submitted a 1,440-reading day through the consolidated Server Wallet; both transaction hashes were rechecked through the public Verification MCP on 2026-09-05. See the [current release evidence](docs/submission/current_release_addendum.md).
+- The walletless Managed API mode fetches a fixed completed operational day, validates and reduces it to 24 private slots, then reuses the same proof and public-verification model. It does not claim that the upstream API values are physically authentic.
+- The Access-protected operations console, redacted customer-operation audit trail, daily metrics, Japanese Discord incidents/receipts, and private Support MCP are implemented foundations. Wave 2 still owns partner-period validation, production role/tenant isolation, audited recovery controls, and long-running operational maturity.
+- The public Verification MCP has no operational database or runtime binding and exposes one TX-hash verification tool. Its decoded result comes from the public Midnight Indexer, not D1.
 - Operator action remains explicit: `device:submit` requests and polls its Proof Job, but the Wallet Agent is not a continuously running submission daemon.
 - Implemented as development-only experiments: fixed 24/96/1,440-sample daily circuits, signed hourly evidence, and append-only outlier-reason hashes.
-- The third-party view presents public D1 workflow information and Midnight identifiers; it does not independently execute the zero-knowledge-proof verifier in the browser.
+- The third-party view and public MCP compare confirmed Midnight transaction and Contract state without D1 or private inputs. They do not independently execute the zero-knowledge-proof verifier; Midnight performed proof verification when it accepted the transaction.
 
 ## Three-wave delivery path
 
@@ -212,14 +218,14 @@ The canonical [product and business roadmap](docs/architecture/three_wave_roadma
 ![Three-wave product and business roadmap](docs/assets/review/three-wave-roadmap-en.png)
 
 - Wave 1 — Core Proof PoC: validate the privacy value with a simulated measurement source and one review-oriented interface.
-- Wave 2 — Operational Partner Pilot: connect real field measurement systems, automate the daily lifecycle, separate user roles and interfaces, and add production authorization, audit, diagnostics, monitoring, recovery, and a system-operations dashboard.
+- Wave 2 — Operational Partner Pilot: connect real field measurement systems, automate the daily lifecycle, separate organizations and roles, and harden the implemented audit, diagnostics, monitoring, alerting, support-MCP, recovery, and system-operations foundations through a paid partner pilot.
 - Wave 3 — Trust Minimization and PMF: add hardware-protected identity and provenance, operate commercially across organizations and sites, and validate recurring revenue, renewal, expansion, and sustainable unit economics.
 
-Wave 2 and Wave 3 are plans, not current capabilities. Product and submission documents use capability terms; specific products, infrastructure services, algorithms, and reference hardware appear only in reproducible implementation and operating guidance.
+Wave 2 and Wave 3 outcomes remain planned even though several operational foundations were implemented early. Product and submission documents use capability terms; specific products, infrastructure services, algorithms, and reference hardware appear only in reproducible implementation and operating guidance.
 
 ## Security boundary
 
-The development wallet exists only in the ignored `tools/midnight-operator/.env.development`; its encrypted/offline backup is the recovery copy. Independent Device transaction identity and Compact private state exist only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. The dedicated Sponsor Wallet uses a separate deployment secret and encrypted synchronization checkpoint; its recovery source is never stored in D1, R2 plaintext, Worker source, or Device firmware. Installed operational configuration is `config/device.env`; staged `edge-device/release/.env.device` is removed after installation and never contains a mnemonic or seed. The Edge Device receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
+The development wallet exists only in the ignored `tools/midnight-operator/.env.development`; its encrypted/offline backup is the recovery copy. Independent Device transaction identity and Compact private state exist only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. The consolidated Server Wallet uses a deployment secret and encrypted synchronization checkpoint; separate Compact authorization secrets preserve the administrative, managed-attestor, and Device/sponsorship boundaries. Recovery sources are never stored in D1, R2 plaintext, Worker source, or Device firmware. Installed operational configuration is `config/device.env`; staged `edge-device/release/.env.device` is removed after installation and never contains a mnemonic or seed. The Edge Device receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
 
 See [system architecture](docs/architecture/system_architecture.md), [private-state specification](docs/security/private_spec.md), [Sponsor Wallet daily processing](docs/operations/sponsor_wallet_operating_hours.md), and the [deployment runbook](docs/operations/demo_runbook.md).
 

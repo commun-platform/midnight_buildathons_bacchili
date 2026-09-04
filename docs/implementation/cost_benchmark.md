@@ -21,15 +21,17 @@ sample count; they are not separate cost profiles.
 The standard path keeps all 1,440 Raw values on the Device. For each hour it derives one private
 minimum and maximum, producing the same fixed 24-slot input every day. It then sends one
 `submitDailyAttestation` transaction. The Device cannot submit threshold bounds; the circuit uses the
-public Policy registered on Midnight. The schema-5 Fleet Registry Contract, Device, Policy, and
-Device-bound Assignment are deployed on Preprod, and the installed Edge Device completed this full
+public Policy registered on Midnight. In the historical schema-5 baseline, the Fleet Registry
+Contract, Device, Policy, and Device-bound Assignment were deployed on Preprod, and the installed Edge Device completed this full
 1,440-reading path through P-256 authentication, D1 admission, the Cloudflare Proof Server,
 Device-Wallet authorization, Sponsor Wallet fee payment, and Midnight confirmation.
 
-The current implementation binds the Device/Lace transaction without fees and uses the dedicated
-Sponsor Wallet for DUST and submission. The 2026-08-30 JST run below records the Device serialized
+The current implementation binds the Device/browser transaction without fees and uses the
+consolidated Server Wallet's Sponsor role for DUST and submission. The 2026-08-30 JST run below records the Device serialized
 bytes/SHA-256, Sponsor final bytes/hash, sponsorship latency, Sponsor DUST fee, confirmation, and
-exact component versions. The earlier self-funded run remains historical comparison evidence.
+exact component versions. The earlier self-funded run remains historical comparison evidence. The
+current eight-circuit deployment and 2026-09-05 verification recheck are listed in the
+[current-release addendum](../submission/current_release_addendum.md).
 
 The Daily profile is a separate experimental circuit that unrolls work for every reading. It is not shipped to the Edge Device and must not be used as the customer-path cost without an explicit architecture change.
 
@@ -67,6 +69,11 @@ Measured on 2026-08-29 JST from the uncommitted Sponsor Wallet migration working
 `b68a3b7ec662a7f00a6e7beebf3b66f8a68a8fc5`, using Node.js `22.15.0`, npm `10.9.2`,
 TypeScript `6.0.3`, Wrangler `4.127.0`, Docker Engine `29.2.0`, Wallet SDK `1.2.0`,
 Midnight.js `4.1.1`, DApp Connector API `4.0.1`, and Proof Server `8.1.0`.
+
+This table is an append-only sequence of point-in-time setup measurements. Counts such as 182 and
+287 belong to different historical revisions and are not competing totals. The current submission
+gate is 496 / 496 tests on implementation baseline `af90ad8`, as recorded in the
+[current-release addendum](../submission/current_release_addendum.md).
 
 | Command / operation | Result | Wall | User | System | CPU | Maximum RSS |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -129,7 +136,7 @@ unshielded progress must be strictly complete, while actual DUST readiness still
 DUST coin. This avoids an infinite initialization wait without allowing a fee transaction before DUST
 is usable.
 
-### Current Fleet Registry fixed 24-slot build baseline
+### Schema-3 Fleet Registry fixed 24-slot build baseline
 
 Measured on 2026-08-28 at approximately 22:36-22:38 JST using Node.js `22.15.0`, npm `10.9.2`,
 Compact CLI `0.5.2`, toolchain `0.31.1`, language `0.23`, runtime `0.16.0`, and Wrangler

@@ -1,6 +1,10 @@
-# Wave 2 System Operations Console
+# System Operations Console and Wave 2 Hardening
 
 [日本語版](../ja/architecture/wave2_system_operations.md)
+
+Status: the read-only console, audit trail, metrics, Discord notifications/receipts, and private
+Support MCP are implemented. Wave 2 completes production role/tenant isolation, validates thresholds
+under partner load, and adds audited recovery controls and longer-term log retention where required.
 
 ## 1. Purpose
 

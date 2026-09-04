@@ -275,9 +275,8 @@ explicit migration procedure; a normal Worker deployment leaves existing Worker 
 
 ## 13. Preprod acceptance evidence
 
-This section is historical evidence for the six-circuit contract and Worker deployed at the time.
-The current incompatible eight-circuit source and separated Wallet runtimes require a new deployment
-and E2E record before they are described as live.
+This section preserves the first six-circuit acceptance run and then records the current eight-circuit
+deployment. Historical and current transactions remain separate evidence.
 
 The complete Managed API path was exercised on 2026-09-03 JST with Compact toolchain `0.31.1`,
 Proof Server `8.1.0`, Wallet SDK `1.2.0`, Midnight.js `4.1.1`, Wrangler `4.127.0`, and Gateway
@@ -324,3 +323,18 @@ The autonomous Run's Proof Job is
 the sponsored fee was 704,620,000,000,001 specks, and the transaction size was 9,371 bytes. The
 TX-hash-only verifier again completed all four ledger checks; its resource trace contacted the
 public Preprod Indexer and no D1 API.
+
+### 13.1 Current eight-circuit acceptance
+
+The eight-circuit Contract was deployed on 2026-09-03 JST at
+`48636e2f7ae8b1705134b026ec0d5a910357cac990a60adce2c2672e1a78a732` in deployment transaction
+[`00ea92883cba9ff8b753a3308d6d2127ac3f81c2643f09840a449588197a32cbdf`](https://preprod.midnightexplorer.com/transactions/00ea92883cba9ff8b753a3308d6d2127ac3f81c2643f09840a449588197a32cbdf).
+The consolidated `midnight-server-wallet` then completed two 1,440-reading paths:
+
+- Managed API TX [`35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532`](https://preprod.midnightexplorer.com/transactions/35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532), block 2,385,826, published OUTSIDE with 24 observed hours and two outside slots.
+- Authenticated Device TX [`7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40`](https://preprod.midnightexplorer.com/transactions/7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40), block 2,385,898, published WITHIN with 24 observed hours.
+
+On 2026-09-05 JST, the separately deployed public Verification MCP resolved both hashes from the
+public Preprod Indexer and completed all five current ledger checks without D1 or private inputs.
+Implementation baseline `af90ad8` compiled all 8 circuits and passed all 496 automated tests, type
+checks, builds, API/GUI SCT, Wrangler dry-runs, and portability checks.

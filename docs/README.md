@@ -5,6 +5,7 @@
 - [Wave 1 judging deliverables plan](submission/deliverables_plan.md): rubric mapping, artifact specifications, deck and demo structure, evidence, and completion gates.
 - [Submission copy](submission/submission_copy.md): project pitch, problem, solution, Midnight fit, progress, exact claim, and final link placeholders.
 - [Evidence matrix](submission/evidence_matrix.md): claim-by-claim source, local, Preprod, and validation-boundary evidence.
+- [Current release evidence addendum](submission/current_release_addendum.md): post-capture eight-circuit deployment, Managed API and authenticated Device E2E, operations, MCP, and validation evidence.
 - [Wave 1 progress](submission/wave1_progress.md): dated implementation delta, material iterations, limitations, and roadmap.
 - [Technical gate checklist](submission/technical_gate_checklist.md): local PASS results and external publication gates.
 - [Judge Q&A](submission/judge_qa.md): concise answers for privacy, trust, scale, product, and business questions.
@@ -22,7 +23,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 - [Three-wave product and business roadmap](architecture/three_wave_roadmap.md): Core Proof PoC, operational partner pilot, and PMF outcomes.
 - [System architecture](architecture/system_architecture.md): Edge Device, Frontend, Backend, and Midnight responsibilities.
 - [Hourly extrema attestation](architecture/hourly_extrema_attestation_proposal.md): fixed 24-slot circuit and daily proof flow.
-- [Wave 2 system operations console](architecture/wave2_system_operations.md): Access-protected Wallet synchronization, processing, metrics, and audit design.
+- [System operations console](architecture/wave2_system_operations.md): implemented Access-protected Wallet synchronization, processing, metrics, audit, alerting, and the remaining Wave 2 hardening boundary.
 - [MCP security boundary](architecture/mcp_security_boundary.md): separate private support and public transaction-verification Workers, bindings, authorization, redaction, and deployment order.
 
 ## Security
@@ -42,7 +43,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 
 - [Implementation map](implementation/implement_spec.md): specification-to-code, API, storage, and contract-field mapping.
 - [GUI action and processing reference](implementation/gui_action_reference.md): every reviewer control, execution location, asynchronous state, reload behavior, and privacy boundary.
-- [Operational ZK circuit specification](implementation/zk_circuit_spec.md): six proof circuits, private/public inputs, checks, ledger effects, diagrams, and explicit non-claims.
+- [Operational ZK circuit specification](implementation/zk_circuit_spec.md): eight proof circuits, private/public inputs, checks, ledger effects, diagrams, and explicit non-claims.
 - [Operational day boundary](architecture/operational_day_boundary.md): fixed 24-slot proofs with a pre-registered fixed UTC offset and local start hour.
 - [Transaction-hash verification specification](implementation/transaction_hash_verification.md): trust anchors, public ledger field meanings, the 24-hour proof relation, normative third-party verification steps, and a real Preprod conformance vector.
 - [Future feature backlog](implementation/future_features.md): contract-first changes, later operational features, priorities, and completion conditions.

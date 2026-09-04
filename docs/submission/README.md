@@ -2,13 +2,16 @@
 
 [日本語版](../ja/submission/README.md)
 
-This directory contains the judging package. The final English demo pitch was produced from the implemented GUI; only its public submission URL remains to be added.
+This directory contains the judging package. The final English demo pitch was produced from the
+implemented GUI. Later engineering evidence is kept in a separate release addendum so the filmed
+story, current source, and current Preprod deployment are not conflated.
 
 | Artifact | Status | File |
 | --- | --- | --- |
 | Detailed production design | Ready | [deliverables_plan.md](deliverables_plan.md) |
 | Submission copy | Ready; public URLs pending | [submission_copy.md](submission_copy.md) |
-| Evidence matrix | Ready; final commit pending | [evidence_matrix.md](evidence_matrix.md) |
+| Evidence matrix | Ready; implementation baseline `af90ad8` recorded | [evidence_matrix.md](evidence_matrix.md) |
+| Current release addendum | Ready; covers post-capture Managed API, Device, operations, MCP, and current-Contract evidence | [current_release_addendum.md](current_release_addendum.md) |
 | Wave 1 progress record | Ready | [wave1_progress.md](wave1_progress.md) |
 | Technical gate checklist | Ready; external gates pending | [technical_gate_checklist.md](technical_gate_checklist.md) |
 | Judge Q&A | Ready | [judge_qa.md](judge_qa.md) |
@@ -34,6 +37,10 @@ authority separation, third-party verification, and the exact claim boundary. Sl
 current-system architecture to show the on-demand server-side Sponsor Wallet as an engineering result:
 it pays DUST only, does not receive Device Authority or private raw values, checkpoints before
 stopping, and avoids idle Container time. The cost callout is an explicitly bounded planning estimate.
+
+The deck intentionally does not add operations-console or MCP detail after the video was frozen.
+Those implemented extensions and their current eight-circuit Preprod records are documented in the
+[current release evidence addendum](current_release_addendum.md) and [evidence matrix](evidence_matrix.md).
 
 `build-on-demand-zkp-architecture.cjs` generates the editable English SVG and 1672 × 941 PNG.
 

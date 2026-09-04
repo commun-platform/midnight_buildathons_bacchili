@@ -6,12 +6,17 @@ This document describes the developer-facing sponsorship path for the operationa
 `submitDailyAttestation` transaction. The phrase **gas sponsorship** is used informally; on Midnight,
 the network fee in this path is paid in **DUST**.
 
-> Integration status — 2026-08-30 JST: the current worktree contains the Backend asynchronous
+> Historical Device-path checkpoint — 2026-08-30 JST: that revision contained the Backend asynchronous
 > acceptance, private R2 hold, Sponsor Queue, wallet-readiness gate, DUST-only policy, the Edge Device
 > owner-only pending-transaction store, and Device `202`/poll/same-byte resume handling. A sponsored
 > 1,440-reading Daily Attestation is confirmed on Preprod and the same-byte recovery path completed
 > without a second proof, Sponsor attempt, or quota reservation. Automatic deletion of every retained
 > copy after confirmation remains incomplete.
+
+The current 2026-09-05 baseline consolidates Wallet synchronization into the Server Wallet runtime,
+while keeping the sponsorship policy and Device authority separate. A current-contract authenticated
+Device transaction and a Managed API transaction are recorded in the
+[release evidence addendum](../submission/current_release_addendum.md).
 
 ## Purpose
 
@@ -33,7 +38,7 @@ The Wallet that may need time to synchronize is the **Backend Sponsor Wallet**, 
 | P-256 Device Identity | Edge Device | Authenticates the challenge exchange that issues a Device Session. | Authorize a Midnight contract call or spend Sponsor funds. |
 | Opaque Device Session | Edge Device | Authorizes the `transaction:submit` API scope. | Replace the Device transaction identity or Sponsor seed. |
 | Device transaction identity / Contract Authority | Edge Device | Authorizes and binds the proved `submitDailyAttestation` call without paying its fee. | Spend Sponsor DUST or administer the Fleet Registry. |
-| Sponsor Wallet seed | Cloudflare secret | Synchronizes Sponsor state and spends DUST for an eligible bound transaction. | Produce the Device Contract Authority proof or change the bound contract call. |
+| Server Wallet seed | Cloudflare secret | Synchronizes the shared Wallet runtime; the Sponsor role spends DUST for an eligible bound transaction. | Produce the Device Contract Authority proof or change the bound contract call. |
 | Operator Authority | Operator-controlled storage | Registers Devices, threshold policies, and assignments before this use case. | Participate in routine sponsored submission. |
 
 The Sponsor seed is never sent to the Edge Device, D1, Queue, browser, or logs. Device private keys are
@@ -48,7 +53,7 @@ sequenceDiagram
     participant W as Worker API / D1
     participant R as Private R2
     participant Q as Sponsor Queue
-    participant S as Sponsor Wallet Container
+    participant S as Server Wallet / Sponsor role
     participant M as Midnight
 
     E->>E: Prove and finalize a fee-free Device transaction
