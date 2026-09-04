@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./browser-provisioning": "./src/browser-provisioning.ts",
     "./operational-day": "./src/operational-day.ts",
+    "./temperature": "./src/temperature.ts",
     "./runtime": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"

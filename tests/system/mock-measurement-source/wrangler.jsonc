@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "midnight-managed-source-test-api",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-02",
+  "observability": { "enabled": true }
+}

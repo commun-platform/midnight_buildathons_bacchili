@@ -21,6 +21,7 @@ import {
   utcDayStartMinute,
   validateOperationalDayBoundary,
 } from './operational-day.js';
+import { encodeTemperature, TEMPERATURE_OFFSET_CENTI } from './temperature.js';
 
 export {
   browserPolicyCanonicalMessage,
@@ -42,9 +43,9 @@ export {
   validateOperationalDayBoundary,
   type OperationalDayBoundary,
 } from './operational-day.js';
+export { encodeTemperature, TEMPERATURE_OFFSET_CENTI } from './temperature.js';
 
 export const MERKLE_TREE_DEPTH = 11;
-export const TEMPERATURE_OFFSET_CENTI = 10_000;
 export const DATASET_SCHEMA_VERSION = 2;
 export const DAILY_EXTREMA_SCHEMA_VERSION = 7;
 export const DAILY_EXTREMA_CIRCUIT_VERSION = 5;
@@ -392,15 +393,6 @@ export function toCompactSensorLeaf(record: SensorRecord): CompactSensorLeaf {
     temperatureCentiOffset: BigInt(temperatureCentiOffset),
     humidityDeci: BigInt(humidityDeci),
   };
-}
-
-export function encodeTemperature(value: number): bigint {
-  if (!Number.isFinite(value)) throw new Error('Temperature must be finite');
-  const encoded = Math.round(value * 100) + TEMPERATURE_OFFSET_CENTI;
-  if (encoded < 0 || encoded > 0xffff_ffff) {
-    throw new Error('Temperature is outside the supported Uint<32> range');
-  }
-  return BigInt(encoded);
 }
 
 function requireSafeIdentifier(value: string, label: string): string {
