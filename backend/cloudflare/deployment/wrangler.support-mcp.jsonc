@@ -5,6 +5,7 @@
   "compatibility_date": "2026-09-04",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
+    "SUPPORT_MCP_HOST": "midnight-support-mcp.commun-official.workers.dev",
     "CLOUDFLARE_ACCESS_TEAM_DOMAIN": "https://morning-unit-c72e.cloudflareaccess.com",
     "CLOUDFLARE_ACCESS_AUDIENCE": "0bcc33f975316e67ad924c2ba21479fab65e827acedebb95a687efa453c207ab"
   },

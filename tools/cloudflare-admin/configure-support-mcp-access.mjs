@@ -31,9 +31,12 @@ function localEnvironment() {
   return result;
 }
 
-function configuredAudience() {
+function configuredWorker() {
   const config = JSON.parse(fs.readFileSync(wranglerConfigPath, 'utf8'));
-  return String(config.vars?.CLOUDFLARE_ACCESS_AUDIENCE ?? '').trim();
+  return {
+    audience: String(config.vars?.CLOUDFLARE_ACCESS_AUDIENCE ?? '').trim(),
+    host: String(config.vars?.SUPPORT_MCP_HOST ?? '').trim().toLowerCase(),
+  };
 }
 
 function policyAllowsOnlySupportEmail(policy) {
@@ -91,6 +94,12 @@ const environment = localEnvironment();
 if (!environment.CLOUDFLARE_ACCOUNT_ID || !environment.CLOUDFLARE_API_TOKEN) {
   throw new Error('Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in the ignored .env file');
 }
+const configured = configuredWorker();
+if (configured.host !== applicationDomain) {
+  throw new Error(
+    `SUPPORT_MCP_HOST must match the protected Access host: ${applicationDomain}`,
+  );
+}
 
 const accountPath = `/accounts/${encodeURIComponent(environment.CLOUDFLARE_ACCOUNT_ID)}`;
 const applications = await cloudflareRequest(
@@ -145,9 +154,9 @@ if (!application) {
   process.stdout.write(`Created Access protection for ${applicationDomain}.\n`);
 }
 
-validateApplication(application, configuredAudience());
+validateApplication(application, configured.audience);
 process.stdout.write(`Access application verified. Audience: ${application.aud}\n`);
-if (configuredAudience() === 'SET_AFTER_PRIVATE_ACCESS_APPLICATION_CREATION') {
+if (configured.audience === 'SET_AFTER_PRIVATE_ACCESS_APPLICATION_CREATION') {
   process.stdout.write(
     'Set this Audience in wrangler.support-mcp.jsonc before deploying the private Worker.\n',
   );

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { supportMcpHandler } from './mcp.js';
 
 function toolsListRequest(): Request {
-  return new Request('https://midnight-support-mcp.commun-official.workers.dev/mcp', {
+  return new Request('https://support-mcp.example.test/mcp', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -10,16 +10,16 @@ URL PathだけではSecurity Boundaryとして不十分なため、公開機能�
 
 | Worker | 利用者 | Endpoint | 参照できる情報 |
 | --- | --- | --- | --- |
-| `midnight-support-mcp` | 認可済みカスタマーサポート担当者 | `https://midnight-support-mcp.commun-official.workers.dev/mcp` | Redact済みD1運用状態だけ |
-| `midnight-verification-mcp` | 公開 | `https://midnight-verification-mcp.commun-official.workers.dev/mcp` | Midnight Preprodの公開TX／Contract Stateだけ |
+| `midnight-support-mcp` | 認可済みカスタマーサポート担当者 | 設定済み`SUPPORT_MCP_HOST` + `/mcp` | Redact済みD1運用状態だけ |
+| `midnight-verification-mcp` | 公開 | 設定済み`VERIFICATION_MCP_HOST` + `/mcp` | Midnight Preprodの公開TX／Contract Stateだけ |
 
 どちらも`midnight-proof-gateway`のRouteではありません。2つのMCP Worker間にService Bindingはなく、
 公開Workerへ非公開ToolをCompileしません。
 
 ## 2. 非公開カスタマーサポートMCP
 
-Cloudflare Accessは`midnight-support-mcp.commun-official.workers.dev`の`/mcp`だけでなくHost全体を
-保護します。Allow Policyは承認済みの`support@commun-platform.com`だけを含み、MCP Client向けに
+Cloudflare Accessは`SUPPORT_MCP_HOST`に設定したHostの`/mcp`だけでなくHost全体を保護します。
+Allow Policyは承認済みの`support@commun-platform.com`だけを含み、MCP Client向けに
 Managed OAuthを有効にします。さらにWorker内で次の二段目の認可を行います。
 
 1. Access TeamのRemote JWKSで`Cf-Access-Jwt-Assertion`を検証する。

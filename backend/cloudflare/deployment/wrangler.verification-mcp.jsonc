@@ -8,6 +8,7 @@
     "@midnight-ntwrk/onchain-runtime-v3": "../verification-mcp-worker/src/onchain-runtime-worker.js"
   },
   "vars": {
+    "VERIFICATION_MCP_HOST": "midnight-verification-mcp.commun-official.workers.dev",
     "ALLOWED_SENSOR_REGISTRY_CONTRACTS": "48636e2f7ae8b1705134b026ec0d5a910357cac990a60adce2c2672e1a78a732"
   },
   "ratelimits": [

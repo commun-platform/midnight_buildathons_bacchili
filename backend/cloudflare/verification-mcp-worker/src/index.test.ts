@@ -11,11 +11,12 @@ function environment(success: boolean): Env {
     VERIFY_RATE_LIMITER: {
       limit: async () => ({ success }),
     },
+    VERIFICATION_MCP_HOST: 'verification-mcp.example.test',
     ALLOWED_SENSOR_REGISTRY_CONTRACTS: '55'.repeat(32),
   } as unknown as Env;
 }
 
-function toolsListRequest(host = 'midnight-verification-mcp.commun-official.workers.dev'): Request {
+function toolsListRequest(host = 'verification-mcp.example.test'): Request {
   return new Request(`https://${host}/mcp`, {
     method: 'POST',
     headers: {

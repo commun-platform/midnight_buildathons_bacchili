@@ -4,6 +4,7 @@ import { handleSupportMcp } from './index.js';
 
 function environment(audience = 'aa'.repeat(32)): Env {
   return {
+    SUPPORT_MCP_HOST: 'support-mcp.example.test',
     CLOUDFLARE_ACCESS_TEAM_DOMAIN: 'https://example.cloudflareaccess.com',
     CLOUDFLARE_ACCESS_AUDIENCE: audience,
     DB: {
@@ -14,7 +15,7 @@ function environment(audience = 'aa'.repeat(32)): Env {
   } as unknown as Env;
 }
 
-function request(host = 'midnight-support-mcp.commun-official.workers.dev'): Request {
+function request(host = 'support-mcp.example.test'): Request {
   return new Request(`https://${host}/mcp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

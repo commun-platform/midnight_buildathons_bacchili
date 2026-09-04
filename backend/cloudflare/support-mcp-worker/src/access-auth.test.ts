@@ -23,7 +23,7 @@ async function signedRequest(email = 'support@commun-platform.com') {
     .setExpirationTime('5m')
     .sign(privateKey);
   return {
-    request: new Request('https://midnight-support-mcp.commun-official.workers.dev/mcp', {
+    request: new Request('https://support-mcp.example.test/mcp', {
       method: 'POST',
       headers: { 'Cf-Access-Jwt-Assertion': token },
     }),
@@ -34,7 +34,7 @@ async function signedRequest(email = 'support@commun-platform.com') {
 describe('private Support MCP authorization', () => {
   it('fails closed without a Cloudflare Access JWT', async () => {
     const result = await authorizeSupportRequest(
-      new Request('https://midnight-support-mcp.commun-official.workers.dev/mcp'),
+      new Request('https://support-mcp.example.test/mcp'),
       { CLOUDFLARE_ACCESS_TEAM_DOMAIN: issuer, CLOUDFLARE_ACCESS_AUDIENCE: audience },
     );
     expect(result.ok).toBe(false);
@@ -43,7 +43,7 @@ describe('private Support MCP authorization', () => {
 
   it('fails closed while the dedicated Access audience is not configured', async () => {
     const result = await authorizeSupportRequest(
-      new Request('https://midnight-support-mcp.commun-official.workers.dev/mcp'),
+      new Request('https://support-mcp.example.test/mcp'),
       {
         CLOUDFLARE_ACCESS_TEAM_DOMAIN: issuer,
         CLOUDFLARE_ACCESS_AUDIENCE: 'SET_AFTER_PRIVATE_ACCESS_APPLICATION_CREATION',

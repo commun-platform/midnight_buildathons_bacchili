@@ -7,17 +7,23 @@ import { z } from 'zod';
 
 const txHashSchema = z.string().trim().regex(/^(?:0x)?[a-f\d]{64}$/iu);
 const maximumBodyBytes = 16 * 1024;
-const allowedHosts = new Set([
-  'midnight-verification-mcp.commun-official.workers.dev',
-  'localhost',
-  '127.0.0.1',
-]);
-const allowedOrigins = new Set([
-  'https://midnight-verification-mcp.commun-official.workers.dev',
+const localHosts = new Set(['localhost', '127.0.0.1']);
+const sharedAllowedOrigins = new Set([
   'https://playground.ai.cloudflare.com',
   'http://localhost',
   'http://127.0.0.1',
 ]);
+
+function allowedHost(hostname: string, env: Env): boolean {
+  const configured = env.VERIFICATION_MCP_HOST?.trim().toLowerCase();
+  return localHosts.has(hostname) || Boolean(configured && hostname === configured);
+}
+
+function allowedOrigin(origin: string, env: Env): boolean {
+  if (sharedAllowedOrigins.has(origin)) return true;
+  const configured = env.VERIFICATION_MCP_HOST?.trim().toLowerCase();
+  return Boolean(configured && origin === `https://${configured}`);
+}
 
 function configuredContracts(env: Env): string[] {
   return env.ALLOWED_SENSOR_REGISTRY_CONTRACTS.split(',')
@@ -96,7 +102,7 @@ export async function handleVerificationMcp(
   if (url.pathname !== '/mcp') {
     return secure(new Response('Not found', { status: 404 }));
   }
-  if (!allowedHosts.has(url.hostname)) {
+  if (!allowedHost(url.hostname, env)) {
     return secure(Response.json({ error: 'Request host is not allowed' }, { status: 403 }));
   }
   if (request.method !== 'POST') {
@@ -106,7 +112,7 @@ export async function handleVerificationMcp(
     }));
   }
   const origin = request.headers.get('Origin');
-  if (origin && !allowedOrigins.has(origin)) {
+  if (origin && !allowedOrigin(origin, env)) {
     return secure(Response.json({ error: 'Request origin is not allowed' }, { status: 403 }));
   }
   const contentLength = Number(request.headers.get('Content-Length') ?? 0);

@@ -10,16 +10,16 @@ different Cloudflare Workers, on different hostnames, with different bindings an
 
 | Worker | Audience | Endpoint | Data authority |
 | --- | --- | --- | --- |
-| `midnight-support-mcp` | Authorized customer-support operators | `https://midnight-support-mcp.commun-official.workers.dev/mcp` | Redacted D1 operational state only |
-| `midnight-verification-mcp` | Anyone | `https://midnight-verification-mcp.commun-official.workers.dev/mcp` | Public Midnight Preprod transaction and Contract state only |
+| `midnight-support-mcp` | Authorized customer-support operators | Configured `SUPPORT_MCP_HOST` + `/mcp` | Redacted D1 operational state only |
+| `midnight-verification-mcp` | Anyone | Configured `VERIFICATION_MCP_HOST` + `/mcp` | Public Midnight Preprod transaction and Contract state only |
 
 Neither Worker is a route of `midnight-proof-gateway`. There is no Service Binding between the two
 MCP Workers and no private tool is compiled into the public Worker.
 
 ## 2. Private customer-support MCP
 
-Cloudflare Access protects the entire `midnight-support-mcp.commun-official.workers.dev` host, not
-only `/mcp`. The allow policy contains one approved identity,
+Cloudflare Access protects the entire host configured by `SUPPORT_MCP_HOST`, not only `/mcp`.
+The allow policy contains one approved identity,
 `support@commun-platform.com`. Managed OAuth is enabled for MCP clients. The Worker then applies a
 second authorization layer:
 
