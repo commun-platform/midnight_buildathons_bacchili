@@ -30,7 +30,13 @@ interface CollectorStatus {
 }
 
 export interface PersistentCollectorState {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  configuration: {
+    projectId: string;
+    deviceId: string;
+    thresholdPolicyVersion: string;
+    utcDayStartMinute: number;
+  };
   window: MeasurementWindowState | null;
   anomaly: AnomalyState;
   syntheticTick: number;
@@ -100,8 +106,23 @@ function ensureDataDirectories(config: EdgeConfig): void {
   }
 }
 
-function initialCollectorState(): PersistentCollectorState {
-  return { schemaVersion: 1, window: null, anomaly: initialAnomalyState(), syntheticTick: 0 };
+function collectorConfiguration(config: EdgeConfig): PersistentCollectorState['configuration'] {
+  return {
+    projectId: config.projectId,
+    deviceId: config.deviceId,
+    thresholdPolicyVersion: config.thresholdPolicyVersion,
+    utcDayStartMinute: config.utcDayStartMinute,
+  };
+}
+
+function initialCollectorState(config: EdgeConfig): PersistentCollectorState {
+  return {
+    schemaVersion: 2,
+    configuration: collectorConfiguration(config),
+    window: null,
+    anomaly: initialAnomalyState(),
+    syntheticTick: 0,
+  };
 }
 
 function validTimestamp(value: unknown): value is string {
@@ -144,16 +165,26 @@ function validAnomaly(value: unknown): value is AnomalyState {
 function validCollectorState(value: unknown): value is PersistentCollectorState {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<PersistentCollectorState>;
-  return state.schemaVersion === 1
+  const configuration = state.configuration;
+  return state.schemaVersion === 2
+    && typeof configuration?.projectId === 'string'
+    && Boolean(configuration.projectId)
+    && typeof configuration.deviceId === 'string'
+    && Boolean(configuration.deviceId)
+    && typeof configuration.thresholdPolicyVersion === 'string'
+    && Boolean(configuration.thresholdPolicyVersion)
+    && Number.isSafeInteger(configuration.utcDayStartMinute)
+    && configuration.utcDayStartMinute >= 0
+    && configuration.utcDayStartMinute <= 1439
     && (state.window === null || validWindow(state.window))
     && validAnomaly(state.anomaly)
     && Number.isSafeInteger(state.syntheticTick)
     && (state.syntheticTick ?? -1) >= 0;
 }
 
-function quarantinePath(file: string): string {
+function quarantinePath(file: string, reason: 'corrupt' | 'superseded'): string {
   const timestamp = new Date().toISOString().replace(/[:.]/gu, '-');
-  let candidate = `${file}.corrupt-${timestamp}`;
+  let candidate = `${file}.${reason}-${timestamp}`;
   let suffix = 0;
   while (fs.existsSync(candidate)) {
     suffix += 1;
@@ -165,21 +196,35 @@ function quarantinePath(file: string): string {
 export function loadCollectorState(config: EdgeConfig): PersistentCollectorState {
   const file = statePath(config);
   if (!fs.existsSync(file)) {
-    return initialCollectorState();
+    return initialCollectorState(config);
   }
   try {
     const state: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if ((state as { schemaVersion?: unknown })?.schemaVersion === 1) {
+      const quarantined = quarantinePath(file, 'superseded');
+      fs.renameSync(file, quarantined);
+      fs.chmodSync(quarantined, 0o600);
+      log('info', 'collector_state_superseded', { file: path.basename(quarantined) });
+      return initialCollectorState(config);
+    }
     if (!validCollectorState(state)) throw new Error('Collector state is invalid');
+    if (JSON.stringify(state.configuration) !== JSON.stringify(collectorConfiguration(config))) {
+      const quarantined = quarantinePath(file, 'superseded');
+      fs.renameSync(file, quarantined);
+      fs.chmodSync(quarantined, 0o600);
+      log('info', 'collector_state_superseded', { file: path.basename(quarantined) });
+      return initialCollectorState(config);
+    }
     return state;
   } catch (error) {
-    const quarantined = quarantinePath(file);
+    const quarantined = quarantinePath(file, 'corrupt');
     fs.renameSync(file, quarantined);
     fs.chmodSync(quarantined, 0o600);
     log('error', 'collector_state_quarantined', {
       file: path.basename(quarantined),
       error: error instanceof Error ? error.message : String(error),
     });
-    return initialCollectorState();
+    return initialCollectorState(config);
   }
 }
 
@@ -238,6 +283,38 @@ function outboxFiles(config: EdgeConfig): string[] {
     .filter((name) => name.endsWith('.json'))
     .sort()
     .map((name) => path.join(outboxDirectory(config), name));
+}
+
+function compatibleOutboxEnvelope(config: EdgeConfig, envelope: OutboxEnvelope): boolean {
+  return envelope.schemaVersion === 1
+    && envelope.payload.projectId === config.projectId
+    && envelope.payload.deviceId === config.deviceId
+    && envelope.payload.thresholdPolicyVersion === config.thresholdPolicyVersion;
+}
+
+export function quarantineIncompatibleOutbox(config: EdgeConfig): number {
+  let quarantinedCount = 0;
+  for (const file of outboxFiles(config)) {
+    try {
+      const envelope = JSON.parse(fs.readFileSync(file, 'utf8')) as OutboxEnvelope;
+      if (compatibleOutboxEnvelope(config, envelope)) continue;
+      const quarantined = quarantinePath(file, 'superseded');
+      fs.renameSync(file, quarantined);
+      fs.chmodSync(quarantined, 0o600);
+      quarantinedCount += 1;
+      log('info', 'outbox_superseded', { file: path.basename(quarantined) });
+    } catch (error) {
+      const quarantined = quarantinePath(file, 'corrupt');
+      fs.renameSync(file, quarantined);
+      fs.chmodSync(quarantined, 0o600);
+      quarantinedCount += 1;
+      log('error', 'outbox_quarantined', {
+        file: path.basename(quarantined),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return quarantinedCount;
 }
 
 async function drainOutbox(config: EdgeConfig, status: CollectorStatus): Promise<void> {
@@ -304,7 +381,8 @@ export function seedSyntheticDemoWindow(
     window = addMeasurement(window, temperature, measuredAt);
   }
   saveState(config, {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    configuration: collectorConfiguration(config),
     window,
     anomaly: initialAnomalyState(),
     syntheticTick: sampleCount,
@@ -370,7 +448,8 @@ async function collectOne(
     log('info', 'anomaly_transition', { transition: evaluated.event.transition });
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    configuration: persistent.configuration,
     window,
     anomaly: evaluated.state,
     syntheticTick: persistent.syntheticTick + 1,
@@ -384,6 +463,7 @@ function sendJson(response: http.ServerResponse, status: number, value: unknown)
 
 export async function startCollector(config: EdgeConfig): Promise<void> {
   ensureDataDirectories(config);
+  quarantineIncompatibleOutbox(config);
   let persistent = loadCollectorState(config);
   const status: CollectorStatus = {
     startedAt: new Date().toISOString(),

@@ -9,7 +9,18 @@ import {
   type FinalizedTransaction,
 } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 
-const expectedEntryPoint = 'submitDailyAttestation';
+export const sponsoredContractEntryPoints = [
+  'registerDevice',
+  'rotateDeviceAuthority',
+  'disableDevice',
+  'registerThresholdPolicy',
+  'registerPolicyAssignment',
+  'closePolicyAssignment',
+  'rotateOperatorAuthority',
+  'submitDailyAttestation',
+] as const;
+
+export type SponsoredContractEntryPoint = typeof sponsoredContractEntryPoints[number];
 
 function emptyUnshieldedOffer(value: {
   inputs: unknown[];
@@ -18,9 +29,21 @@ function emptyUnshieldedOffer(value: {
   return !value || (value.inputs.length === 0 && value.outputs.length === 0);
 }
 
-function isExpectedEntryPoint(value: Uint8Array | string): boolean {
+function isExpectedEntryPoint(
+  value: Uint8Array | string,
+  expectedEntryPoint: SponsoredContractEntryPoint,
+): boolean {
   if (value === expectedEntryPoint) return true;
   return entryPointHash(value) === entryPointHash(expectedEntryPoint);
+}
+
+export function requireSponsoredContractEntryPoint(
+  value: string,
+): SponsoredContractEntryPoint {
+  if (!(sponsoredContractEntryPoints as readonly string[]).includes(value)) {
+    throw new Error('Contract circuit is outside the sponsorship policy');
+  }
+  return value as SponsoredContractEntryPoint;
 }
 
 export function validateSponsorIntentShape<
@@ -61,6 +84,20 @@ export function validateSponsorTransaction(
   contractAddress: string,
   allowDust: boolean,
 ): { transactionIdentifiers: string[]; transactionHash: string } {
+  return validateAllowlistedSponsorTransaction(
+    transaction,
+    contractAddress,
+    'submitDailyAttestation',
+    allowDust,
+  );
+}
+
+export function validateAllowlistedSponsorTransaction(
+  transaction: FinalizedTransaction,
+  contractAddress: string,
+  expectedEntryPoint: SponsoredContractEntryPoint,
+  allowDust: boolean,
+): { transactionIdentifiers: string[]; transactionHash: string } {
   if (transaction.rewards) throw new Error('Rewards transactions are not eligible for sponsorship');
   if (transaction.guaranteedOffer || (transaction.fallibleOffer?.size ?? 0) > 0) {
     throw new Error('Zswap value transfers are not eligible for sponsorship');
@@ -76,14 +113,17 @@ export function validateSponsorTransaction(
       if (!(action instanceof ContractCall)) {
         throw new Error('Deployments and maintenance actions are not eligible for sponsorship');
       }
-      if (action.address !== contractAddress || !isExpectedEntryPoint(action.entryPoint)) {
+      if (
+        action.address !== contractAddress
+        || !isExpectedEntryPoint(action.entryPoint, expectedEntryPoint)
+      ) {
         throw new Error('Transaction calls a contract or circuit outside the sponsorship policy');
       }
       matchingCalls += 1;
     }
   }
   if (matchingCalls !== 1) {
-    throw new Error('Sponsored transaction must contain exactly one submitDailyAttestation call');
+    throw new Error(`Sponsored transaction must contain exactly one ${expectedEntryPoint} call`);
   }
   const transactionIdentifiers = transaction.identifiers().map(String);
   if (transactionIdentifiers.length === 0) throw new Error('Transaction has no contract identifier');

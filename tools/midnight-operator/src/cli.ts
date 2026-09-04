@@ -1,6 +1,7 @@
 import { resolveNetwork, type NetworkConfig } from './config.js';
 import {
   deviceCommitmentForId,
+  closeRegisteredPolicyAssignment,
   confirmedTransactionId,
   disableRegisteredDevice,
   deploySensorRegistry,
@@ -8,6 +9,7 @@ import {
   registerAdditionalDevice,
   registerInitialConfiguration,
   rotateRegisteredDeviceAuthority,
+  rotateRegisteredOperatorAuthority,
 } from './midnight.js';
 import {
   bytesToHex,
@@ -16,7 +18,11 @@ import {
   validateOperationalDayBoundary,
   type ThresholdPolicyMode,
 } from '@midnight-demo/shared';
-import { getOrCreateOperatorAuthority } from './operator-authority.js';
+import {
+  getOrCreateOperatorAuthorityReplacement,
+  getOrCreateOperatorAuthority,
+  persistOperatorAuthorityReplacement,
+} from './operator-authority.js';
 import {
   getOrCreateWalletCredentials,
   loadDeployment,
@@ -33,7 +39,8 @@ import {
   type WalletContext,
 } from './wallet.js';
 
-type Command = 'funding' | 'wallet' | 'deploy' | 'register-device' | 'rotate-device' | 'disable-device' | 'status';
+type Command = 'funding' | 'wallet' | 'deploy' | 'register-device' | 'rotate-device' | 'disable-device'
+  | 'close-assignment' | 'rotate-operator' | 'status';
 
 function formatNight(value: bigint): string {
   return `${value / 1_000_000n}.${(value % 1_000_000n).toString().padStart(6, '0')}`;
@@ -164,7 +171,7 @@ async function waitForRegistryState(
 async function runDeploy(network: NetworkConfig): Promise<string> {
   const authorityHex = flag('device-authority')?.trim().replace(/^0x/iu, '');
   if (!authorityHex) {
-    throw new Error('--device-authority is required; transfer only the Pi enrollment public value');
+    throw new Error('--device-authority is required; transfer only the Device enrollment public value');
   }
   const deviceAuthority = hexToBytes(authorityHex);
   if (deviceAuthority.length !== 32) throw new Error('--device-authority must contain 32 bytes');
@@ -245,11 +252,12 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
         )),
     );
     saveDeployment(network.networkId, {
-      contractSchemaVersion: 4,
+      contractSchemaVersion: 5,
       contractAddress: deployed.contractAddress,
       deploymentTxId: deployed.deploymentTxId,
       deployerAddress: walletAddress(wallet),
       operatorAuthority: operatorAuthority.operatorAuthorityHex,
+      operatorAuthorityVersion: 1,
       deviceAuthority: authorityHex.toLowerCase(),
       deviceCommitment: deviceCommitmentHex,
       deviceId,
@@ -290,6 +298,7 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
         ...boundary,
         utcDayStartMinute: utcDayStartMinute(boundary),
         assignmentRegisteredTxId: registered.assignmentTxId,
+        assignmentClosedTxId: null,
         validFrom: validFromEpoch === 0n
           ? null
           : new Date(Number(validFromEpoch) * 1000).toISOString(),
@@ -307,7 +316,7 @@ async function runDeploy(network: NetworkConfig): Promise<string> {
 
 async function runRegisterDevice(network: NetworkConfig): Promise<void> {
   const deployment = loadDeployment(network.networkId);
-  if (!deployment || deployment.contractSchemaVersion !== 4) {
+  if (!deployment || deployment.contractSchemaVersion !== 5) {
     throw new Error(`No compatible ${network.networkId} fleet deployment found`);
   }
   const authorityHex = flag('device-authority')?.trim().replace(/^0x/iu, '');
@@ -384,6 +393,7 @@ async function runRegisterDevice(network: NetworkConfig): Promise<void> {
       ...boundary,
       utcDayStartMinute: utcDayStartMinute(boundary),
       assignmentRegisteredTxId: registered.assignmentTxId,
+      assignmentClosedTxId: null,
       validFrom: validFromEpoch === 0n ? null : new Date(Number(validFromEpoch) * 1000).toISOString(),
       validUntil: validUntilEpoch === 0n ? null : new Date(Number(validUntilEpoch) * 1000).toISOString(),
     });
@@ -396,7 +406,7 @@ async function runRegisterDevice(network: NetworkConfig): Promise<void> {
 
 async function runDisableDevice(network: NetworkConfig): Promise<void> {
   const deployment = loadDeployment(network.networkId);
-  if (!deployment || deployment.contractSchemaVersion !== 4) {
+  if (!deployment || deployment.contractSchemaVersion !== 5) {
     throw new Error(`No compatible ${network.networkId} fleet deployment found`);
   }
   const deviceId = flag('device-id')?.trim();
@@ -437,7 +447,7 @@ async function runDisableDevice(network: NetworkConfig): Promise<void> {
 
 async function runRotateDevice(network: NetworkConfig): Promise<void> {
   const deployment = loadDeployment(network.networkId);
-  if (!deployment || deployment.contractSchemaVersion !== 4) {
+  if (!deployment || deployment.contractSchemaVersion !== 5) {
     throw new Error(`No compatible ${network.networkId} fleet deployment found`);
   }
   const deviceId = flag('device-id')?.trim();
@@ -491,6 +501,119 @@ async function runRotateDevice(network: NetworkConfig): Promise<void> {
   }
 }
 
+async function runCloseAssignment(network: NetworkConfig): Promise<void> {
+  const deployment = loadDeployment(network.networkId);
+  if (!deployment || deployment.contractSchemaVersion !== 5) {
+    throw new Error(`No compatible ${network.networkId} fleet deployment found`);
+  }
+  const deviceId = flag('device-id')?.trim();
+  if (!deviceId) throw new Error('--device-id is required');
+  const device = deployment.devices.find((candidate) => candidate.deviceId === deviceId);
+  if (!device) throw new Error(`Device ${deviceId} is not in the local deployment record`);
+  if (device.validUntil) throw new Error(`Device ${deviceId} Policy Assignment is already closed`);
+  const validUntilEpoch = epochFlag('valid-until');
+  if (validUntilEpoch <= 0n) throw new Error('--valid-until is required');
+  const validFromEpoch = device.validFrom ? BigInt(Math.floor(Date.parse(device.validFrom) / 1000)) : 0n;
+  if (validUntilEpoch <= validFromEpoch) throw new Error('--valid-until must be later than valid-from');
+  const { authority } = getOrCreateOperatorAuthority(network.networkId);
+  if (authority.operatorAuthorityHex !== deployment.operatorAuthority) {
+    throw new Error('Local Operator Authority does not match the deployed contract record');
+  }
+  const wallet = await connectWallet(network);
+  try {
+    await ensureDust(wallet, network.faucet);
+    const transaction = await closeRegisteredPolicyAssignment(
+      wallet,
+      network,
+      deployment.contractAddress,
+      authority.operatorSecretHex,
+      hexToBytes(device.assignmentKey),
+      validUntilEpoch,
+    );
+    const validUntil = new Date(Number(validUntilEpoch) * 1000).toISOString();
+    await waitForRegistryState(
+      network,
+      deployment.contractAddress,
+      `Policy Assignment for ${deviceId} closure`,
+      (snapshot) => snapshot.policyAssignments.some((assignment) => (
+        assignment.assignmentKey === device.assignmentKey && assignment.validUntil === validUntil
+      )),
+    );
+    device.validUntil = validUntil;
+    device.assignmentClosedTxId = confirmedTransactionId(transaction, 'Policy Assignment closure');
+    if (deployment.assignmentKey === device.assignmentKey) deployment.validUntil = validUntil;
+    saveDeployment(network.networkId, deployment);
+    process.stdout.write(`Closed ${deviceId} Policy Assignment at ${validUntil}.\n`);
+  } finally {
+    await closeWallet(wallet, network);
+  }
+}
+
+async function runRotateOperator(network: NetworkConfig): Promise<void> {
+  const deployment = loadDeployment(network.networkId);
+  if (!deployment || deployment.contractSchemaVersion !== 5) {
+    throw new Error(`No compatible ${network.networkId} fleet deployment found`);
+  }
+  const { authority: current } = getOrCreateOperatorAuthority(network.networkId);
+  const replacement = getOrCreateOperatorAuthorityReplacement(network.networkId);
+  const snapshot = await queryRegistry(network, deployment.contractAddress);
+  if (
+    snapshot.operatorAuthority === replacement.operatorAuthorityHex
+    && Number(snapshot.operatorAuthorityVersion) > deployment.operatorAuthorityVersion
+  ) {
+    const recoveredVersion = Number(snapshot.operatorAuthorityVersion);
+    const archive = persistOperatorAuthorityReplacement(network.networkId, current, replacement);
+    deployment.operatorAuthority = replacement.operatorAuthorityHex;
+    deployment.operatorAuthorityVersion = recoveredVersion;
+    saveDeployment(network.networkId, deployment);
+    process.stdout.write(`Recovered confirmed Operator Authority rotation at version ${recoveredVersion}.\n`);
+    process.stdout.write(`Retired authority was archived with mode 0600 at ${archive}.\n`);
+    return;
+  }
+  if (
+    current.operatorAuthorityHex !== deployment.operatorAuthority
+    || snapshot.operatorAuthority !== deployment.operatorAuthority
+    || Number(snapshot.operatorAuthorityVersion) !== deployment.operatorAuthorityVersion
+  ) {
+    throw new Error('Local Operator Authority does not match the deployed contract record');
+  }
+  const newVersion = positiveIntegerFlag(
+    'operator-authority-version',
+    deployment.operatorAuthorityVersion + 1,
+  );
+  if (newVersion <= deployment.operatorAuthorityVersion) {
+    throw new Error('--operator-authority-version must increase');
+  }
+  const wallet = await connectWallet(network);
+  try {
+    await ensureDust(wallet, network.faucet);
+    const transaction = await rotateRegisteredOperatorAuthority(
+      wallet,
+      network,
+      deployment.contractAddress,
+      current.operatorSecretHex,
+      hexToBytes(replacement.operatorAuthorityHex),
+      newVersion,
+    );
+    await waitForRegistryState(
+      network,
+      deployment.contractAddress,
+      'Operator Authority rotation',
+      (snapshot) => snapshot.operatorAuthority === replacement.operatorAuthorityHex
+        && Number(snapshot.operatorAuthorityVersion) === newVersion,
+    );
+    const archive = persistOperatorAuthorityReplacement(network.networkId, current, replacement);
+    deployment.operatorAuthority = replacement.operatorAuthorityHex;
+    deployment.operatorAuthorityVersion = newVersion;
+    saveDeployment(network.networkId, deployment);
+    process.stdout.write(`Rotated Operator Authority to version ${newVersion}.\n`);
+    process.stdout.write(`Retired authority was archived with mode 0600 at ${archive}.\n`);
+    process.stdout.write(`Rotation TX: ${confirmedTransactionId(transaction, 'Operator Authority rotation')}\n`);
+  } finally {
+    await closeWallet(wallet, network);
+  }
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2] as Command | undefined;
   const network = networkFromArgs();
@@ -514,6 +637,10 @@ async function main(): Promise<void> {
 
   if (command === 'disable-device') return runDisableDevice(network);
 
+  if (command === 'close-assignment') return runCloseAssignment(network);
+
+  if (command === 'rotate-operator') return runRotateOperator(network);
+
   if (command === 'status') {
     const deployment = loadDeployment(network.networkId);
     const contractAddress = flag('contract') ?? deployment?.contractAddress;
@@ -523,7 +650,7 @@ async function main(): Promise<void> {
   }
 
   process.stdout.write(
-    'Usage: cli.ts <funding|wallet|deploy|register-device|rotate-device|disable-device|status> [--device-id ID] [--device-authority HEX] [options]\n',
+    'Usage: cli.ts <funding|wallet|deploy|register-device|rotate-device|disable-device|close-assignment|rotate-operator|status> [--device-id ID] [options]\n',
   );
 }
 

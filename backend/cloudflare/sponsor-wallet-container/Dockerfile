@@ -16,6 +16,12 @@ RUN test -f "$SPONSOR_ZK_CONFIG_PATH/keys/registerDevice.prover" \
     && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/registerDevice.verifier" \
     && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/registerPolicyAssignment.prover" \
     && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/registerPolicyAssignment.verifier" \
+    && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/closePolicyAssignment.prover" \
+    && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/closePolicyAssignment.verifier" \
+    && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/rotateOperatorAuthority.prover" \
+    && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/rotateOperatorAuthority.verifier" \
+    && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/submitDailyAttestation.prover" \
+    && test -f "$SPONSOR_ZK_CONFIG_PATH/keys/submitDailyAttestation.verifier" \
     && test -f "$SPONSOR_ZK_CONFIG_PATH/contract/index.js"
 EXPOSE 8789
 

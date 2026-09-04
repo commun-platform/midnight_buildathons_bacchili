@@ -36,14 +36,16 @@ if (
 
 const result = spawnSync(
   wrangler,
-  ['secret', 'put', 'OPERATOR_AUTHORITY_SECRET', '--config', wranglerConfig],
+  ['secret', 'bulk', '--config', wranglerConfig],
   {
     cwd: repoRoot,
-    input: `${authority.operatorSecretHex}\n`,
+    input: JSON.stringify({
+      OPERATOR_AUTHORITY_SECRET: authority.operatorSecretHex,
+    }),
     encoding: 'utf8',
     stdio: ['pipe', 'inherit', 'inherit'],
   },
 );
 if (result.error) throw result.error;
 if (result.status !== 0) throw new Error(`Wrangler exited with status ${result.status}`);
-process.stdout.write('Operator Authority secret configured for the active Preprod contract.\n');
+process.stdout.write('Operator Authority was configured for the singleton Server Wallet.\n');

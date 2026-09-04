@@ -13,6 +13,8 @@
     "register-device": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts register-device",
     "rotate-device": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts rotate-device",
     "disable-device": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts disable-device",
+    "close-assignment": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts close-assignment",
+    "rotate-operator": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts rotate-operator",
     "status": "node ../repository-checks/require-development-host.mjs && tsx src/cli.ts status",
     "benchmark:daily-proof": "node ../repository-checks/require-development-host.mjs && tsx src/daily-attestation-benchmark.ts",
     "test": "node ../repository-checks/require-development-host.mjs && tsx --test src/*.test.ts"

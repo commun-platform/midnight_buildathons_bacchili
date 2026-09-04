@@ -67,7 +67,7 @@ export interface DeviceOperationConfiguration {
   midnight: {
     network: 'preview' | 'preprod';
     contractAddress: string;
-    contractSchemaVersion: 4;
+    contractSchemaVersion: 5;
     registrationVersion: number;
   };
   policy: {
@@ -548,7 +548,7 @@ function validOperationConfiguration(
     && Boolean(device.unit)
     && (midnight?.network === 'preview' || midnight?.network === 'preprod')
     && validHex32(midnight.contractAddress)
-    && midnight.contractSchemaVersion === 4
+    && midnight.contractSchemaVersion === 5
     && validPositiveInteger(midnight.registrationVersion)
     && policy !== undefined
     && validIdentifier(policy.id)

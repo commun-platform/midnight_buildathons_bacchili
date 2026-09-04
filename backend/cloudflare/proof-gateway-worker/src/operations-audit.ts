@@ -1,13 +1,14 @@
 import type { SponsorWalletHealth } from './sponsor.js';
 import { createSqlDatabase } from './storage/index.js';
 import type { SqlDatabase } from './storage/sql.js';
+import { verifiedSystemOperatorPrincipal } from './system-operations-auth.js';
 
 const eventRetentionMs = 90 * 24 * 60 * 60 * 1000;
 const healthHeartbeatMs = 60 * 60 * 1000;
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 
 interface AuditActor {
-  type: 'wallet' | 'device' | 'anonymous';
+  type: 'wallet' | 'device' | 'anonymous' | 'operator';
   identifier: string | null;
   projectId: string | null;
   deviceId: string | null;
@@ -95,7 +96,28 @@ function bearerToken(request: Request): string | null {
   return match?.[1] && match[1].length <= 512 ? match[1] : null;
 }
 
-async function requestActor(database: SqlDatabase, request: Request): Promise<AuditActor> {
+async function requestActor(database: SqlDatabase, request: Request, env: Env): Promise<AuditActor> {
+  const pathname = new URL(request.url).pathname;
+  if (pathname.startsWith('/api/v1/managed-sources')) {
+    const principal = await verifiedSystemOperatorPrincipal(request, env);
+    if (principal) {
+      const sourceId = pathname.match(/^\/api\/v1\/managed-sources\/([^/]+)/u)?.[1];
+      let projectId: string | null = null;
+      if (sourceId && sourceId !== 'bootstrap') {
+        const source = await database.first<{ project_id: string }>(
+          'SELECT project_id FROM managed_sources WHERE id = ?1',
+          [decodeURIComponent(sourceId)],
+        );
+        projectId = source?.project_id ?? null;
+      }
+      return {
+        type: 'operator',
+        identifier: principal.email ?? principal.identifier,
+        projectId,
+        deviceId: null,
+      };
+    }
+  }
   const token = bearerToken(request);
   if (!token) return { type: 'anonymous', identifier: null, projectId: null, deviceId: null };
   const digest = await sha256(token);
@@ -131,7 +153,7 @@ async function requestActor(database: SqlDatabase, request: Request): Promise<Au
     : { type: 'anonymous', identifier: null, projectId: null, deviceId: null };
 }
 
-function classifiedRoute(pathname: string): Pick<
+function classifiedRoute(pathname: string, method: string): Pick<
   PreparedRequestAudit,
   'action' | 'route' | 'resourceType' | 'resourceId'
 > {
@@ -142,6 +164,47 @@ function classifiedRoute(pathname: string): Pick<
       return value.slice(0, 240);
     }
   };
+  const managedRun = pathname.match(
+    /^\/api\/v1\/managed-sources\/([^/]+)\/runs\/([^/]+)(?:\/(retry))?$/u,
+  );
+  if (managedRun?.[1] && managedRun[2]) {
+    return {
+      action: managedRun[3] ? 'managed.attestation.retry' : 'managed.attestation.read',
+      route: `/api/v1/managed-sources/:sourceId/runs/:runId${managedRun[3] ? '/retry' : ''}`,
+      resourceType: 'managed-source-run',
+      resourceId: decodedResourceId(managedRun[2]),
+    };
+  }
+  const managedRuns = pathname.match(/^\/api\/v1\/managed-sources\/([^/]+)\/runs$/u);
+  if (managedRuns?.[1]) {
+    return {
+      action: method === 'POST' ? 'managed.attestation.request' : 'managed.attestation.list',
+      route: '/api/v1/managed-sources/:sourceId/runs',
+      resourceType: 'managed-source',
+      resourceId: decodedResourceId(managedRuns[1]),
+    };
+  }
+  const managedSource = pathname.match(/^\/api\/v1\/managed-sources\/([^/]+)$/u);
+  if (managedSource?.[1]) {
+    return {
+      action: managedSource[1] === 'bootstrap'
+        ? 'managed.bootstrap.read'
+        : method === 'PATCH' ? 'managed.source.update' : 'managed.source.read',
+      route: managedSource[1] === 'bootstrap'
+        ? '/api/v1/managed-sources/bootstrap'
+        : '/api/v1/managed-sources/:sourceId',
+      resourceType: managedSource[1] === 'bootstrap' ? null : 'managed-source',
+      resourceId: managedSource[1] === 'bootstrap' ? null : decodedResourceId(managedSource[1]),
+    };
+  }
+  if (pathname === '/api/v1/managed-sources') {
+    return {
+      action: method === 'POST' ? 'managed.source.create' : 'managed.source.list',
+      route: '/api/v1/managed-sources',
+      resourceType: null,
+      resourceId: null,
+    };
+  }
   const proofJob = pathname.match(/^\/api\/v1\/proof-jobs\/([^/]+)(?:\/(admit|result|sponsor))?$/u);
   if (proofJob?.[1]) {
     const suffix = proofJob[2] ?? 'read';
@@ -195,15 +258,21 @@ function classifiedRoute(pathname: string): Pick<
 }
 
 export function prepareRequestAudit(request: Request, requestId: string): PreparedRequestAudit | null {
-  if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') return null;
   const url = new URL(request.url);
+  const managedRead = request.method === 'GET'
+    && url.pathname.startsWith('/api/v1/managed-sources');
+  if (
+    (request.method === 'GET' && !managedRead)
+    || request.method === 'HEAD'
+    || request.method === 'OPTIONS'
+  ) return null;
   if (
     !url.pathname.startsWith('/api/v1/')
     && !url.pathname.startsWith('/auth/')
     && !['/check', '/prove', '/proof/check', '/proof/prove'].includes(url.pathname)
   ) return null;
   const suppliedOperationId = request.headers.get('X-Client-Operation-Id')?.trim() ?? '';
-  const classified = classifiedRoute(url.pathname);
+  const classified = classifiedRoute(url.pathname, request.method);
   return {
     requestId,
     clientOperationId: safeIdentifierPattern.test(suppliedOperationId) ? suppliedOperationId : null,
@@ -220,7 +289,7 @@ export async function recordRequestAudit(
 ): Promise<void> {
   try {
     const database = createSqlDatabase(env);
-    const actor = await requestActor(database, request);
+    const actor = await requestActor(database, request, env);
     const status = response.status;
     const occurredAt = new Date().toISOString();
     await database.execute(
@@ -326,9 +395,11 @@ function stateSignature(view: SponsorWalletOperationsView): string {
   return JSON.stringify({
     healthClass: view.healthClass,
     phase: view.phase,
+    bootId: view.bootId,
     supervisor: view.supervisor?.status ?? null,
     connected: view.synchronization.map(({ channel, connected }) => [channel, connected]),
     complete: view.synchronization.map(({ channel, complete }) => [channel, complete]),
+    applied: view.synchronization.map(({ channel, applied }) => [channel, applied]),
     initialization: view.initialization?.status ?? null,
     checkpoint: view.synchronizationCheckpoint?.status ?? null,
     errorCode: view.errorCode,

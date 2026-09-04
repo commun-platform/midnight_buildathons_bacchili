@@ -22,7 +22,7 @@ function configuration(version = 1, address = 'ab'.repeat(32)): DeviceOperationC
     midnight: {
       network: 'preprod',
       contractAddress: address,
-      contractSchemaVersion: 4,
+      contractSchemaVersion: 5,
       registrationVersion: 1,
     },
     policy: {

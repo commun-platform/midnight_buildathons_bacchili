@@ -41,6 +41,12 @@ export struct PolicyAssignment {
     version: Uint<32>;
 }
 
+export struct PolicyAssignmentStreamKeyInput {
+    domain: Bytes<32>;
+    deviceCommitment: Bytes<32>;
+    sensorTypeCode: Uint<16>;
+}
+
 export struct HourlyExtrema {
     present: Boolean;
     minimumCentiOffset: Uint<32>;
@@ -80,11 +86,13 @@ export struct DailyAttestationPublicState {
     verified: Boolean;
 }
 
-export sealed ledger operatorAuthority: Bytes<32>;
+export ledger operatorAuthority: Bytes<32>;
+export ledger operatorAuthorityVersion: Uint<32>;
 export ledger devices: Map<Bytes<32>, RegisteredDevice>;
 export ledger deviceAuthorityOwners: Map<Bytes<32>, Bytes<32>>;
 export ledger policies: Map<Bytes<32>, ThresholdPolicy>;
 export ledger policyAssignments: Map<Bytes<32>, PolicyAssignment>;
+export ledger latestPolicyAssignments: Map<Bytes<32>, Bytes<32>>;
 export ledger attestations: Map<Bytes<32>, DailyAttestationPublicState>;
 export ledger policyCount: Counter;
 export ledger deviceCount: Counter;
@@ -97,6 +105,7 @@ export ledger lastAttestationThresholdSatisfied: Boolean;
 constructor(initialOperatorAuthority: Bytes<32>) {
     assert(initialOperatorAuthority != pad(32, ""), "operator authority must not be empty");
     operatorAuthority = disclose(initialOperatorAuthority);
+    operatorAuthorityVersion = 1;
     deviceCount.increment(0);
     disabledDeviceCount.increment(0);
     policyCount.increment(0);
@@ -135,6 +144,19 @@ export pure circuit deriveAttestationId(
     ]);
 }
 
+export pure circuit derivePolicyAssignmentStreamKey(
+    deviceCommitment: Bytes<32>,
+    sensorTypeCode: Uint<16>
+): Bytes<32> {
+    return persistentHash<PolicyAssignmentStreamKeyInput>(
+        PolicyAssignmentStreamKeyInput {
+            domain: pad(32, "vsp:policy-stream:v1"),
+            deviceCommitment: deviceCommitment,
+            sensorTypeCode: sensorTypeCode
+        }
+    );
+}
+
 circuit assertDeviceAuthorized(deviceCommitment: Bytes<32>): [] {
     assert(devices.member(deviceCommitment), "device is not registered");
     const device = devices.lookup(deviceCommitment);
@@ -150,6 +172,20 @@ circuit assertOperatorAuthorized(): [] {
         disclose(operatorAuthority == deriveOperatorAuthority(privateOperatorSecret())),
         "operator is not authorized"
     );
+}
+
+export circuit rotateOperatorAuthority(
+    newOperatorAuthority: Bytes<32>,
+    newVersion: Uint<32>
+): [] {
+    assertOperatorAuthorized();
+    const publicOperatorAuthority = disclose(newOperatorAuthority);
+    const publicVersion = disclose(newVersion);
+    assert(publicOperatorAuthority != pad(32, ""), "operator authority must not be empty");
+    assert(publicOperatorAuthority != operatorAuthority, "operator authority must change");
+    assert(publicVersion > operatorAuthorityVersion, "operator authority version must increase");
+    operatorAuthority = publicOperatorAuthority;
+    operatorAuthorityVersion = publicVersion;
 }
 
 export circuit registerDevice(
@@ -275,8 +311,23 @@ export circuit registerPolicyAssignment(
         shiftedStartMinute == utcDayStartMinute + 2880,
         "operational day boundary is inconsistent"
     );
-    assert(validUntil == 0 || validFrom < validUntil, "policy assignment period is invalid");
-    assert(version > 0, "assignment version must be positive");
+    const policy = policies.lookup(publicPolicyId);
+    const streamKey = derivePolicyAssignmentStreamKey(
+        publicDeviceCommitment,
+        policy.sensorTypeCode
+    );
+    const publicValidFrom = disclose(validFrom);
+    const publicValidUntil = disclose(validUntil);
+    const publicVersion = disclose(version);
+    assert(publicValidUntil == 0 || publicValidFrom < publicValidUntil, "policy assignment period is invalid");
+    assert(publicVersion > 0, "assignment version must be positive");
+    if (latestPolicyAssignments.member(streamKey)) {
+        const previousAssignmentId = latestPolicyAssignments.lookup(streamKey);
+        const previous = policyAssignments.lookup(previousAssignmentId);
+        assert(previous.validUntil != 0, "previous policy assignment is still open");
+        assert(previous.validUntil <= publicValidFrom, "policy assignments must not overlap");
+        assert(publicVersion > previous.version, "assignment version must increase");
+    }
     policyAssignments.insert(
         publicAssignmentId,
         disclose(PolicyAssignment {
@@ -285,12 +336,50 @@ export circuit registerPolicyAssignment(
             timeZoneOffsetMinutesBias: timeZoneOffsetMinutesBias,
             localDayStartHour: localDayStartHour,
             utcDayStartMinute: utcDayStartMinute,
-            validFrom: validFrom,
-            validUntil: validUntil,
-            version: version
+            validFrom: publicValidFrom,
+            validUntil: publicValidUntil,
+            version: publicVersion
         })
     );
+    latestPolicyAssignments.insert(streamKey, publicAssignmentId);
     assignmentCount.increment(1);
+}
+
+export circuit closePolicyAssignment(
+    assignmentId: Bytes<32>,
+    validUntil: Uint<64>
+): [] {
+    assertOperatorAuthorized();
+    const publicAssignmentId = disclose(assignmentId);
+    const publicValidUntil = disclose(validUntil);
+    assert(policyAssignments.member(publicAssignmentId), "policy assignment is not registered");
+    const assignment = policyAssignments.lookup(publicAssignmentId);
+    assert(policies.member(assignment.policyId), "assigned threshold policy is missing");
+    const policy = policies.lookup(assignment.policyId);
+    const streamKey = derivePolicyAssignmentStreamKey(
+        assignment.deviceCommitment,
+        policy.sensorTypeCode
+    );
+    assert(latestPolicyAssignments.member(streamKey), "policy assignment stream is missing");
+    assert(
+        latestPolicyAssignments.lookup(streamKey) == publicAssignmentId,
+        "only the latest policy assignment can be closed"
+    );
+    assert(assignment.validUntil == 0, "policy assignment is already closed");
+    assert(publicValidUntil > assignment.validFrom, "policy assignment period is invalid");
+    policyAssignments.insert(
+        publicAssignmentId,
+        disclose(PolicyAssignment {
+            policyId: assignment.policyId,
+            deviceCommitment: assignment.deviceCommitment,
+            timeZoneOffsetMinutesBias: assignment.timeZoneOffsetMinutesBias,
+            localDayStartHour: assignment.localDayStartHour,
+            utcDayStartMinute: assignment.utcDayStartMinute,
+            validFrom: assignment.validFrom,
+            validUntil: publicValidUntil,
+            version: assignment.version
+        })
+    );
 }
 
 export circuit submitDailyAttestation(

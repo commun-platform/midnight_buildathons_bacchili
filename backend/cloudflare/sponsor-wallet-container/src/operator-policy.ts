@@ -20,7 +20,7 @@ import {
   witnesses,
   type SensorPrivateState,
 } from './sensor-registry-witnesses.js';
-import type { SponsorWalletRuntime } from './wallet.js';
+import type { AuthorityTransactionRuntime } from './authority-transaction-runtime.js';
 import { verifyBrowserPolicyAuthorization } from './wallet-signature.js';
 
 const indexerUrl = 'https://indexer.preprod.midnight.network/api/v4/graphql';
@@ -30,11 +30,13 @@ const zkConfigPath = process.env.SPONSOR_ZK_CONFIG_PATH
   ?? '/app/midnight/contracts/sensor-registry/src/managed/sensor-registry';
 
 type SensorRegistryCircuit =
+  | 'rotateOperatorAuthority'
   | 'registerDevice'
   | 'rotateDeviceAuthority'
   | 'disableDevice'
   | 'registerThresholdPolicy'
   | 'registerPolicyAssignment'
+  | 'closePolicyAssignment'
   | 'submitDailyAttestation';
 
 export interface OperatorPolicyRegistration {
@@ -170,7 +172,7 @@ async function waitForPolicy(
 }
 
 export async function registerOperatorPolicy(
-  runtime: SponsorWalletRuntime,
+  runtime: AuthorityTransactionRuntime,
   input: OperatorPolicyRegistration,
   reportProgress: OperatorPolicyProgressReporter = () => undefined,
 ): Promise<OperatorPolicyRegistrationResult> {
@@ -190,18 +192,7 @@ export async function registerOperatorPolicy(
     getCoinPublicKey: () => runtime.shieldedSecretKeys.coinPublicKey,
     getEncryptionPublicKey: () => runtime.shieldedSecretKeys.encryptionPublicKey,
     async balanceTx(transaction: UnboundTransaction, ttl?: Date) {
-      const recipe = await runtime.wallet.balanceUnboundTransaction(
-        transaction,
-        {
-          shieldedSecretKeys: runtime.shieldedSecretKeys,
-          dustSecretKey: runtime.dustSecretKey,
-        },
-        {
-          ttl: ttl ?? new Date(Date.now() + 30 * 60 * 1000),
-          tokenKindsToBalance: ['dust'],
-        },
-      );
-      return runtime.wallet.finalizeRecipe(recipe);
+      return runtime.finalizeAuthorityTransaction(transaction, ttl);
     },
   };
   const publicDataProvider = indexerPublicDataProvider(
@@ -228,11 +219,19 @@ export async function registerOperatorPolicy(
     },
     walletProvider,
     midnightProvider: {
-      submitTx: async (transaction: Parameters<SponsorWalletRuntime['submitPreparedTransaction']>[0]) => {
+      submitTx: async (transaction: Parameters<AuthorityTransactionRuntime['sponsorContractTransactionAndConfirm']>[0]) => {
         await reportProgress({ stage: 'policy_tx_submitting' });
-        const submitted = await runtime.submitPreparedTransaction(transaction);
-        await reportProgress({ stage: 'policy_tx_submitted', transactionId: submitted });
-        return submitted as never;
+        const submitted = await runtime.sponsorContractTransactionAndConfirm(
+          transaction,
+          input.contractAddress,
+          'registerThresholdPolicy',
+          `register-policy:${input.policyId}:${input.policyVersion}`,
+        );
+        await reportProgress({
+          stage: 'policy_tx_submitted',
+          transactionId: submitted.contractTransactionId,
+        });
+        return submitted.contractTransactionId as never;
       },
     },
   };

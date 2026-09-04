@@ -13,11 +13,12 @@ export interface WalletCredentials {
 }
 
 export interface DeploymentRecord {
-  contractSchemaVersion: 4;
+  contractSchemaVersion: 5;
   contractAddress: string;
   deploymentTxId: string;
   deployerAddress: string;
   operatorAuthority: string;
+  operatorAuthorityVersion: number;
   /** Initial device retained as a flattened deployment summary. */
   deviceAuthority: string;
   deviceCommitment: string;
@@ -57,6 +58,7 @@ export interface DeploymentRecord {
     localDayStartHour: number;
     utcDayStartMinute: number;
     assignmentRegisteredTxId: string;
+    assignmentClosedTxId: string | null;
     validFrom: string | null;
     validUntil: string | null;
   }>;
@@ -149,5 +151,18 @@ export function loadDeployment(network: NetworkId): DeploymentRecord | null {
 }
 
 export function saveDeployment(network: NetworkId, deployment: DeploymentRecord): void {
+  const current = readJson<{ contractAddress?: unknown }>(deploymentPath(network));
+  if (
+    typeof current?.contractAddress === 'string'
+    && current.contractAddress !== deployment.contractAddress
+    && /^(?:[0-9a-f]{2}){32}$/iu.test(current.contractAddress)
+  ) {
+    const historyFile = path.join(
+      stateDir,
+      'deployment-history',
+      `${network}-${current.contractAddress.toLowerCase()}.json`,
+    );
+    if (!fs.existsSync(historyFile)) writeSecretJson(historyFile, current);
+  }
   writeSecretJson(deploymentPath(network), deployment);
 }

@@ -15,6 +15,8 @@ type AccessConfiguration = Pick<
 
 export interface SystemOperatorPrincipal {
   identifier: string;
+  email: string | null;
+  subject: string | null;
   displayName: string;
   source: 'cloudflare-access' | 'local-development';
 }
@@ -34,7 +36,7 @@ function json(status: number, value: unknown): Response {
 }
 
 function principalFromIdentity(identity: Record<string, unknown>): SystemOperatorPrincipal | null {
-  const email = typeof identity.email === 'string' ? identity.email.trim() : '';
+  const email = typeof identity.email === 'string' ? identity.email.trim().toLowerCase() : '';
   const name = typeof identity.name === 'string' ? identity.name.trim() : '';
   const userUuid = typeof identity.user_uuid === 'string' ? identity.user_uuid.trim() : '';
   const subject = typeof identity.sub === 'string' ? identity.sub.trim() : '';
@@ -42,6 +44,8 @@ function principalFromIdentity(identity: Record<string, unknown>): SystemOperato
   if (!identifier) return null;
   return {
     identifier,
+    email: email || null,
+    subject: userUuid || subject || null,
     displayName: name || email || userUuid || subject,
     source: 'cloudflare-access',
   };
@@ -124,6 +128,8 @@ export async function authorizeSystemOperator(
       ok: true,
       principal: {
         identifier: 'local-development',
+        email: null,
+        subject: null,
         displayName: 'Local system operator',
         source: 'local-development',
       },
@@ -167,4 +173,26 @@ export async function authorizeSystemOperator(
     ok: false,
     response: json(403, { error: 'Cloudflare Access authentication is required' }),
   };
+}
+
+export async function verifiedSystemOperatorPrincipal(
+  request: Request,
+  env: AccessConfiguration,
+  jwksFetch?: FetchImplementation,
+): Promise<SystemOperatorPrincipal | null> {
+  const url = new URL(request.url);
+  if (
+    loopbackHosts.has(url.hostname)
+    && request.headers.get('X-System-Operations-Local') === 'dashboard'
+  ) {
+    return {
+      identifier: 'local-development',
+      email: null,
+      subject: null,
+      displayName: 'Local system operator',
+      source: 'local-development',
+    };
+  }
+  const result = await principalFromAccessJwt(request, env, jwksFetch);
+  return result.kind === 'authorized' ? result.principal : null;
 }

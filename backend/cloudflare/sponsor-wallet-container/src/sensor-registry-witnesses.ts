@@ -5,6 +5,7 @@ import {
   type CompactDailyExtremaInput,
   type PrivateDailyExtremaAttestation,
 } from '@midnight-demo/shared/runtime';
+import { pureCircuits } from '@midnight-demo/sensor-registry-contract/contract';
 import type { WitnessContext } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 
 export type SensorPrivateState = {
@@ -28,6 +29,12 @@ function requiredSecret(value: string | undefined, label: string): Uint8Array {
   const secret = hexToBytes(value);
   if (secret.length !== 32) throw new Error(`${label} must contain 32 bytes`);
   return secret;
+}
+
+export function deriveDeviceAuthorityHex(deviceSecretHex: string): string {
+  return bytesToHex(pureCircuits.deriveDeviceAuthority(
+    requiredSecret(deviceSecretHex, 'Device contract authority secret'),
+  ));
 }
 
 function findDailyAttestation(

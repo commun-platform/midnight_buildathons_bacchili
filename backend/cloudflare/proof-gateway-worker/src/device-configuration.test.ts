@@ -178,7 +178,7 @@ describe('authenticated Device operation configuration', () => {
       midnight: {
         network: 'preprod',
         contractAddress: 'ab'.repeat(32),
-        contractSchemaVersion: 4,
+        contractSchemaVersion: 5,
       },
       policy: { id: 'temperature-v1', minimum: 10, maximum: 35 },
       assignment: {

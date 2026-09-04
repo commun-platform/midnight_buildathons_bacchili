@@ -3,8 +3,28 @@ import test from 'node:test';
 
 import {
   preservedContractTransactionId,
+  requireSponsoredContractEntryPoint,
+  sponsoredContractEntryPoints,
   validateSponsorIntentShape,
 } from './transaction.js';
+
+test('allowlists only the eight operational Sensor Registry circuits', () => {
+  assert.deepEqual(sponsoredContractEntryPoints, [
+    'registerDevice',
+    'rotateDeviceAuthority',
+    'disableDevice',
+    'registerThresholdPolicy',
+    'registerPolicyAssignment',
+    'closePolicyAssignment',
+    'rotateOperatorAuthority',
+    'submitDailyAttestation',
+  ]);
+  assert.equal(requireSponsoredContractEntryPoint('registerDevice'), 'registerDevice');
+  assert.throws(
+    () => requireSponsoredContractEntryPoint('transfer'),
+    /outside the sponsorship policy/u,
+  );
+});
 
 test('accepts exactly one contract intent containing one action', () => {
   assert.doesNotThrow(() => validateSponsorIntentShape(new Map([

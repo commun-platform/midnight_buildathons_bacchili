@@ -258,7 +258,7 @@ test('fetches configuration with a reusable Device Session and rejects another D
         },
         midnight: {
           network: 'preprod', contractAddress: 'ab'.repeat(32),
-          contractSchemaVersion: 4, registrationVersion: 1,
+          contractSchemaVersion: 5, registrationVersion: 1,
         },
         policy: {
           id: 'temperature-v1', key: 'cd'.repeat(32), mode: 'closed-range',

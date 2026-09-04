@@ -4,8 +4,15 @@ import {
   browserPolicyCanonicalMessage,
   browserProjectCanonicalMessage,
 } from '@midnight-demo/shared/browser-provisioning';
+import {
+  sampleSigningKey,
+  signData,
+  signatureVerifyingKey,
+} from '@midnight-ntwrk/onchain-runtime-v3';
 
 const containerMocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+const walletSigningKey = sampleSigningKey();
+const walletVerifyingKey = signatureVerifyingKey(walletSigningKey);
 
 vi.mock('@cloudflare/containers', () => ({
   getContainer: () => ({ fetch: containerMocks.fetch }),
@@ -66,6 +73,9 @@ function memoryDatabase(state: MemoryState): D1Database {
           return statement;
         },
         async first<T>() {
+          if (query.includes('sponsor_wallet_operating_schedule')) {
+            throw new Error('Admission must not read the Server Wallet operating schedule');
+          }
           if (query.includes('AS policy_count')) {
             const projectId = String(parameters[0]);
             const registered = state.projectPolicies.filter((item) => item.project_id === projectId).length;
@@ -240,8 +250,8 @@ async function walletProjectSession(env: Env) {
         timestamp,
         walletSignature: {
           data,
-          signature: 'official-wallet-signature',
-          verifyingKey: 'wallet-project-sct-verifying-key',
+          signature: signData(walletSigningKey, new TextEncoder().encode(data)),
+          verifyingKey: walletVerifyingKey,
         },
       }),
     },
@@ -260,7 +270,6 @@ describe('SCT: Wallet-owned Browser Projects', () => {
 
   beforeEach(() => {
     containerMocks.fetch.mockReset();
-    containerMocks.fetch.mockResolvedValue(Response.json({ verified: true }));
     state = {
       challenges: new Map(),
       sessions: new Map(),
@@ -281,7 +290,7 @@ describe('SCT: Wallet-owned Browser Projects', () => {
     } as unknown as Env;
   });
 
-  it('creates a 24-hour Wallet session and exposes the existing Project', async () => {
+  it('creates a 24-hour Wallet session without starting the scheduled Server Wallet', async () => {
     const session = await walletProjectSession(env);
 
     expect(session.maximumProjects).toBe(10);
@@ -289,7 +298,7 @@ describe('SCT: Wallet-owned Browser Projects', () => {
       projectId: 'measurement-authenticity-01',
     })]);
     expect(session.accessToken).toMatch(/^[A-Za-z0-9_-]{32,}$/u);
-    expect(containerMocks.fetch).toHaveBeenCalledOnce();
+    expect(containerMocks.fetch).not.toHaveBeenCalled();
 
     const listed = await handleProvisioningApi(new Request(
       'https://worker.test/api/v1/projects',
@@ -364,7 +373,7 @@ describe('SCT: Wallet-owned Browser Projects', () => {
     expect(state.walletProjects).toHaveLength(10);
   });
 
-  it('accepts a Project-scoped immutable Policy as an asynchronous Sponsor Job', async () => {
+  it('accepts a Project-scoped Policy outside Server Wallet hours as an asynchronous Job', async () => {
     const session = await walletProjectSession(env);
     const authorization = `Bearer ${session.accessToken}`;
     const challengeResponse = await handleProvisioningApi(new Request(
@@ -402,8 +411,11 @@ describe('SCT: Wallet-owned Browser Projects', () => {
           ...unsigned,
           walletSignature: {
             data: browserPolicyCanonicalMessage(unsigned),
-            signature: 'official-wallet-signature',
-            verifyingKey: 'wallet-project-sct-verifying-key',
+            signature: signData(
+              walletSigningKey,
+              new TextEncoder().encode(browserPolicyCanonicalMessage(unsigned)),
+            ),
+            verifyingKey: walletVerifyingKey,
           },
         }),
       },
@@ -423,6 +435,70 @@ describe('SCT: Wallet-owned Browser Projects', () => {
       operationId: expect.stringMatching(/^pol_/u),
     }]);
     expect(state.policyChallenges.get(challenge.challengeId)?.consumed_at).not.toBeNull();
+    expect(containerMocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps an accepted Policy queued when the initial Queue publish is unavailable', async () => {
+    const session = await walletProjectSession(env);
+    const authorization = `Bearer ${session.accessToken}`;
+    const challengeResponse = await handleProvisioningApi(new Request(
+      'https://worker.test/api/v1/policies/challenge',
+      {
+        method: 'POST',
+        headers: { Authorization: authorization, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: 'measurement-authenticity-01' }),
+      },
+    ), env);
+    const challenge = await challengeResponse?.json() as {
+      projectId: string;
+      policyId: string;
+      challengeId: string;
+      nonce: string;
+    };
+    const unsigned = {
+      projectId: challenge.projectId,
+      policyId: challenge.policyId,
+      name: 'Queued without initial delivery',
+      mode: 'upper-bound' as const,
+      minimumCentiCelsius: null,
+      maximumCentiCelsius: 4_000,
+      challengeId: challenge.challengeId,
+      nonce: challenge.nonce,
+      timestamp: new Date().toISOString(),
+    };
+    const data = browserPolicyCanonicalMessage(unsigned);
+    env = {
+      ...env,
+      SPONSOR_QUEUE: { send: async () => { throw new Error('Queue unavailable'); } },
+    } as unknown as Env;
+
+    const response = await handleProvisioningApi(new Request(
+      'https://worker.test/api/v1/policies',
+      {
+        method: 'POST',
+        headers: { Authorization: authorization, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...unsigned,
+          walletSignature: {
+            data,
+            signature: signData(walletSigningKey, new TextEncoder().encode(data)),
+            verifyingKey: walletVerifyingKey,
+          },
+        }),
+      },
+    ), env);
+
+    expect(response?.status).toBe(202);
+    expect(await response?.json()).toMatchObject({
+      policyId: challenge.policyId,
+      status: 'queued',
+      stage: 'queued',
+    });
+    expect([...state.policyOperations.values()]).toContainEqual(expect.objectContaining({
+      policy_id: challenge.policyId,
+      status: 'queued',
+      stage: 'queued',
+    }));
   });
 
   it('keeps an explicitly associated legacy Policy visible without copying it into new Projects', async () => {

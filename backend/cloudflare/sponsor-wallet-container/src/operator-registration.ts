@@ -22,7 +22,7 @@ import {
   witnesses,
   type SensorPrivateState,
 } from './sensor-registry-witnesses.js';
-import type { SponsorWalletRuntime } from './wallet.js';
+import type { AuthorityTransactionRuntime } from './authority-transaction-runtime.js';
 import { verifyBrowserProvisioningAuthorization } from './wallet-signature.js';
 
 export { verifyBrowserProvisioningAuthorization } from './wallet-signature.js';
@@ -34,11 +34,13 @@ const zkConfigPath = process.env.SPONSOR_ZK_CONFIG_PATH
   ?? '/app/midnight/contracts/sensor-registry/src/managed/sensor-registry';
 
 type SensorRegistryCircuit =
+  | 'rotateOperatorAuthority'
   | 'registerDevice'
   | 'rotateDeviceAuthority'
   | 'disableDevice'
   | 'registerThresholdPolicy'
   | 'registerPolicyAssignment'
+  | 'closePolicyAssignment'
   | 'submitDailyAttestation';
 
 export interface OperatorDeviceRegistration {
@@ -57,8 +59,10 @@ export interface OperatorDeviceRegistration {
   validUntilEpoch: string;
   knownDeviceTxId?: string;
   knownAssignmentTxId?: string;
-  browserAuthorization: BrowserProvisioningAuthorization;
+  browserAuthorization?: BrowserProvisioningAuthorization;
 }
+
+export type ServiceDeviceRegistration = Omit<OperatorDeviceRegistration, 'browserAuthorization'>;
 
 export type OperatorRegistrationStage =
   | 'sponsor_wallet_ready'
@@ -163,7 +167,7 @@ function transactionId(transaction: unknown, operation: string): string {
   return String(value);
 }
 
-function validate(input: OperatorDeviceRegistration): void {
+function validate(input: OperatorDeviceRegistration, requireBrowserAuthorization = true): void {
   if (!/^(?:[0-9a-f]{2}){32}$/u.test(input.operatorSecretHex)) {
     throw new Error('Operator Authority secret is invalid');
   }
@@ -212,20 +216,22 @@ function validate(input: OperatorDeviceRegistration): void {
       throw new Error(`${name} is invalid`);
     }
   }
-  verifyBrowserProvisioningAuthorization(input.browserAuthorization);
-  if (
-    input.browserAuthorization.deviceId !== input.deviceId
-    || input.browserAuthorization.deviceAuthority !== input.deviceAuthority
-    || input.browserAuthorization.policyId !== input.policyId
-  ) throw new Error('Browser provisioning authorization does not match the registration');
+  if (requireBrowserAuthorization) {
+    if (!input.browserAuthorization) throw new Error('Browser provisioning authorization is required');
+    verifyBrowserProvisioningAuthorization(input.browserAuthorization);
+    if (
+      input.browserAuthorization.deviceId !== input.deviceId
+      || input.browserAuthorization.deviceAuthority !== input.deviceAuthority
+      || input.browserAuthorization.policyId !== input.policyId
+    ) throw new Error('Browser provisioning authorization does not match the registration');
+  }
 }
 
-export async function registerOperatorDevice(
-  runtime: SponsorWalletRuntime,
+async function registerAuthorizedDevice(
+  runtime: AuthorityTransactionRuntime,
   input: OperatorDeviceRegistration,
   reportProgress: OperatorRegistrationProgressReporter = () => undefined,
 ): Promise<OperatorDeviceRegistrationResult> {
-  validate(input);
   await runtime.waitUntilReady();
   await reportProgress({ stage: 'sponsor_wallet_ready' });
   const compiledContract = CompiledContract.make('sensor-registry', Contract).pipe(
@@ -241,18 +247,7 @@ export async function registerOperatorDevice(
     getCoinPublicKey: () => runtime.shieldedSecretKeys.coinPublicKey,
     getEncryptionPublicKey: () => runtime.shieldedSecretKeys.encryptionPublicKey,
     async balanceTx(transaction: UnboundTransaction, ttl?: Date) {
-      const recipe = await runtime.wallet.balanceUnboundTransaction(
-        transaction,
-        {
-          shieldedSecretKeys: runtime.shieldedSecretKeys,
-          dustSecretKey: runtime.dustSecretKey,
-        },
-        {
-          ttl: ttl ?? new Date(Date.now() + 30 * 60 * 1000),
-          tokenKindsToBalance: ['dust'],
-        },
-      );
-      return runtime.wallet.finalizeRecipe(recipe);
+      return runtime.finalizeAuthorityTransaction(transaction, ttl);
     },
   };
   const publicDataProvider = indexerPublicDataProvider(
@@ -281,18 +276,22 @@ export async function registerOperatorDevice(
     },
     walletProvider,
     midnightProvider: {
-      submitTx: async (transaction: Parameters<SponsorWalletRuntime['submitPreparedTransaction']>[0]) => {
-        if (activeRegistration) {
-          await reportProgress({ stage: `${activeRegistration}_tx_submitting` });
-        }
-        const submitted = await runtime.submitPreparedTransaction(transaction);
-        if (activeRegistration) {
-          await reportProgress({
-            stage: `${activeRegistration}_tx_submitted`,
-            transactionId: submitted,
-          });
-        }
-        return submitted as never;
+      submitTx: async (transaction: Parameters<AuthorityTransactionRuntime['sponsorContractTransactionAndConfirm']>[0]) => {
+        if (!activeRegistration) throw new Error('Operator registration circuit is unavailable');
+        await reportProgress({ stage: `${activeRegistration}_tx_submitting` });
+        const submitted = await runtime.sponsorContractTransactionAndConfirm(
+          transaction,
+          input.contractAddress,
+          activeRegistration === 'device' ? 'registerDevice' : 'registerPolicyAssignment',
+          activeRegistration === 'device'
+            ? `register-device:${input.deviceId}:${input.deviceRegistrationVersion}`
+            : `register-assignment:${input.assignmentId}:${input.assignmentVersion}`,
+        );
+        await reportProgress({
+          stage: `${activeRegistration}_tx_submitted`,
+          transactionId: submitted.contractTransactionId,
+        });
+        return submitted.contractTransactionId as never;
       },
     },
   };
@@ -393,4 +392,22 @@ export async function registerOperatorDevice(
     deviceTxId,
     assignmentTxId,
   };
+}
+
+export async function registerOperatorDevice(
+  runtime: AuthorityTransactionRuntime,
+  input: OperatorDeviceRegistration,
+  reportProgress: OperatorRegistrationProgressReporter = () => undefined,
+): Promise<OperatorDeviceRegistrationResult> {
+  validate(input);
+  return registerAuthorizedDevice(runtime, input, reportProgress);
+}
+
+export async function registerServiceDevice(
+  runtime: AuthorityTransactionRuntime,
+  input: ServiceDeviceRegistration,
+  reportProgress: OperatorRegistrationProgressReporter = () => undefined,
+): Promise<OperatorDeviceRegistrationResult> {
+  validate(input, false);
+  return registerAuthorizedDevice(runtime, input, reportProgress);
 }

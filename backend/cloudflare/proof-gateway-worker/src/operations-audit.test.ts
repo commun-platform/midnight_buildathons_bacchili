@@ -103,6 +103,53 @@ describe('operations audit', () => {
     expect(serialized).not.toContain('response-super-secret');
   });
 
+  it('audits protected Managed API reads as the verified system operator', async () => {
+    const inserts: Array<{ sql: string; parameters: unknown[] }> = [];
+    const database = {
+      prepare(sql: string) {
+        const statement = {
+          parameters: [] as unknown[],
+          bind(...parameters: unknown[]) {
+            statement.parameters = parameters;
+            return statement;
+          },
+          async first<T>() {
+            if (sql.includes('FROM managed_sources')) {
+              return { project_id: 'project-a' } as T;
+            }
+            return null;
+          },
+          async run() {
+            inserts.push({ sql, parameters: statement.parameters });
+            return { meta: { changes: 1 } };
+          },
+        };
+        return statement;
+      },
+    };
+    const request = new Request(
+      'http://127.0.0.1/api/v1/managed-sources/source-a/runs/run-a',
+      { headers: { 'X-System-Operations-Local': 'dashboard' } },
+    );
+    const prepared = prepareRequestAudit(request, 'managed-read-001');
+    expect(prepared).toMatchObject({
+      action: 'managed.attestation.read',
+      resourceType: 'managed-source-run',
+      resourceId: 'run-a',
+    });
+    await recordRequestAudit(
+      { DB: database } as unknown as Env,
+      request,
+      Response.json({ run: { runId: 'run-a' } }),
+      prepared!,
+    );
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]?.parameters).toContain('operator');
+    expect(inserts[0]?.parameters).toContain('local-development');
+    expect(inserts[0]?.parameters).toContain('project-a');
+    expect(JSON.stringify(inserts)).not.toContain('csrf');
+  });
+
   it('classifies Wallet synchronization and computes block lag without exposing errors', () => {
     const view = sponsorWalletOperationsView({ ...health(), error: 'sensitive runtime detail' });
     expect(view.healthClass).toBe('healthy');

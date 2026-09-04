@@ -536,4 +536,111 @@ describe('SensorRegistry hourly-extrema contract', () => {
       2n,
     )).toThrow('device authority is already registered');
   });
+
+  it('rejects a successor Policy assignment while the current stream is open', () => {
+    const simulator = new SensorRegistrySimulator(valid);
+    simulator.registerPolicy();
+    const publicData = valid.publicData;
+    expect(() => simulator.contract.impureCircuits.registerPolicyAssignment(
+      simulator.context,
+      hexToBytes('77'.repeat(32)),
+      hexToBytes(publicData.policyKey),
+      hexToBytes(publicData.deviceCommitment),
+      BigInt(publicData.timeZoneOffsetMinutes + 840),
+      BigInt(publicData.localDayStartHour),
+      BigInt(publicData.utcDayStartMinute),
+      BigInt(publicData.periodEndEpoch),
+      0n,
+      2n,
+    )).toThrow('previous policy assignment is still open');
+  });
+
+  it('closes one Policy assignment before a non-overlapping higher-version successor', () => {
+    const simulator = new SensorRegistrySimulator(valid);
+    simulator.registerPolicy();
+    const publicData = valid.publicData;
+    const originalAssignmentId = hexToBytes(publicData.assignmentKey);
+    const successorAssignmentId = hexToBytes('77'.repeat(32));
+    simulator.context = simulator.contract.impureCircuits.closePolicyAssignment(
+      simulator.context,
+      originalAssignmentId,
+      BigInt(publicData.periodEndEpoch),
+    ).context;
+    expect(() => simulator.contract.impureCircuits.closePolicyAssignment(
+      simulator.context,
+      originalAssignmentId,
+      BigInt(publicData.periodEndEpoch + 86_400),
+    )).toThrow('policy assignment is already closed');
+    expect(() => simulator.contract.impureCircuits.registerPolicyAssignment(
+      simulator.context,
+      successorAssignmentId,
+      hexToBytes(publicData.policyKey),
+      hexToBytes(publicData.deviceCommitment),
+      BigInt(publicData.timeZoneOffsetMinutes + 840),
+      BigInt(publicData.localDayStartHour),
+      BigInt(publicData.utcDayStartMinute),
+      BigInt(publicData.periodEndEpoch) - 1n,
+      0n,
+      2n,
+    )).toThrow('policy assignments must not overlap');
+    expect(() => simulator.contract.impureCircuits.registerPolicyAssignment(
+      simulator.context,
+      successorAssignmentId,
+      hexToBytes(publicData.policyKey),
+      hexToBytes(publicData.deviceCommitment),
+      BigInt(publicData.timeZoneOffsetMinutes + 840),
+      BigInt(publicData.localDayStartHour),
+      BigInt(publicData.utcDayStartMinute),
+      BigInt(publicData.periodEndEpoch),
+      0n,
+      1n,
+    )).toThrow('assignment version must increase');
+    simulator.context = simulator.contract.impureCircuits.registerPolicyAssignment(
+      simulator.context,
+      successorAssignmentId,
+      hexToBytes(publicData.policyKey),
+      hexToBytes(publicData.deviceCommitment),
+      BigInt(publicData.timeZoneOffsetMinutes + 840),
+      BigInt(publicData.localDayStartHour),
+      BigInt(publicData.utcDayStartMinute),
+      BigInt(publicData.periodEndEpoch),
+      0n,
+      2n,
+    ).context;
+
+    const stateBeforeDelayedSubmission = ledger(simulator.context.currentQueryContext.state);
+    const streamKey = pureCircuits.derivePolicyAssignmentStreamKey(
+      hexToBytes(publicData.deviceCommitment),
+      1n,
+    );
+    expect(stateBeforeDelayedSubmission.latestPolicyAssignments.lookup(streamKey))
+      .toEqual(successorAssignmentId);
+    expect(stateBeforeDelayedSubmission.assignmentCount).toBe(2n);
+    expect(simulator.submit().attestations.lookup(attestationId(valid)).verified).toBe(true);
+  });
+
+  it('rotates Operator Authority and immediately rejects the old private secret', () => {
+    const replacementSecret = '88'.repeat(32);
+    const simulator = new SensorRegistrySimulator(valid);
+    simulator.context = simulator.contract.impureCircuits.rotateOperatorAuthority(
+      simulator.context,
+      pureCircuits.deriveOperatorAuthority(hexToBytes(replacementSecret)),
+      2n,
+    ).context;
+    const rotated = ledger(simulator.context.currentQueryContext.state);
+    expect(rotated.operatorAuthorityVersion).toBe(2n);
+    expect(() => simulator.registerPolicy()).toThrow('operator is not authorized');
+
+    simulator.context.currentPrivateState = {
+      ...simulator.context.currentPrivateState,
+      operatorSecretHex: replacementSecret,
+    };
+    simulator.registerPolicy();
+    expect(ledger(simulator.context.currentQueryContext.state).policyCount).toBe(1n);
+    expect(() => simulator.contract.impureCircuits.rotateOperatorAuthority(
+      simulator.context,
+      pureCircuits.deriveOperatorAuthority(hexToBytes('99'.repeat(32))),
+      2n,
+    )).toThrow('operator authority version must increase');
+  });
 });

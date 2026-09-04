@@ -11,7 +11,12 @@ import {
   finalizeMeasurementWindow,
   initialAnomalyState,
 } from './aggregation.js';
-import { loadCollectorState, parseTemperature, seedSyntheticDemoWindow } from './collector.js';
+import {
+  loadCollectorState,
+  parseTemperature,
+  quarantineIncompatibleOutbox,
+  seedSyntheticDemoWindow,
+} from './collector.js';
 import type { EdgeConfig } from './config.js';
 
 test('parses Raspberry Pi millidegrees and decimal Celsius', () => {
@@ -49,7 +54,13 @@ test('quarantines a power-loss-corrupted state file and starts from a safe empty
   fs.writeFileSync(stateFile, Buffer.alloc(354), { mode: 0o600 });
   try {
     assert.deepEqual(loadCollectorState(config), {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      configuration: {
+        projectId: 'measurement-authenticity-01',
+        deviceId: 'edge-temp-001',
+        thresholdPolicyVersion: 'temperature-v1',
+        utcDayStartMinute: 0,
+      },
       window: null,
       anomaly: initialAnomalyState(),
       syntheticTick: 0,
@@ -59,6 +70,69 @@ test('quarantines a power-loss-corrupted state file and starts from a safe empty
       .filter((name) => name.startsWith('collector-state.json.corrupt-'));
     assert.equal(quarantined.length, 1);
     assert.equal(fs.statSync(path.join(dataDirectory, quarantined[0]!)).mode & 0o777, 0o600);
+  } finally {
+    fs.rmSync(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test('quarantines collector state and outbox entries from a superseded policy', () => {
+  const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vsp-edge-policy-transition-'));
+  const config: EdgeConfig = {
+    port: 8788,
+    intervalSeconds: 1,
+    sensorPath: '/unused',
+    serviceUrl: 'https://worker.test/api/v1/',
+    projectId: 'measurement-authenticity-01',
+    deviceId: 'edge-temp-001',
+    dataDirectory,
+    sensorMode: 'synthetic',
+    syntheticBase: 22,
+    syntheticAmplitude: 2,
+    normalMinimum: 10,
+    normalMaximum: 35,
+    anomalyHysteresis: 0.5,
+    anomalyDebounceSamples: 3,
+    anomalyCooldownSeconds: 300,
+    thresholdPolicyVersion: 'temperature-v2',
+    utcDayStartMinute: 900,
+  };
+  const stateFile = path.join(dataDirectory, 'collector-state.json');
+  const outbox = path.join(dataDirectory, 'outbox');
+  fs.mkdirSync(outbox, { recursive: true });
+  fs.writeFileSync(stateFile, JSON.stringify({
+    schemaVersion: 2,
+    configuration: {
+      projectId: config.projectId,
+      deviceId: config.deviceId,
+      thresholdPolicyVersion: 'temperature-v1',
+      utcDayStartMinute: 0,
+    },
+    window: null,
+    anomaly: initialAnomalyState(),
+    syntheticTick: 12,
+  }), { mode: 0o600 });
+  fs.writeFileSync(path.join(outbox, 'old.json'), JSON.stringify({
+    schemaVersion: 1,
+    kind: 'measurement-window',
+    createdAt: '2026-08-28T01:00:00.000Z',
+    payload: {
+      projectId: config.projectId,
+      deviceId: config.deviceId,
+      thresholdPolicyVersion: 'temperature-v1',
+    },
+  }), { mode: 0o600 });
+  try {
+    const state = loadCollectorState(config);
+    assert.equal(state.configuration.thresholdPolicyVersion, 'temperature-v2');
+    assert.equal(state.configuration.utcDayStartMinute, 900);
+    assert.equal(state.syntheticTick, 0);
+    assert.equal(fs.existsSync(stateFile), false);
+    assert.equal(quarantineIncompatibleOutbox(config), 1);
+    assert.deepEqual(fs.readdirSync(outbox).filter((name) => name.endsWith('.json')), []);
+    assert.equal(
+      fs.readdirSync(outbox).filter((name) => name.includes('.superseded-')).length,
+      1,
+    );
   } finally {
     fs.rmSync(dataDirectory, { recursive: true, force: true });
   }

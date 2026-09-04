@@ -128,7 +128,14 @@ describe('SCT: asynchronous Project Policy registration', () => {
     });
     const policyKey = '22'.repeat(32);
     containerMocks.fetch.mockImplementation(async (request: Request) => {
-      expect(new URL(request.url).pathname).toBe('/operator/register-policy');
+      const pathname = new URL(request.url).pathname;
+      if (pathname === '/health') {
+        return Response.json({
+          phase: 'ready',
+          initialization: { status: 'succeeded' },
+        });
+      }
+      expect(pathname).toBe('/operator/register-policy');
       expect(request.headers.get('X-Operator-Provisioning')).toBe('register-policy-v1');
       expect(request.headers.get('X-Operator-Progress')).toBe('ndjson-v1');
       expect(await request.json()).toMatchObject({
@@ -157,12 +164,14 @@ describe('SCT: asynchronous Project Policy registration', () => {
     } as unknown as Message<unknown>;
     const env = {
       DB: database(registeredPolicies),
+      SPONSOR_WALLET: {},
       PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS: 'contract-address-001',
     } as unknown as Env;
 
     expect(await processBrowserPolicyQueueMessage(message, env)).toBe(true);
     expect(acknowledged).toHaveBeenCalledOnce();
     expect(retried).not.toHaveBeenCalled();
+    expect(containerMocks.fetch).toHaveBeenCalledTimes(2);
     expect(operation).toMatchObject({
       status: 'registered',
       stage: 'completed',

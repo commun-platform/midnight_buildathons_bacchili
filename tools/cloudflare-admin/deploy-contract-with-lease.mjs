@@ -47,6 +47,26 @@ function queryRows(sql) {
   }
 }
 
+function requireFreshMirrorIdentifiers() {
+  const deviceId = flag('device-id')?.trim() || 'edge-temp-001';
+  const policyId = flag('policy-id')?.trim() || 'temperature-v1';
+  const assignmentId = flag('assignment-id')?.trim() || `${deviceId}-${policyId}-wave1`;
+  const collisions = queryRows(
+    `SELECT 'policy' AS kind, policy_id AS identifier
+       FROM threshold_policies WHERE policy_id = ${sqlString(policyId)}
+     UNION ALL
+     SELECT 'assignment' AS kind, assignment_id AS identifier
+       FROM policy_assignments WHERE assignment_id = ${sqlString(assignmentId)}`,
+  );
+  if (collisions.length > 0) {
+    const kinds = collisions.map((row) => `${row.kind}:${row.identifier}`).join(', ');
+    throw new Error(
+      `D1 already retains confirmed history for ${kinds}. `
+      + 'Use new --policy-id and --assignment-id values before deploying another contract.',
+    );
+  }
+}
+
 const policyFlags = [
   'device-id',
   'policy-id',
@@ -114,8 +134,8 @@ function syncPolicyMirror() {
   const network = process.env.MIDNIGHT_NETWORK?.trim() || 'preprod';
   const deploymentPath = path.join(repoRoot, '.state', 'development', `deployment-${network}.json`);
   const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-  if (deployment.contractSchemaVersion !== 4) {
-    throw new Error('Refusing to sync an incompatible single-device deployment record');
+  if (deployment.contractSchemaVersion !== 5) {
+    throw new Error('Refusing to sync an incompatible Fleet Registry deployment record');
   }
   const initialDevice = deployment.devices?.[0];
   if (
@@ -131,15 +151,21 @@ function syncPolicyMirror() {
   const maximum = deployment.policyMode === 'lower-bound'
     ? 'NULL'
     : String(Number(deployment.thresholdMaximum));
+  const timeZoneOffsetMinutes = Number(deployment.timeZoneOffsetMinutes);
+  const offsetSign = timeZoneOffsetMinutes >= 0 ? '+' : '-';
+  const offsetHours = String(Math.floor(Math.abs(timeZoneOffsetMinutes) / 60)).padStart(2, '0');
+  const offsetMinutes = String(Math.abs(timeZoneOffsetMinutes) % 60).padStart(2, '0');
+  const timeZoneLabel = `UTC${offsetSign}${offsetHours}:${offsetMinutes}`;
   const statements = [
     `INSERT INTO threshold_policies (
-       policy_id, policy_key, project_id, sensor_type, unit, mode,
+       policy_id, policy_key, project_id, sensor_type, unit, mode, name,
        minimum, maximum, value_scale, sensor_type_code, unit_code,
        policy_version, status, contract_address, registered_tx_id, registered_at
      ) VALUES (
        ${sqlString(deployment.policyId)}, ${sqlString(deployment.policyKey)},
        'measurement-authenticity-01', 'temperature', '°C',
-       ${sqlString(deployment.policyMode)}, ${minimum}, ${maximum},
+       ${sqlString(deployment.policyMode)}, ${sqlString(deployment.policyId)},
+       ${minimum}, ${maximum},
        ${Number(deployment.valueScale)}, ${Number(deployment.sensorTypeCode)},
        ${Number(deployment.unitCode)}, ${Number(deployment.policyVersion)},
        'registered', ${sqlString(deployment.contractAddress)}, ${sqlString(deployment.policyRegisteredTxId)},
@@ -154,9 +180,21 @@ function syncPolicyMirror() {
        sensor_type_code = excluded.sensor_type_code,
        unit_code = excluded.unit_code,
        policy_version = excluded.policy_version,
+       name = excluded.name,
        status = 'registered',
        contract_address = excluded.contract_address,
        registered_tx_id = excluded.registered_tx_id`,
+    `INSERT OR IGNORE INTO project_policies (project_id, policy_id, created_at)
+     VALUES (
+       'measurement-authenticity-01',
+       ${sqlString(deployment.policyId)},
+       ${sqlString(deployment.deployedAt)}
+     )`,
+    `UPDATE projects
+     SET timezone = ${sqlString(timeZoneLabel)},
+         time_zone_offset_minutes = ${timeZoneOffsetMinutes},
+         local_day_start_hour = ${Number(deployment.localDayStartHour)}
+     WHERE id = 'measurement-authenticity-01'`,
     `INSERT INTO policy_assignments (
        assignment_id, assignment_key, policy_id, project_id, device_id,
        valid_from, valid_until, assignment_version, status, device_commitment,
@@ -207,14 +245,32 @@ function syncPolicyMirror() {
     ]);
   }
   const mirrored = queryRows(
-    `SELECT midnight_device_commitment, midnight_registry_status, midnight_registered_tx_id
-     FROM devices WHERE id = ${sqlString(deployment.deviceId)}
-       AND project_id = 'measurement-authenticity-01' LIMIT 1`,
+    `SELECT d.midnight_device_commitment, d.midnight_registry_status,
+            d.midnight_registered_tx_id, p.contract_address AS policy_contract_address,
+            p.registered_tx_id AS policy_registered_tx_id,
+            a.contract_address AS assignment_contract_address,
+            a.registered_tx_id AS assignment_registered_tx_id,
+            pr.time_zone_offset_minutes, pr.local_day_start_hour
+     FROM devices d
+     JOIN projects pr ON pr.id = d.project_id
+     JOIN project_policies pp ON pp.project_id = d.project_id
+       AND pp.policy_id = ${sqlString(deployment.policyId)}
+     JOIN threshold_policies p ON p.policy_id = pp.policy_id
+     JOIN policy_assignments a ON a.assignment_id = ${sqlString(deployment.assignmentId)}
+       AND a.project_id = d.project_id AND a.device_id = d.id
+     WHERE d.id = ${sqlString(deployment.deviceId)}
+       AND d.project_id = 'measurement-authenticity-01' LIMIT 1`,
   );
   if (!mirrored.some((row) => row?.midnight_registry_status === 'registered'
     && row?.midnight_device_commitment === deployment.deviceCommitment
-    && row?.midnight_registered_tx_id === initialDevice.registeredTxId)) {
-    throw new Error('D1 Device mirror did not confirm the deployed Fleet Registry state');
+    && row?.midnight_registered_tx_id === initialDevice.registeredTxId
+    && row?.policy_contract_address === deployment.contractAddress
+    && row?.policy_registered_tx_id === deployment.policyRegisteredTxId
+    && row?.assignment_contract_address === deployment.contractAddress
+    && row?.assignment_registered_tx_id === initialDevice.assignmentRegisteredTxId
+    && Number(row?.time_zone_offset_minutes) === Number(deployment.timeZoneOffsetMinutes)
+    && Number(row?.local_day_start_hour) === Number(deployment.localDayStartHour))) {
+    throw new Error('D1 mirror did not confirm the deployed Fleet Registry state');
   }
   process.stdout.write('D1 policy and assignment mirror updated from the confirmed deployment record.\n');
 }
@@ -226,11 +282,12 @@ if (process.argv.includes('--sync-only')) {
 
 const authority = flag('device-authority')?.trim().replace(/^0x/iu, '');
 if (!authority || !/^(?:[0-9a-f]{2}){32}$/iu.test(authority)) {
-  throw new Error('--device-authority must contain the Pi public 32-byte authority value');
+  throw new Error('--device-authority must contain the Device public 32-byte authority value');
 }
 if (process.env.DEVELOPMENT_PROOF_ACCESS_TOKEN) {
   throw new Error('Refusing a preconfigured DEVELOPMENT_PROOF_ACCESS_TOKEN; this command mints an ephemeral lease');
 }
+requireFreshMirrorIdentifiers();
 
 const leaseId = `deploy-${crypto.randomUUID()}`;
 const token = `vsp_operator_${crypto.randomBytes(32).toString('base64url')}`;

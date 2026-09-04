@@ -82,6 +82,7 @@ interface LoadedContract {
         version: bigint;
       }]>;
       operatorAuthority: Uint8Array;
+      operatorAuthorityVersion: bigint;
       deviceCount: bigint;
       disabledDeviceCount: bigint;
       policyCount: bigint;
@@ -442,6 +443,62 @@ export async function rotateRegisteredDeviceAuthority(
   return deployed.callTx.rotateDeviceAuthority(deviceCommitment, newDeviceAuthority, BigInt(newVersion));
 }
 
+export async function closeRegisteredPolicyAssignment(
+  wallet: WalletContext,
+  network: NetworkConfig,
+  contractAddress: string,
+  operatorSecretHex: string,
+  assignmentKey: Uint8Array,
+  validUntilEpoch: bigint,
+): Promise<unknown> {
+  if (assignmentKey.length !== 32) throw new Error('Policy Assignment key must contain 32 bytes');
+  if (validUntilEpoch <= 0n) throw new Error('Policy Assignment valid-until must be positive');
+  const loaded = await loadCompiledContract();
+  const providers = createProviders(wallet, network);
+  providers.privateStateProvider.setContractAddress(contractAddress);
+  const privateState = createSensorPrivateState([], undefined, operatorSecretHex);
+  await providers.privateStateProvider.set(SENSOR_PRIVATE_STATE_ID, privateState);
+  const deployed = await findDeployedContract(providers as never, {
+    compiledContract: loaded.compiledContract as never,
+    contractAddress,
+    privateStateId: SENSOR_PRIVATE_STATE_ID,
+    initialPrivateState: privateState,
+  }) as unknown as {
+    callTx: { closePolicyAssignment(assignmentId: Uint8Array, validUntil: bigint): Promise<unknown> };
+  };
+  return deployed.callTx.closePolicyAssignment(assignmentKey, validUntilEpoch);
+}
+
+export async function rotateRegisteredOperatorAuthority(
+  wallet: WalletContext,
+  network: NetworkConfig,
+  contractAddress: string,
+  currentOperatorSecretHex: string,
+  newOperatorAuthority: Uint8Array,
+  newVersion: number,
+): Promise<unknown> {
+  if (newOperatorAuthority.length !== 32) throw new Error('Operator Authority must contain 32 bytes');
+  if (!Number.isSafeInteger(newVersion) || newVersion < 1) {
+    throw new Error('Operator Authority version must be a positive integer');
+  }
+  const loaded = await loadCompiledContract();
+  const providers = createProviders(wallet, network);
+  providers.privateStateProvider.setContractAddress(contractAddress);
+  const privateState = createSensorPrivateState([], undefined, currentOperatorSecretHex);
+  await providers.privateStateProvider.set(SENSOR_PRIVATE_STATE_ID, privateState);
+  const deployed = await findDeployedContract(providers as never, {
+    compiledContract: loaded.compiledContract as never,
+    contractAddress,
+    privateStateId: SENSOR_PRIVATE_STATE_ID,
+    initialPrivateState: privateState,
+  }) as unknown as {
+    callTx: {
+      rotateOperatorAuthority(newOperatorAuthority: Uint8Array, newVersion: bigint): Promise<unknown>;
+    };
+  };
+  return deployed.callTx.rotateOperatorAuthority(newOperatorAuthority, BigInt(newVersion));
+}
+
 export async function deviceCommitmentForId(deviceId: string): Promise<Uint8Array> {
   return sensorDeviceCommitment(deviceId);
 }
@@ -456,6 +513,7 @@ export async function queryRegistry(network: NetworkConfig, contractAddress: str
     contractAddress,
     network: network.networkId,
     operatorAuthority: bytesToHex(state.operatorAuthority),
+    operatorAuthorityVersion: state.operatorAuthorityVersion.toString(),
     deviceCount: state.deviceCount.toString(),
     disabledDeviceCount: state.disabledDeviceCount.toString(),
     policyCount: state.policyCount.toString(),

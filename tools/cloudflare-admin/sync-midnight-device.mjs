@@ -49,7 +49,7 @@ const projectId = flag('project-id')?.trim() || 'measurement-authenticity-01';
 const network = process.env.MIDNIGHT_NETWORK?.trim() || 'preprod';
 const deploymentPath = path.join(repoRoot, '.state', 'development', `deployment-${network}.json`);
 const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-if (deployment.contractSchemaVersion !== 4 || !Array.isArray(deployment.devices)) {
+if (deployment.contractSchemaVersion !== 5 || !Array.isArray(deployment.devices)) {
   throw new Error('Compatible Fleet Registry deployment record was not found');
 }
 const device = deployment.devices.find((candidate) => candidate.deviceId === deviceId);
@@ -127,7 +127,8 @@ const statements = device.status === 'registered'
          assignment_id, assignment_key, policy_id, project_id, device_id,
          valid_from, valid_until, assignment_version, status, device_commitment,
          contract_address, registered_tx_id, registered_at,
-         time_zone_offset_minutes, local_day_start_hour, utc_day_start_minute
+         time_zone_offset_minutes, local_day_start_hour, utc_day_start_minute,
+         closed_tx_id, closed_at
        ) VALUES (
          ${sqlString(device.assignmentId)}, ${sqlString(device.assignmentKey)},
          ${sqlString(device.policyId)}, ${sqlString(projectId)}, ${sqlString(deviceId)},
@@ -136,7 +137,9 @@ const statements = device.status === 'registered'
          ${Number(device.assignmentVersion)}, 'registered', ${sqlString(device.deviceCommitment)},
          ${sqlString(deployment.contractAddress)}, ${sqlString(device.assignmentRegisteredTxId)},
          ${sqlString(now)}, ${Number(device.timeZoneOffsetMinutes)},
-         ${Number(device.localDayStartHour)}, ${Number(device.utcDayStartMinute)}
+         ${Number(device.localDayStartHour)}, ${Number(device.utcDayStartMinute)},
+         ${device.assignmentClosedTxId ? sqlString(device.assignmentClosedTxId) : 'NULL'},
+         ${device.validUntil && device.assignmentClosedTxId ? sqlString(now) : 'NULL'}
        )
        ON CONFLICT(assignment_id) DO UPDATE SET
          assignment_key = excluded.assignment_key,
@@ -152,7 +155,12 @@ const statements = device.status === 'registered'
          status = 'registered',
          device_commitment = excluded.device_commitment,
          contract_address = excluded.contract_address,
-         registered_tx_id = excluded.registered_tx_id`,
+         registered_tx_id = excluded.registered_tx_id,
+         closed_tx_id = excluded.closed_tx_id,
+         closed_at = CASE
+           WHEN policy_assignments.closed_at IS NOT NULL THEN policy_assignments.closed_at
+           ELSE excluded.closed_at
+         END`,
     ]
   : [
       policyStatement,

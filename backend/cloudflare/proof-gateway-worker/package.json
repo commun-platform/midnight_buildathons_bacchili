@@ -12,7 +12,7 @@
     "test:sct": "node ../../../tools/repository-checks/require-development-host.mjs && vitest run src",
     "typecheck": "npm run types:check && tsc -p tsconfig.json --noEmit",
     "db:migrate:local": "node ../../../tools/repository-checks/require-development-host.mjs && wrangler d1 migrations apply midnight-sensor-data-v2 --local --config ../deployment/wrangler.jsonc",
-    "db:migrate:remote": "node ../../../tools/repository-checks/require-development-host.mjs && wrangler d1 migrations apply midnight-sensor-data-v2 --remote --config ../deployment/wrangler.jsonc",
+    "db:migrate:remote": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/run-wrangler-from-root.mjs d1 migrations apply midnight-sensor-data-v2 --remote --config backend/cloudflare/deployment/wrangler.jsonc",
     "dashboard:sync": "npm run db:migrate:local && node ../../../tools/cloudflare-admin/sync-local-dashboard.mjs",
     "proof-job:admit-now": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/admit-proof-job-now.mjs",
     "dev": "npm run db:migrate:local && wrangler dev --config ../deployment/wrangler.jsonc",
@@ -25,12 +25,16 @@
     "config:sponsor": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/configure-sponsor-wallet.mjs",
     "config:operator-authority": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/configure-operator-authority.mjs",
     "config:discord": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/configure-discord-webhook.mjs",
-    "deploy": "node ../../../tools/repository-checks/require-development-host.mjs && npm run db:migrate:remote && wrangler deploy --config ../deployment/wrangler.jsonc",
+    "config:managed-attestation": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/configure-managed-attestation.mjs",
+    "resources:managed-attestation": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/ensure-managed-attestation-resources.mjs",
+    "deploy": "node ../../../tools/repository-checks/require-development-host.mjs && npm run db:migrate:remote && node ../../../tools/cloudflare-admin/run-wrangler-from-root.mjs deploy --config backend/cloudflare/deployment/wrangler.jsonc",
     "destroy": "node ../../../tools/repository-checks/require-development-host.mjs && wrangler delete --config ../deployment/wrangler.jsonc --name midnight-proof-gateway && wrangler d1 delete midnight-sensor-data-v2 --config ../deployment/wrangler.jsonc --skip-confirmation"
   },
   "dependencies": {
     "@cloudflare/containers": "0.3.7",
     "@midnight-demo/shared": "*",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
     "jose": "^6.2.10"
   },
   "devDependencies": {
