@@ -41,11 +41,13 @@ import { summarizeBrowserSponsoredTransactionConfirmation } from './sponsored-co
 import { requireWalletShieldedAddresses } from './wallet-compatibility.js';
 
 type SensorRegistryCircuit =
+  | 'rotateOperatorAuthority'
   | 'registerDevice'
   | 'rotateDeviceAuthority'
   | 'disableDevice'
   | 'registerThresholdPolicy'
   | 'registerPolicyAssignment'
+  | 'closePolicyAssignment'
   | 'submitDailyAttestation';
 
 const PREPROD_INDEXER_URI = 'https://indexer.preprod.midnight.network/api/v4/graphql';

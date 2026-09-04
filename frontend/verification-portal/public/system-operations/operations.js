@@ -120,6 +120,18 @@ function time(value) {
     : '—';
 }
 
+function wallClock(minute) {
+  if (!Number.isInteger(minute) || minute < 0 || minute >= 1440) return '—';
+  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+}
+
+function utcOffset(minutes) {
+  if (!Number.isInteger(minutes)) return '—';
+  const sign = minutes >= 0 ? '+' : '-';
+  const absolute = Math.abs(minutes);
+  return `UTC${sign}${String(Math.floor(absolute / 60)).padStart(2, '0')}:${String(absolute % 60).padStart(2, '0')}`;
+}
+
 function elapsed(seconds) {
   if (!Number.isFinite(Number(seconds))) return '—';
   const total = Math.max(0, Number(seconds));
@@ -160,6 +172,7 @@ function summaryCard(label, value, detail, healthClass = '') {
 
 function renderSummary(data) {
   const wallet = data.components.sponsorWallet;
+  const scheduledOffline = wallet.source === 'waiting-for-processing-start';
   const funds = wallet.funds;
   const capacity = funds?.estimatedTransactionsRemaining === null
     || funds?.estimatedTransactionsRemaining === undefined
@@ -168,9 +181,15 @@ function renderSummary(data) {
   const container = $('#summary-cards');
   container.replaceChildren(
     summaryCard('総合状態', health(data.overall.healthClass), `${data.overall.openAlerts}件の未解決アラート`, data.overall.healthClass),
-    summaryCard('Sponsor Wallet', phase(wallet.state?.phase), `${dust(funds?.remainingDust)} / ${capacity}`, wallet.healthClass),
+    summaryCard(
+      'Sponsor Wallet',
+      scheduledOffline ? '次回処理待ち' : phase(wallet.state?.phase),
+      scheduledOffline ? `次回処理開始: ${time(wallet.operatingWindow?.nextProcessingStartsAt)}` : `${dust(funds?.remainingDust)} / ${capacity}`,
+      wallet.healthClass,
+    ),
     summaryCard('Proof処理待ち', number(data.processing.proofBacklog), `最古の待機開始: ${time(data.processing.proofOldestAt)}`, data.components.proofServer.healthClass),
     summaryCard('直近24時間の運用エラー', number(data.overall.failures24h), `現在の要対応Proof Job: ${number(data.processing.terminalFailures)}`, data.overall.failures24h > 0 ? 'degraded' : 'healthy'),
+    summaryCard('Queue要対応', number(data.processing.openDeadLetters), '自動再試行を使い切った配送', data.processing.openDeadLetters > 0 ? 'unavailable' : 'healthy'),
   );
   container.removeAttribute('aria-busy');
 }
@@ -194,13 +213,25 @@ function syncPercent(channel) {
 function renderWallet(data) {
   const component = data.components.sponsorWallet;
   const wallet = component.state;
+  const operatingWindow = component.operatingWindow;
   const panel = $('#wallet-panel');
-  const source = component.source === 'live-probe' ? 'LIVE' : component.source === 'last-known-state' ? 'LAST KNOWN' : 'UNAVAILABLE';
+  const source = component.source === 'live-probe'
+    ? 'LIVE'
+    : component.source === 'last-known-state'
+      ? 'LAST KNOWN'
+      : component.source === 'waiting-for-processing-start' ? 'WAITING FOR NEXT RUN' : 'UNAVAILABLE';
   $('#wallet-source').textContent = `${source} · ${time(component.lastObservedAt)}`;
   panel.replaceChildren();
   const status = node('div', 'status-line');
-  status.append(badge(component.healthClass, health(component.healthClass)), node('strong', '', phase(wallet?.phase)));
-  if (!component.live) status.append(node('span', '', `ライブ状態を取得できません: ${text(component.liveErrorCode)}`));
+  status.append(
+    badge(component.healthClass, health(component.healthClass)),
+    node('strong', '', component.source === 'waiting-for-processing-start' ? '次回処理待ち' : phase(wallet?.phase)),
+  );
+  if (component.source === 'waiting-for-processing-start') {
+    status.append(node('span', '', `次回処理開始: ${time(operatingWindow?.nextProcessingStartsAt)}`));
+  } else if (!component.live) {
+    status.append(node('span', '', `ライブ状態を取得できません: ${text(component.liveErrorCode)}`));
+  }
   panel.append(status);
   const funds = component.funds;
   const grid = node('div', 'data-grid');
@@ -215,6 +246,17 @@ function renderWallet(data) {
     dataCell('Supervisor状態', text(wallet?.supervisor?.status)),
     dataCell('Walletプロセス', processState(wallet?.supervisor?.walletProcessAlive)),
     dataCell('Wallet状態の経過時間', wallet?.supervisor?.statusAgeMs === null || wallet?.supervisor?.statusAgeMs === undefined ? '—' : `${Math.round(wallet.supervisor.statusAgeMs / 1000)} 秒`),
+    dataCell('処理モード', operatingWindow?.mode === 'always-on'
+      ? '常時処理'
+      : operatingWindow?.mode === 'on-demand' ? 'オンデマンド（1分周期）' : '日次バッチ'),
+    dataCell('処理開始', operatingWindow?.mode === 'always-on'
+      ? '即時'
+      : operatingWindow?.mode === 'on-demand'
+        ? 'Job検知後、最大1分'
+        : `${wallClock(operatingWindow?.processingStartsAtMinute)} ${utcOffset(operatingWindow?.timeZoneOffsetMinutes)}`),
+    dataCell('次回処理開始', time(operatingWindow?.nextProcessingStartsAt)),
+    dataCell('次回Container起動可能', time(operatingWindow?.nextStartAllowedAt)),
+    dataCell('今回の受付締切', time(operatingWindow?.eligibleThrough)),
     dataCell('R2同期Checkpoint', data.checkpoint.present ? `${number(data.checkpoint.size)} bytes` : '未保存'),
     dataCell('Checkpoint保存日時', data.checkpoint.present ? time(data.checkpoint.uploadedAt) : '—'),
   );
@@ -258,10 +300,20 @@ function renderAlerts(data) {
     const list = node('div', 'alert-list');
     for (const alert of alerts) {
       const item = node('article', `alert-item ${alert.severity}`);
+      const walletAlert = [
+        'sponsor-wallet-unavailable',
+        'sponsor-wallet-sync-stalled',
+        'sponsor-wallet-low-dust',
+      ].includes(alert.alert_key);
+      const notificationState = alert.last_notified_at
+        ? `通知済み ${time(alert.last_notified_at)}`
+        : walletAlert
+          ? `検知中（${number(data.thresholds.walletNotificationGraceMinutes)}分継続後に通知）`
+          : '通知配送待ち';
       item.append(
         node('h3', '', alert.alert_key),
         node('p', '', alert.summary),
-        node('small', '', `初回検出 ${time(alert.first_observed_at)} / 最終検出 ${time(alert.last_observed_at)} / 継続判定 ${number(alert.occurrence_count)}回`),
+        node('small', '', `${notificationState} / 初回検出 ${time(alert.first_observed_at)} / 最終検出 ${time(alert.last_observed_at)} / 継続判定 ${number(alert.occurrence_count)}回`),
       );
       list.append(item);
     }
@@ -272,7 +324,8 @@ function renderAlerts(data) {
   const thresholds = node('div', 'threshold-grid');
   const values = [
     ['推定残りSponsored TX', `≤ ${data.thresholds.lowDustTransactions}件`],
-    ['Wallet同期異常', `Block差${data.thresholds.syncLagBlocks}以上または未完了Channel切断が${data.thresholds.syncUnsyncedMinutes}分間継続`],
+    ['Wallet同期異常', `Block差${data.thresholds.syncLagBlocks}以上または未完了Channel切断`],
+    ['Wallet系通知保護', `${data.thresholds.walletNotificationGraceMinutes}分間継続後に通知`],
     ['Proof滞留', `${data.thresholds.proofBacklog}件以上、かつ最古${data.thresholds.proofBacklogAgeMinutes}分以上`],
     ['Sponsor滞留', `${data.thresholds.sponsorBacklog}件以上、かつ最古${data.thresholds.sponsorBacklogAgeMinutes}分以上`],
     ['Proof API HTTP 429', `5分間に${data.thresholds.proofRateLimitEvents}回以上`],
@@ -315,6 +368,7 @@ function renderPipeline(data) {
     dataCell('Device数', number(data.inventory.devices)),
     dataCell('登録済みPolicy数', number(data.inventory.registeredPolicies)),
     dataCell('現在の要対応Proof Job', number(data.processing.terminalFailures)),
+    dataCell('Queue Dead Letter', number(data.processing.openDeadLetters)),
   );
   operations.classList.add('pipeline-operations');
   const sponsorJobs = data.processing.sponsorJobs ?? [];

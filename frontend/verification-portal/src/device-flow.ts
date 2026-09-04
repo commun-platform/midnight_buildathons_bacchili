@@ -60,6 +60,17 @@ export interface ProvisioningConfiguration {
   };
   policies: DevicePolicy[];
   maximumPolicies: number;
+  processingSchedule: ServerProcessingSchedule;
+}
+
+export interface ServerProcessingSchedule {
+  mode: 'always-on' | 'on-demand' | 'scheduled';
+  timeZoneOffsetMinutes: number;
+  processingStartsAtMinute: number;
+  nextProcessingStartsAt: string | null;
+  nextContainerStartAllowedAt: string | null;
+  processingCadenceSeconds: number;
+  processingEligibleNow: boolean;
 }
 
 export interface BrowserPolicyOperation {
@@ -220,7 +231,7 @@ interface DeviceOperationConfiguration {
   midnight: {
     network: 'preprod';
     contractAddress: string;
-    contractSchemaVersion: 4;
+    contractSchemaVersion: 5;
   };
   policy: {
     id: string;
@@ -254,6 +265,11 @@ export interface ProofJob {
   attestTxId: string | null;
   errorCode: string | null;
 }
+
+export type ProofRequestAcceptanceProgress =
+  | { stage: 'uploading'; completed: number; total: number }
+  | { stage: 'registering'; completed: number; total: number }
+  | { stage: 'accepted'; completed: number; total: number };
 
 interface ProvisioningResponse {
   deviceId: string;
@@ -299,6 +315,7 @@ export interface ProvisioningProgress {
   deviceTxId?: string | null;
   assignmentTxId?: string | null;
   error?: string | null;
+  processingSchedule?: ServerProcessingSchedule;
 }
 
 interface ProvisioningOperationStarted {
@@ -307,6 +324,7 @@ interface ProvisioningOperationStarted {
   statusUrl: string;
   status: 'queued';
   stage: 'queued';
+  processingSchedule: ServerProcessingSchedule;
 }
 
 interface StoredProvisioningOperation extends ProvisioningOperationStarted {
@@ -325,6 +343,19 @@ interface ProvisioningOperationStatus {
   error: string | null;
   updatedAt: string;
   result: ProvisioningResponse | null;
+  processingSchedule: ServerProcessingSchedule;
+}
+
+export interface DeferredBrowserWorkflow {
+  schemaVersion: 1;
+  operationId: string;
+  projectId: string;
+  deviceId: string;
+  policyId: string;
+  periodDate: string;
+  proofJobId: string;
+  proofRequestedAt: string;
+  submissionRequested: boolean;
 }
 
 let identity: BrowserDeviceIdentity | null = null;
@@ -340,6 +371,52 @@ function pendingProvisioningKey(deviceId: string): string {
   return `vsp-provisioning-operation:${deviceId}`;
 }
 
+function deferredWorkflowKey(projectId: string, deviceId: string): string {
+  return `vsp-deferred-proof-workflow:${projectId}:${deviceId}`;
+}
+
+function readPendingProvisioning(deviceId: string): StoredProvisioningOperation | null {
+  const raw = localStorage.getItem(pendingProvisioningKey(deviceId));
+  if (!raw) return null;
+  try {
+    const pending = JSON.parse(raw) as StoredProvisioningOperation;
+    return pending.deviceId === deviceId
+      && typeof pending.operationId === 'string'
+      && typeof pending.policyId === 'string'
+      && typeof pending.progressToken === 'string'
+      && typeof pending.statusUrl === 'string'
+      ? pending
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function readDeferredWorkflow(projectId: string, deviceId: string): DeferredBrowserWorkflow | null {
+  const raw = localStorage.getItem(deferredWorkflowKey(projectId, deviceId));
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<DeferredBrowserWorkflow>;
+    return value.schemaVersion === 1
+      && value.projectId === projectId
+      && value.deviceId === deviceId
+      && typeof value.operationId === 'string'
+      && typeof value.policyId === 'string'
+      && typeof value.periodDate === 'string'
+      && typeof value.proofJobId === 'string'
+      && typeof value.proofRequestedAt === 'string'
+      && typeof value.submissionRequested === 'boolean'
+      ? value as DeferredBrowserWorkflow
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeDeferredWorkflow(value: DeferredBrowserWorkflow): void {
+  localStorage.setItem(deferredWorkflowKey(value.projectId, value.deviceId), JSON.stringify(value));
+}
+
 function storePendingProvisioning(
   started: ProvisioningOperationStarted,
   expectedDeviceId: string,
@@ -350,6 +427,27 @@ function storePendingProvisioning(
     deviceId: expectedDeviceId,
     policyId: expectedPolicyId,
   } satisfies StoredProvisioningOperation));
+}
+
+function validProcessingSchedule(value: unknown): value is ServerProcessingSchedule {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const schedule = value as Partial<ServerProcessingSchedule>;
+  return ['always-on', 'on-demand', 'scheduled'].includes(schedule.mode ?? '')
+    && Number.isInteger(schedule.timeZoneOffsetMinutes)
+    && (schedule.timeZoneOffsetMinutes ?? -1_000) >= -840
+    && (schedule.timeZoneOffsetMinutes ?? 1_000) <= 840
+    && Number.isInteger(schedule.processingStartsAtMinute)
+    && (schedule.processingStartsAtMinute ?? -1) >= 0
+    && (schedule.processingStartsAtMinute ?? 1_440) < 1_440
+    && (schedule.nextProcessingStartsAt === null
+      || (typeof schedule.nextProcessingStartsAt === 'string'
+        && Number.isFinite(Date.parse(schedule.nextProcessingStartsAt))))
+    && (schedule.nextContainerStartAllowedAt === null
+      || (typeof schedule.nextContainerStartAllowedAt === 'string'
+        && Number.isFinite(Date.parse(schedule.nextContainerStartAllowedAt))))
+    && Number.isInteger(schedule.processingCadenceSeconds)
+    && (schedule.processingCadenceSeconds ?? 0) >= 60
+    && typeof schedule.processingEligibleNow === 'boolean';
 }
 
 async function readProvisioningStatus(
@@ -377,6 +475,7 @@ async function readProvisioningStatus(
     deviceTxId: status.deviceTxId,
     assignmentTxId: status.assignmentTxId,
     error: status.error,
+    processingSchedule: status.processingSchedule,
   });
   return status;
 }
@@ -451,6 +550,7 @@ export async function loadConfiguration(
     || !configuration.serviceUrl
     || !Array.isArray(configuration.policies)
     || configuration.maximumPolicies !== 10
+    || !validProcessingSchedule(configuration.processingSchedule)
     || validateOperationalDayBoundary(configuration.operationalDay) !== configuration.operationalDay
     || configuration.operationalDay.utcDayStartMinute !== utcDayStartMinute(configuration.operationalDay)
   ) throw new Error('Provisioning configuration is incomplete');
@@ -732,7 +832,7 @@ function validOperationConfiguration(
     && validHex32(candidate.device.provisioningWalletKeySha256)
     && candidate.midnight?.network === config.network
     && candidate.midnight.contractAddress === config.contractAddress
-    && candidate.midnight.contractSchemaVersion === 4
+    && candidate.midnight.contractSchemaVersion === 5
     && Boolean(policy)
     && candidate.policy?.key === policy?.policyKey
     && validHex32(candidate.assignment?.key)
@@ -878,6 +978,7 @@ export async function registerDevice(input: {
       operationId: submitted.operationId,
       stage: submitted.stage,
       status: submitted.status,
+      processingSchedule: submitted.processingSchedule,
     });
     return null;
   }
@@ -904,6 +1005,7 @@ export async function registerDevice(input: {
     status: 'registered',
     deviceTxId: response.registeredTxId,
     assignmentTxId: response.assignmentTxId,
+    processingSchedule: config.processingSchedule,
   });
   return provisioned;
 }
@@ -914,15 +1016,8 @@ export async function resumePendingDeviceRegistration(
   const config = requireConfiguration();
   const currentIdentity = requireIdentity();
   requireWallet();
-  const raw = localStorage.getItem(pendingProvisioningKey(currentIdentity.deviceId));
-  if (!raw) return null;
-  let pending: StoredProvisioningOperation;
-  try {
-    pending = JSON.parse(raw) as StoredProvisioningOperation;
-  } catch {
-    localStorage.removeItem(pendingProvisioningKey(currentIdentity.deviceId));
-    return null;
-  }
+  const pending = readPendingProvisioning(currentIdentity.deviceId);
+  if (!pending) return null;
   if (
     pending.deviceId !== currentIdentity.deviceId
     || typeof pending.policyId !== 'string'
@@ -969,6 +1064,7 @@ export async function resumePendingDeviceRegistration(
     status: 'registered',
     deviceTxId: response.registeredTxId,
     assignmentTxId: response.assignmentTxId,
+    processingSchedule: config.processingSchedule,
   });
   return provisioned;
 }
@@ -985,12 +1081,17 @@ async function authenticatedHeaders(
   };
 }
 
-async function uploadDailyCapture(capture: BrowserDailyCapture, operationId: string): Promise<void> {
+async function uploadDailyCapture(
+  capture: BrowserDailyCapture,
+  operationId: string,
+  onProgress?: (progress: ProofRequestAcceptanceProgress) => void,
+): Promise<void> {
   const config = requireConfiguration();
   const device = requireProvisioned();
   const policy = selectedPolicy(device.policyId);
   const headers = await authenticatedHeaders('measurement:write', operationId);
-  for (const window of capture.windows) {
+  onProgress?.({ stage: 'uploading', completed: 0, total: capture.windows.length });
+  for (const [index, window] of capture.windows.entries()) {
     await jsonResponse(await fetch(endpoint(config.serviceUrl, '/api/v1/measurement-windows'), {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -1011,6 +1112,11 @@ async function uploadDailyCapture(capture: BrowserDailyCapture, operationId: str
       }),
       signal: AbortSignal.timeout(15_000),
     }), `Measurement upload (${window.hourIndex}:00 UTC)`);
+    onProgress?.({
+      stage: 'uploading',
+      completed: index + 1,
+      total: capture.windows.length,
+    });
   }
   const anomalyHeaders = await authenticatedHeaders('anomaly:write', operationId);
   let anomalyOpen = false;
@@ -1044,13 +1150,35 @@ async function uploadDailyCapture(capture: BrowserDailyCapture, operationId: str
   }
 }
 
+function pendingMeasurementContext(): {
+  deviceId: string;
+  policyId: string;
+  assignmentId: string;
+  timeZoneOffsetMinutes: number;
+  localDayStartHour: number;
+} | null {
+  const config = requireConfiguration();
+  const currentIdentity = requireIdentity();
+  const pending = readPendingProvisioning(currentIdentity.deviceId);
+  if (!pending) return null;
+  selectedPolicy(pending.policyId);
+  return {
+    deviceId: currentIdentity.deviceId,
+    policyId: pending.policyId,
+    assignmentId: `${currentIdentity.deviceId}-${pending.policyId}-wave1`,
+    timeZoneOffsetMinutes: config.operationalDay.timeZoneOffsetMinutes,
+    localDayStartHour: config.operationalDay.localDayStartHour,
+  };
+}
+
 export async function generateDailyMeasurements(input: {
   periodDate: string;
   mode: DailyGenerationMode;
 }): Promise<BrowserDailyCapture> {
   const config = requireConfiguration();
   const operationId = clientOperationId('measurement-day');
-  const device = requireProvisioned();
+  const device = provisioned ?? pendingMeasurementContext();
+  if (!device) throw new Error('Register the Device or queue its registration first');
   const policy = selectedPolicy(device.policyId);
   const operationalDay = {
     timeZoneOffsetMinutes: device.timeZoneOffsetMinutes,
@@ -1069,14 +1197,14 @@ export async function generateDailyMeasurements(input: {
     mode: input.mode,
   });
   if (existing !== captured) await storeDailyCapture(captured);
-  await uploadDailyCapture(captured, operationId);
+  if (provisioned) await uploadDailyCapture(captured, operationId);
   return captured;
 }
 
 export async function selectDailyCapture(periodDate: string): Promise<BrowserDailyCapture> {
   const config = requireConfiguration();
-  const device = requireProvisioned();
-  const selected = await loadDailyCapture(config.projectId, device.deviceId, periodDate);
+  const currentIdentity = requireIdentity();
+  const selected = await loadDailyCapture(config.projectId, currentIdentity.deviceId, periodDate);
   if (!selected) throw new Error('Private daily data is not stored in this browser for the selected date');
   captured = selected;
   return selected;
@@ -1140,18 +1268,114 @@ async function proofJob(proofJobId: string): Promise<ProofJob> {
   ), 'Read Proof Job')).job;
 }
 
+function deferredProofJob(
+  measurement: BrowserDailyCapture,
+  schedule: ServerProcessingSchedule,
+): ProofJob {
+  return {
+    proofJobId: measurement.proofJobId,
+    periodDate: measurement.periodDate,
+    status: 'waiting_for_registration',
+    measurementGroupId: measurement.attestation.publicData.measurementGroupId,
+    attestationCommitment: measurement.attestation.publicData.attestationCommitment,
+    sampleCount: measurement.attestation.publicData.sampleCount,
+    observedHourCount: measurement.attestation.publicData.observedHourCount,
+    stoppedHourCount: 24 - measurement.attestation.publicData.observedHourCount,
+    hourResults: measurement.hourResults,
+    thresholdSatisfied: measurement.thresholdSatisfied,
+    availableAfter: schedule.nextProcessingStartsAt ?? new Date().toISOString(),
+    attestTxId: null,
+    errorCode: null,
+  };
+}
+
+export async function loadDeferredWorkflow(): Promise<{
+  workflow: DeferredBrowserWorkflow;
+  capture: BrowserDailyCapture;
+  job: ProofJob;
+} | null> {
+  const config = requireConfiguration();
+  const currentIdentity = requireIdentity();
+  const workflow = readDeferredWorkflow(config.projectId, currentIdentity.deviceId);
+  if (!workflow) return null;
+  const capture = await loadDailyCapture(config.projectId, currentIdentity.deviceId, workflow.periodDate);
+  if (!capture || capture.proofJobId !== workflow.proofJobId) return null;
+  captured = capture;
+  return {
+    workflow,
+    capture,
+    job: deferredProofJob(capture, config.processingSchedule),
+  };
+}
+
+export function queueDeferredSubmission(periodDate?: string): DeferredBrowserWorkflow {
+  const config = requireConfiguration();
+  const currentIdentity = requireIdentity();
+  const measurement = requireCaptured();
+  if (periodDate && measurement.periodDate !== periodDate) {
+    throw new Error('The selected sensor day does not match the queued Proof Job');
+  }
+  const existing = readDeferredWorkflow(config.projectId, currentIdentity.deviceId);
+  const pending = readPendingProvisioning(currentIdentity.deviceId);
+  const workflow: DeferredBrowserWorkflow = {
+    schemaVersion: 1,
+    operationId: existing?.operationId ?? pending?.operationId ?? '',
+    projectId: config.projectId,
+    deviceId: currentIdentity.deviceId,
+    policyId: existing?.policyId ?? provisioned?.policyId ?? pending?.policyId ?? '',
+    periodDate: measurement.periodDate,
+    proofJobId: measurement.proofJobId,
+    proofRequestedAt: existing?.proofRequestedAt ?? new Date().toISOString(),
+    submissionRequested: true,
+  };
+  if (!workflow.policyId) throw new Error('The queued Device Policy is unavailable');
+  storeDeferredWorkflow(workflow);
+  return workflow;
+}
+
+export async function refreshProofJob(proofJobId: string): Promise<ProofJob> {
+  return proofJob(proofJobId);
+}
+
 export async function requestProof(input: {
   admitNow?: boolean;
   periodDate?: string;
+  onAcceptanceProgress?: (progress: ProofRequestAcceptanceProgress) => void;
 } = {}): Promise<ProofJob> {
   const config = requireConfiguration();
   const operationId = clientOperationId('proof-request');
-  const device = requireProvisioned();
   if (input.periodDate) await selectDailyCapture(input.periodDate);
   const measurement = requireCaptured();
   if (!measurement.completeDay) throw new Error('The selected operational day is still in progress');
+  if (!provisioned) {
+    const currentIdentity = requireIdentity();
+    const pending = readPendingProvisioning(currentIdentity.deviceId);
+    if (!pending) throw new Error('Register the Device or queue its registration first');
+    const workflow: DeferredBrowserWorkflow = {
+      schemaVersion: 1,
+      operationId: pending.operationId,
+      projectId: config.projectId,
+      deviceId: currentIdentity.deviceId,
+      policyId: pending.policyId,
+      periodDate: measurement.periodDate,
+      proofJobId: measurement.proofJobId,
+      proofRequestedAt: new Date().toISOString(),
+      submissionRequested: false,
+    };
+    storeDeferredWorkflow(workflow);
+    input.onAcceptanceProgress?.({ stage: 'accepted', completed: 0, total: 0 });
+    return deferredProofJob(measurement, config.processingSchedule);
+  }
+  const device = provisioned;
+  await uploadDailyCapture(measurement, operationId, input.onAcceptanceProgress);
   const publicData = measurement.attestation.publicData;
   const headers = await authenticatedHeaders('proof:request', operationId);
+  const deferred = readDeferredWorkflow(config.projectId, device.deviceId);
+  input.onAcceptanceProgress?.({
+    stage: 'registering',
+    completed: measurement.windows.length,
+    total: measurement.windows.length,
+  });
   let job = (await jsonResponse<{ job: ProofJob }>(await fetch(
     endpoint(config.serviceUrl, '/api/v1/proof-jobs'),
     {
@@ -1180,11 +1404,21 @@ export async function requestProof(input: {
         thresholdSatisfied: measurement.thresholdSatisfied,
         schemaVersion: publicData.schemaVersion,
         circuitVersion: publicData.circuitVersion,
+        ...(deferred?.operationId
+          ? { deferredProvisioningOperationId: deferred.operationId }
+          : {}),
       }),
       signal: AbortSignal.timeout(15_000),
     },
   ), 'Create Proof Job')).job;
   if (job.proofJobId !== measurement.proofJobId) throw new Error('Proof Job ID mismatch');
+  input.onAcceptanceProgress?.({
+    stage: 'accepted',
+    completed: measurement.windows.length,
+    total: measurement.windows.length,
+  });
+
+  if (deferred) storeDeferredWorkflow({ ...deferred, proofJobId: job.proofJobId });
 
   if (input.admitNow) {
     await jsonResponse(await fetch(
@@ -1196,6 +1430,7 @@ export async function requestProof(input: {
       },
     ), 'Admit Proof Job');
   }
+  if (!input.admitNow) return job;
   const deadline = Date.now() + 2 * 60 * 1000;
   while (!['ready_for_input', 'proving', 'proof_ready'].includes(job.status)) {
     if (['confirmed', 'dead_lettered'].includes(job.status)) return job;
@@ -1278,6 +1513,7 @@ export async function proveAndSubmit(
       signal: AbortSignal.timeout(15_000),
     },
   ), 'Report Midnight transaction');
+  localStorage.removeItem(deferredWorkflowKey(config.projectId, device.deviceId));
   return result;
 }
 
@@ -1297,11 +1533,14 @@ export const browserDeviceFlow = {
   createDevice,
   registerDevice,
   resumePendingDeviceRegistration,
+  loadDeferredWorkflow,
+  queueDeferredSubmission,
   generateDailyMeasurements,
   selectDailyCapture,
   loadDeviceHistory,
   loadAdministratorDashboard,
   loadSponsorQuota,
   requestProof,
+  refreshProofJob,
   proveAndSubmit,
 };

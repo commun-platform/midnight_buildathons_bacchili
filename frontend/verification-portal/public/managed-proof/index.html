@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Managed API Attestation</title>
+  <link rel="stylesheet" href="/managed-proof/managed-proof.css">
+</head>
+<body>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">MIDNIGHT · MANAGED PROOF</p>
+      <h1>Existing cloud data, independently verifiable.</h1>
+      <p class="lead">Register a source once. The service fetches each closed 24-hour window,
+        generates a zero-knowledge proof, and records the result without exposing sensor values.</p>
+    </div>
+    <div class="network"><span></span> Midnight Preprod</div>
+  </header>
+
+  <main>
+    <div id="notice" class="notice loading" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span><span>Loading managed sources…</span>
+    </div>
+
+    <nav class="steps" aria-label="Managed proof workflow">
+      <a href="#register"><b>1</b><span>Register source</span></a>
+      <a href="#run"><b>2</b><span>Fetch a day</span></a>
+      <a href="#runs"><b>3</b><span>Track proof</span></a>
+      <a href="#evidence"><b>4</b><span>Verify on Midnight</span></a>
+    </nav>
+
+    <section id="register" class="panel">
+      <div class="panel-heading">
+        <div><span class="step-label">STEP 1</span><h2>Register a managed source</h2></div>
+        <span class="trust-label">No customer wallet required</span>
+      </div>
+      <p class="help">The API credential is encrypted before storage. Thresholds come only from
+        the selected Policy already registered on Midnight.</p>
+      <form id="source-form" autocomplete="off">
+        <div class="form-grid">
+          <label>Project<select name="projectId" id="project-select" required></select></label>
+          <label>Policy<select name="policyId" id="policy-select" required></select></label>
+          <label>Source ID<input name="sourceId" value="managed-api-demo" pattern="[A-Za-z0-9][A-Za-z0-9._:-]{0,79}" required></label>
+          <label>Display name<input name="name" value="Customer cloud temperature" maxlength="160" required></label>
+          <label class="wide">Measurement endpoint<input name="endpointUrl" type="url" placeholder="https://api.example.com/v1/measurements" required></label>
+          <label>Source sensor ID<input name="sourceSensorId" value="normal-1440" pattern="[A-Za-z0-9][A-Za-z0-9._:-]{0,159}" required></label>
+          <label>First operational date<input name="firstPeriodDate" id="first-period-date" type="date" required></label>
+          <label class="wide">Bearer credential<input name="bearerToken" type="password" maxlength="4096" required></label>
+        </div>
+        <button class="primary" type="submit">Register source and Policy assignment</button>
+      </form>
+    </section>
+
+    <section id="run" class="panel">
+      <div class="panel-heading">
+        <div><span class="step-label">STEP 2</span><h2>Fetch one closed 24-hour window</h2></div>
+        <span class="fixed-window">FIXED 24 HOURS</span>
+      </div>
+      <p class="help">The registered Project determines the UTC offset and local start hour.
+        Missing hours are recorded as <strong>NO DATA</strong>; they are not treated as fraud.</p>
+      <form id="run-form" class="inline-form">
+        <label>Managed source<select name="sourceId" id="run-source-select" required></select></label>
+        <label>Operational date<input name="periodDate" id="run-period-date" type="date" required></label>
+        <button class="primary" type="submit">Start fetch and proof job</button>
+      </form>
+    </section>
+
+    <section id="runs" class="panel">
+      <div class="panel-heading">
+        <div><span class="step-label">STEP 3</span><h2>Processing history</h2></div>
+        <button id="refresh" class="secondary" type="button">Refresh</button>
+      </div>
+      <div id="source-cards" class="source-cards empty-state">No managed source is registered.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Source</th><th>Samples</th><th>Observed hours</th><th>Stage</th><th>Result</th><th></th></tr></thead>
+          <tbody id="run-list"><tr><td colspan="7" class="empty-cell">No processing history.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="evidence" class="panel hidden">
+      <div class="panel-heading">
+        <div><span class="step-label">STEP 4</span><h2 id="detail-title">Daily proof evidence</h2></div>
+        <span id="detail-status" class="status">—</span>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+      <div id="error-card" class="error-card hidden"></div>
+      <div class="privacy-card">
+        <div><span>RAW SENSOR VALUES</span><strong>Private — administrator summary only</strong></div>
+        <p>The proof discloses hourly outcomes and the public Policy, not individual readings.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Hour</th><th>Samples</th><th>Minimum</th><th>Maximum</th><th>Average</th><th>Threshold result</th></tr></thead>
+          <tbody id="hour-list"></tbody>
+        </table>
+      </div>
+      <div id="proof-evidence" class="proof-evidence"></div>
+    </section>
+  </main>
+
+  <footer>Managed API Attestation · Existing review application remains independent.</footer>
+  <script type="module" src="/managed-proof/managed-proof.js"></script>
+</body>
+</html>

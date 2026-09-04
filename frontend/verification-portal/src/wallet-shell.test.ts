@@ -62,7 +62,9 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain('id="device-policy-create-form"');
     expect(script).toContain('step="0.01"');
     expect(script).toContain("localStorage.setItem(`vsp-selected-policy:${deviceState.projectId}`");
-    expect(script).toContain('refreshPendingPolicyOperations');
+    expect(script).toContain('id="device-policy-refresh"');
+    expect(script).toContain("deviceAction('device-policy-refresh'");
+    expect(script).not.toContain('refreshPendingPolicyOperations');
     expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/policies/challenge')");
     expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/policies')");
     expect(deviceFlow).toContain('browserPolicyCanonicalMessage(authorization)');
@@ -70,7 +72,7 @@ describe('Midnight Wallet shell', () => {
     expect(styles).toContain('.policy-create-form');
   });
 
-  it('distinguishes loading from an empty collection and updates only affected components during polling', () => {
+  it('distinguishes loading from an empty collection and updates only affected components', () => {
     expect(script).toContain('function dataStateView(state');
     expect(script).toContain("loadingLabel: 'LOADING'");
     expect(script).toContain("noDataLabel: 'NO DATA'");
@@ -86,6 +88,15 @@ describe('Midnight Wallet shell', () => {
     expect(styles).toContain('.data-state-loading');
     expect(styles).toContain('.data-state-empty');
     expect(styles).toContain('.data-state-progress');
+  });
+
+  it('refreshes Policy state only through the explicit Policy reload action', () => {
+    expect(script).toContain("policyRefresh: 'しきい値を再読み込み'");
+    expect(script).toContain("policyRefreshHint: '登録結果は「しきい値を再読み込み」を押すと更新されます。'");
+    expect(script).toContain("await refreshProjectPolicies(flow, { showProgress: true })");
+    expect(script).not.toContain('setInterval(() => void refreshPendingPolicyOperations()');
+    expect(script).not.toContain('policyStatusRequestActive');
+    expect(script).not.toContain('policyRenderStateFingerprint');
   });
 
   it('reloads authoritative and private Device state after Wallet reconnection', () => {
@@ -150,7 +161,7 @@ describe('Midnight Wallet shell', () => {
 
   it('keeps the Sponsor Wallet inbound private while allowing official native WSS', () => {
     const sponsorContainer = gatewayWorker.slice(
-      gatewayWorker.indexOf('export class SponsorWalletContainer'),
+      gatewayWorker.indexOf('export class ServerWalletContainer'),
       gatewayWorker.indexOf('function json('),
     );
     expect(sponsorContainer).toContain('enableInternet = true');
@@ -158,7 +169,7 @@ describe('Midnight Wallet shell', () => {
     expect(sponsorContainer).toContain("'proof.internal'");
     expect(sponsorContainer).toContain("'indexer.preprod.midnight.network'");
     expect(sponsorContainer).toContain("'rpc.preprod.midnight.network'");
-    expect(sponsorContainer).toContain('SponsorWalletContainer.outboundByHost =');
+    expect(sponsorContainer).toContain('ServerWalletContainer.outboundByHost =');
     expect(sponsorContainer).not.toContain('static outboundByHost');
     expect(sponsorContainer).toContain('async onActivityExpired(): Promise<void>');
     expect(sponsorContainer).toContain('await super.onActivityExpired()');
@@ -291,6 +302,20 @@ describe('Midnight Wallet shell', () => {
     expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
   });
 
+  it('animates API acceptance and uses a static queued state for server-owned waits', () => {
+    expect(script).toContain('const active = deviceState.busy && deviceState.activeAction === id && !queued;');
+    expect(script).toContain("proofRequestUploading: '時間別集計をAPIへ送信中（{completed}/{total}）'");
+    expect(script).toContain("proofRequestRegistering: 'ZKP生成・TX発行Jobを登録中'");
+    expect(script).toContain("proofRequestTimedOut: '処理要求の受付確認がタイムアウトしました。");
+    expect(script).toContain("'sponsor-wallet-syncing'");
+    expect(script).toContain("'sponsor-queued'");
+    expect(script).toContain('refreshDeviceDynamicComponents({ includeHistory: false })');
+    expect(script).not.toContain('if (ready) return submitDeviceDay(flow, periodDate)');
+    expect(deviceFlow).toContain('onAcceptanceProgress?: (progress: ProofRequestAcceptanceProgress) => void');
+    expect(deviceFlow).toContain("stage: 'uploading',");
+    expect(deviceFlow).toContain('completed: index + 1');
+  });
+
   it('shows the actual Device and Threshold transaction stages', () => {
     expect(script).toContain("progressDeviceProof: 'デバイス登録TX用のZKPを生成中'");
     expect(script).toContain("progressDeviceSending: 'デバイス登録TXを送信中'");
@@ -318,6 +343,25 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain('setInterval(() => void refreshPendingDeviceRegistration(), 5_000)');
     expect(script).toContain("['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status)");
     expect(script).toContain('id="registration-job-id"');
+    expect(script).toContain("nextProcessingStart: 'Next processing start'");
+    expect(script).toContain('processingStartText()');
+    expect(script).toContain("queued: 'QUEUED'");
+  });
+
+  it('allows the judge to queue the combined Steps 3–4 while Device registration is pending', () => {
+    expect(script).toContain('const registrationAccepted = Boolean(deviceState.provisioned)');
+    expect(script).not.toContain("if (!deviceState.provisioned && ['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status)) return '';");
+    expect(script).toContain('deviceState.proofJob = await flow.requestProof({');
+    expect(script).toContain('admitNow: false,');
+    expect(script).toContain('flow.queueDeferredSubmission(periodDate)');
+    expect(script).toContain("proofAndRecord: 'ZK証明を生成してMidnightに記録'");
+    expect(script).toContain("submissionQueued: 'ZKP生成・TX発行処理待ち'");
+    expect(script).not.toContain('id="device-proof-request"');
+    expect(script).toContain('setInterval(() => void refreshQueuedProofWorkflow(), 5_000)');
+    expect(deviceFlow).toContain('function pendingMeasurementContext()');
+    expect(deviceFlow).toContain('if (provisioned) await uploadDailyCapture(captured, operationId)');
+    expect(deviceFlow).toContain("status: 'waiting_for_registration'");
+    expect(deviceFlow).toContain('deferredProvisioningOperationId: deferred.operationId');
   });
 
   it('restores an already submitted attestation instead of retrying its Contract call', () => {
@@ -326,8 +370,8 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("recovered.errorCode === 'measurement_group_already_attested'");
     expect(script).toContain("['sponsored', 'submitted', 'confirmed'].includes(recovered.status)");
     expect(script).toContain('deviceState.transaction ??= { transactionId: recovered.attestTxId }');
-    expect(script).toContain('await submitDeviceDay(flow, periodDate)');
-    expect(script).toContain("if (!day.proofJob) {");
+    expect(script).toContain('submitDeviceDay(currentFlow, deviceState.selectedDate)');
+    expect(script).toContain('if (!deviceState.proofJob) {');
     expect(deviceFlow).toContain("phase: 'failed'");
     expect(deviceFlow).toContain("errorCode: 'measurement_group_already_attested'");
     expect(midnightDevice).toContain('contractState.attestations.member(attestationId)');

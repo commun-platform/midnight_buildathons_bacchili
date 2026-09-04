@@ -43,6 +43,14 @@ describe('system operations console', () => {
     expect(html).not.toContain('<th>センサー値</th>');
   });
 
+  it('distinguishes wallet alert detection from Discord delivery during the grace period', () => {
+    expect(script).toContain("'sponsor-wallet-low-dust'");
+    expect(script).toContain('data.thresholds.walletNotificationGraceMinutes');
+    expect(script).toContain('検知中（');
+    expect(script).toContain('分継続後に通知');
+    expect(script).toContain('通知済み');
+  });
+
   it('defines bounded redacted audit, health, alert, and notification storage', () => {
     expect(migration).toContain('CREATE TABLE operational_events');
     expect(migration).toContain('CREATE TABLE system_health_snapshots');

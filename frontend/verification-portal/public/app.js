@@ -29,7 +29,7 @@ const copy = {
     flow: 'Use-Case Progress', registered: 'Device registered and authenticated',
     received: 'Hourly summary received', anomaly: 'Current state retrieved', requested: 'Proof requested',
     generated: 'Proof generated and transaction sponsored', confirmed: 'Midnight transaction confirmed',
-    done: 'DONE', waiting: 'WAIT', nextAction: 'NEXT ACTION', inProgress: 'IN PROGRESS', devices: 'Devices', registry: 'Midnight registry', lastSeen: 'Last received', sensor: 'Sensor', policy: 'Policy',
+    done: 'DONE', waiting: 'WAIT', queued: 'QUEUED', nextAction: 'NEXT ACTION', inProgress: 'IN PROGRESS', devices: 'Devices', registry: 'Midnight registry', lastSeen: 'Last received', sensor: 'Sensor', policy: 'Policy',
     hourly: 'Hourly Aggregates', period: 'Period', count: 'Count', minimum: 'Minimum', maximum: 'Maximum',
     average: 'Average', commitment: 'Commitment', anomalies: 'Immediate Anomaly Transitions', transition: 'Transition',
     occurred: 'Occurred', jobs: 'Proof / Transaction Jobs', job: 'Proof Job', status: 'Status', root: 'Data fingerprint',
@@ -80,7 +80,7 @@ const copy = {
     retry: 'Retry', failed: 'Could not load the requested view.',
     deviceIntro: 'Register this PC as a Device, capture a sensor value, create a ZK proof, and record the claim on Midnight.',
     deviceIdentity: 'Device Identity', midnightRegistration: 'Midnight registration', deviceRegister: 'Device registration', thresholdSetup: 'Threshold assignment', sensorCapture: 'Sensor value',
-    proofCreate: 'ZK proof', chainRecord: 'Midnight record', walletConnect: 'Connect Midnight Wallet',
+    proofCreate: 'ZK proof', chainRecord: 'Midnight record', proofAndRecord: 'ZK proof and Midnight record', walletConnect: 'Connect Midnight Wallet',
     walletConnecting: 'Connecting Wallet...', walletConnected: 'Wallet Connected',
     walletDisconnected: 'Wallet communication was closed. Unlock the Wallet and click Connect Midnight Wallet again. Reload this page if the connection does not reopen.',
     walletFailureStage: 'Failed stage',
@@ -94,7 +94,7 @@ const copy = {
     projectName: 'Project name', projectCreate: 'Create Project', projectCancel: 'Cancel',
     projectTimeZone: 'Fixed UTC offset', projectDayStart: 'Operational day starts',
     projectLimit: 'Projects per Wallet', projectCreated: 'Project created',
-    policyAdd: '+ New Policy', policyName: 'Policy name', policyCreate: 'Create Policy',
+    policyAdd: '+ New Policy', policyRefresh: 'Refresh Policies', policyRefreshHint: 'Use Refresh Policies to update queued registration results.', policyName: 'Policy name', policyCreate: 'Create Policy',
     policyCancel: 'Cancel', policyLimit: 'Policies in this Project', policyCreated: 'Policy registration queued',
     policyEmpty: 'Create a Threshold Policy for this Project before registering its Device.',
     policyCreating: 'This immutable public Threshold Policy is being registered on Midnight.',
@@ -107,7 +107,13 @@ const copy = {
     progressChallenge: 'Requesting one-time registration challenge',
     progressWalletSignature: 'Waiting for Midnight Wallet signature',
     progressWalletVerification: 'Verifying Wallet authorization',
-    progressQueued: 'Registration accepted; waiting for Sponsor Wallet',
+    progressQueued: 'Registration accepted and queued for server processing',
+    nextProcessingStart: 'Next processing start',
+    processingAlwaysOn: 'Server processing is available now',
+    processingOnDemand: 'Queued work is checked every minute',
+    processingCooldown: 'Container restart cooldown until',
+    processingNow: 'Processing has started; the server continues automatically',
+    queuedWorkflowHint: 'You can continue through Steps 3–4 now. Queued work starts automatically at the time shown below.',
     progressSponsorSync: 'Synchronizing Sponsor Wallet',
     progressSponsorReady: 'Sponsor Wallet ready',
     progressDeviceProof: 'Generating Device registration ZKP',
@@ -141,8 +147,12 @@ const copy = {
     proofProgressRetrying: 'Contract state changed; regenerating ZKP/TX with the same Job ID',
     proofProgressConfirming: 'Waiting for Midnight transaction confirmation',
     proofProgressConfirmed: 'Midnight transaction confirmed',
+    proofRequestUploading: 'Sending hourly summaries to the API ({completed}/{total})',
+    proofRequestRegistering: 'Registering the ZKP generation and TX Job',
+    proofRequestAccepted: 'Request accepted by the server',
+    proofRequestTimedOut: 'Request acceptance timed out. Retry with the same sensor day; already received data is idempotent.',
     registrationJob: 'Registration Job', deviceRegistrationTx: 'Device registration TX', assignmentRegistrationTx: 'Threshold assignment TX',
-    captureAction: 'Capture and upload', proofAction: 'Request proof processing', submitAction: 'Generate proof and record TX',
+    captureAction: 'Capture and upload', proofAction: 'Request proof processing', submitAction: 'Submit ZKP generation and TX processing',
     retrySubmitAction: 'Regenerate proof and record TX',
     reproofReady: 'The previous TX was released. Regenerate the ZK proof and TX with the same Proof Job ID.',
     deviceId: 'Device ID (derived from Wallet)', wallet: 'Wallet', temperature: 'Temperature', progress: 'Processing status',
@@ -170,6 +180,9 @@ const copy = {
     statusSponsorRetryable: 'Waiting for Sponsor Wallet',
     statusReproofRequired: 'Regenerate ZKP/TX',
     statusDeadLettered: 'Closed',
+    statusWaitingForRegistration: 'Queued after Device registration',
+    submissionQueued: 'WAITING FOR ZKP GENERATION & TX SUBMISSION',
+    submissionQueuedDetail: 'The server checks accepted work every minute and starts the required Containers only when work exists. Keep this page open; Wallet approval is requested when the Device transaction is ready.',
     statusDeviceBound: 'Device approved', statusSponsoring: 'Adding transaction fee', statusSponsored: 'Fee added',
     viewDay: 'Check this date', hourlySummary: 'Hourly min / max / average',
     olderDay: '◀ Older day', newerDay: 'Newer day ▶',
@@ -194,7 +207,7 @@ const copy = {
     localOnly: 'Device Sessionで認証したデバイスの情報だけを表示します。', adminBadge: 'デバイス管理',
     flow: 'ユースケース進捗', registered: 'デバイス登録・認証', received: '1時間集計を受信',
     anomaly: '現在状態を取得（正常／異常）', requested: '証明を要求', generated: '証明を生成・Sponsorが手数料を付与',
-    confirmed: 'Midnightへの記録完了', done: '完了', waiting: '待機', nextAction: '次の操作', inProgress: '処理中', devices: 'デバイス', registry: 'Midnight登録',
+    confirmed: 'Midnightへの記録完了', done: '完了', waiting: '待機', queued: '受付済み', nextAction: '次の操作', inProgress: '処理中', devices: 'デバイス', registry: 'Midnight登録',
     lastSeen: '最終受信', sensor: 'センサー', policy: 'しきい値ルール', hourly: '1時間集計値', period: '期間',
     count: '件数', minimum: '最小', maximum: '最大', average: '平均', commitment: 'データの指紋',
     anomalies: '即時異常遷移', transition: '遷移', occurred: '発生時刻', jobs: '証明・トランザクション処理',
@@ -244,7 +257,7 @@ const copy = {
     retry: '再試行', failed: '画面の読込みに失敗しました。',
     deviceIntro: 'このPCをデバイスとして登録し、センサー値の取得、ZK証明の作成、Midnightへの記録まで実行します。',
     deviceIdentity: 'デバイス認証鍵', midnightRegistration: 'Midnightへの登録', deviceRegister: 'デバイス登録', thresholdSetup: 'しきい値設定', sensorCapture: 'センサー値取得',
-    proofCreate: 'ZK証明を作成', chainRecord: 'コントラクトに記録', walletConnect: 'Midnight Walletを接続',
+    proofCreate: 'ZK証明を作成', chainRecord: 'コントラクトに記録', proofAndRecord: 'ZK証明を生成してMidnightに記録', walletConnect: 'Midnight Walletを接続',
     walletConnecting: 'ウォレット接続中...', walletConnected: 'ウォレット接続済み',
     walletDisconnected: 'Walletとの通信が切断されました。Walletのロックを解除して、もう一度「Midnight Walletを接続」を押してください。再接続できない場合はページを再読み込みしてください。',
     walletFailureStage: '失敗した段階',
@@ -258,7 +271,7 @@ const copy = {
     projectName: 'プロジェクト名', projectCreate: 'プロジェクトを作成', projectCancel: 'キャンセル',
     projectTimeZone: '固定UTCオフセット', projectDayStart: '運用日の開始時刻',
     projectLimit: 'Walletごとのプロジェクト数', projectCreated: 'プロジェクトを作成しました',
-    policyAdd: '＋ しきい値を新規追加', policyName: 'しきい値設定名', policyCreate: 'しきい値を登録',
+    policyAdd: '＋ しきい値を新規追加', policyRefresh: 'しきい値を再読み込み', policyRefreshHint: '登録結果は「しきい値を再読み込み」を押すと更新されます。', policyName: 'しきい値設定名', policyCreate: 'しきい値を登録',
     policyCancel: 'キャンセル', policyLimit: 'このプロジェクトのしきい値数', policyCreated: 'しきい値登録を受け付けました',
     policyEmpty: 'デバイス登録前に、このプロジェクトのしきい値を作成してください。',
     policyCreating: '変更できない公開しきい値をMidnightへ登録しています。',
@@ -271,7 +284,13 @@ const copy = {
     progressChallenge: '登録用のワンタイムチャレンジを取得中',
     progressWalletSignature: 'Midnight Walletの署名を待っています',
     progressWalletVerification: 'Walletの登録承認を検証中',
-    progressQueued: '登録を受け付けました。Sponsor Walletの処理待ちです',
+    progressQueued: '登録を受け付け、サーバー処理キューに追加しました',
+    nextProcessingStart: '次回の処理開始',
+    processingAlwaysOn: 'サーバー処理をすぐ開始できます',
+    processingOnDemand: '受付済みJobを1分ごとに確認します',
+    processingCooldown: 'Container再起動クールダウン終了',
+    processingNow: '処理開始時刻を過ぎています。サーバーが自動で処理を続けます',
+    queuedWorkflowHint: 'Step 3〜4はこのまま操作できます。待機中の処理は、以下の時刻から自動で開始します。',
     progressSponsorSync: 'Sponsor Walletを同期中',
     progressSponsorReady: 'Sponsor Walletの準備完了',
     progressDeviceProof: 'デバイス登録TX用のZKPを生成中',
@@ -305,8 +324,12 @@ const copy = {
     proofProgressRetrying: 'コントラクト状態が更新されたため、同じJob IDでZKP/TXを再生成中',
     proofProgressConfirming: 'Midnightトランザクションの確定待ち',
     proofProgressConfirmed: 'Midnightトランザクションが確定しました',
+    proofRequestUploading: '時間別集計をAPIへ送信中（{completed}/{total}）',
+    proofRequestRegistering: 'ZKP生成・TX発行Jobを登録中',
+    proofRequestAccepted: 'サーバーが処理要求を受け付けました',
+    proofRequestTimedOut: '処理要求の受付確認がタイムアウトしました。同じ運用日で再試行できます。受信済みデータは重複登録されません。',
     registrationJob: '登録Job', deviceRegistrationTx: 'デバイス登録TX', assignmentRegistrationTx: 'しきい値割当TX',
-    captureAction: '取得して送信', proofAction: '証明処理を開始', submitAction: 'ZK証明を生成してトランザクション送信',
+    captureAction: '取得して送信', proofAction: '証明処理を開始', submitAction: 'ZKP生成・TX発行を依頼',
     retrySubmitAction: 'ZK証明とトランザクションを再生成',
     reproofReady: '前回のTXは解放済みです。同じProof Job IDでZK証明とTXを再生成できます。',
     deviceId: 'デバイスID（ウォレットから自動生成）', wallet: 'ウォレット', temperature: '温度', progress: '処理状況',
@@ -334,6 +357,9 @@ const copy = {
     statusSponsorRetryable: 'Sponsor Walletの再開待ち',
     statusReproofRequired: 'ZKP/TXの再生成が必要',
     statusDeadLettered: '処理終了',
+    statusWaitingForRegistration: 'デバイス登録後の処理待ち',
+    submissionQueued: 'ZKP生成・TX発行処理待ち',
+    submissionQueuedDetail: 'サーバーは受付済みJobを1分ごとに確認し、Jobがある場合だけ必要なContainerを起動します。このページを開いたままにすると、デバイスTXの準備後にWallet承認を求めます。',
     statusDeviceBound: 'デバイス承認済み', statusSponsoring: '手数料を付与中', statusSponsored: '手数料付与済み',
     viewDay: 'この日を確認', hourlySummary: '時間別 最小 / 最大 / 平均',
     olderDay: '◀ 古い日', newerDay: '新しい日 ▶',
@@ -346,7 +372,7 @@ let deviceLoadPromise;
 let adminData = null;
 let adminSelectedDate = '';
 let provisioningStatusRequestActive = false;
-let policyStatusRequestActive = false;
+let queuedWorkflowStatusRequestActive = false;
 const deviceState = {
   configuration: null,
   wallet: null,
@@ -358,6 +384,7 @@ const deviceState = {
   history: null,
   sponsorQuota: null,
   provisioning: null,
+  submissionQueued: false,
   selectedDate: localStorage.getItem('vsp-selected-sensor-date') || '',
   generationDate: '',
   generationMode: localStorage.getItem('vsp-generation-mode') || 'with-outliers',
@@ -511,6 +538,7 @@ function statusText(value) {
     'retryable-failed': 'statusRetryableFailed',
     'reproof-required': 'statusReproofRequired',
     'dead-lettered': 'statusDeadLettered',
+    'waiting-for-registration': 'statusWaitingForRegistration',
   }[normalized];
   return statusKey ? t(statusKey) : normalized.replaceAll('-', ' ');
 }
@@ -598,6 +626,7 @@ function refreshPolicyComponents() {
     '#device-policy-operation-state',
     '#device-policy-list',
     '#device-policy-add',
+    '#device-policy-refresh',
     '#device-policy',
     '#device-threshold-display',
     '#device-identity-create',
@@ -617,7 +646,6 @@ function refreshRegistrationComponents({ includeHistory = false } = {}) {
     '#device-identity-create',
     '#device-register',
     '#device-capture',
-    '#device-proof-request',
     '#device-submit',
     '#device-progress',
   ]) patchDeviceElement(snapshot, selector);
@@ -650,7 +678,6 @@ function refreshDeviceDynamicComponents({ includeHistory = true } = {}) {
     '#device-register',
     '#device-capture',
     '#device-sensor-summary',
-    '#device-proof-request',
     '#device-proof-summary',
     '#device-submit',
     '#device-chain-details',
@@ -721,24 +748,17 @@ function deviceStepper() {
   const assignmentComplete = Boolean(deviceState.provisioned)
     || ['assignment_confirmed', 'completed'].includes(deviceState.provisioning?.stage);
   const steps = [
-    [t('deviceRegister'), deviceRegistrationComplete],
-    [t('thresholdSetup'), assignmentComplete],
-    [t('sensorCapture'), Boolean(deviceState.measurement)],
-    [t('proofCreate'), Boolean(deviceState.proofJob && [
-      'ready_for_input', 'proving', 'proof_ready', 'reproof_required', 'confirmed',
-    ].includes(deviceState.proofJob.status))],
-    [t('chainRecord'), Boolean(deviceState.transaction)],
+    { label: t('deviceRegister'), complete: deviceRegistrationComplete, queued: registrationIsServerManaged },
+    { label: t('thresholdSetup'), complete: assignmentComplete, queued: registrationIsServerManaged },
+    { label: t('sensorCapture'), complete: Boolean(deviceState.measurement), queued: false },
+    { label: t('proofAndRecord'), complete: Boolean(deviceState.transaction), queued: deviceState.submissionQueued },
   ];
-  const current = steps.findIndex(([, complete]) => !complete);
-  return `<ol class="proof-stepper device-stepper">${steps.map(([label, complete], index) => {
-    const state = complete
-      ? 'done'
-      : index === current && !registrationIsServerManaged
-        ? 'nextAction'
-        : 'waiting';
+  const current = steps.findIndex((step) => !step.complete && !step.queued);
+  return `<ol class="proof-stepper device-stepper">${steps.map((step, index) => {
+    const state = step.complete ? 'done' : step.queued ? 'queued' : index === current ? 'nextAction' : 'waiting';
     return `
-    <li class="${complete ? 'complete' : index === current ? 'current' : ''}"><span class="step-number">${complete ? '<span aria-hidden="true">✓</span><span class="visually-hidden">' + escapeHtml(t('done')) + '</span>' : index + 1}</span>
-      <strong>${escapeHtml(label)}</strong><span class="step-state">${escapeHtml(t(state))}</span></li>`;
+    <li class="${step.complete ? 'complete' : step.queued ? 'queued' : index === current ? 'current' : ''}"><span class="step-number">${step.complete ? '<span aria-hidden="true">✓</span><span class="visually-hidden">' + escapeHtml(t('done')) + '</span>' : index + 1}</span>
+      <strong>${escapeHtml(step.label)}</strong><span class="step-state">${escapeHtml(t(state))}</span></li>`;
   }).join('')}</ol>`;
 }
 
@@ -840,21 +860,26 @@ function sponsorJobProgressText(job) {
 function registrationProgressView() {
   const progress = deviceState.provisioning;
   if (!progress && !deviceState.provisioned) return '';
-  const active = ['queued', 'running', 'retrying'].includes(progress?.status);
+  const queued = progress?.status === 'queued';
+  const active = ['running', 'retrying'].includes(progress?.status);
   const failed = progress?.status === 'failed' || progress?.stage === 'failed';
   const deviceTxId = progress?.deviceTxId || deviceState.provisioned?.registeredTxId || null;
   const assignmentTxId = progress?.assignmentTxId || deviceState.provisioned?.assignmentTxId || null;
   const progressIcon = active
     ? '<span class="action-spinner" aria-hidden="true"></span>'
+    : queued
+      ? '<span class="queued-clock" aria-hidden="true">◷</span>'
     : failed
       ? '<span class="action-error" aria-hidden="true">!</span>'
       : '<span class="action-check" aria-hidden="true">✓</span>';
   return `<div class="registration-progress ${failed ? 'registration-progress-failed' : ''}" role="status" aria-live="polite">
     <div>${progressIcon}<strong id="registration-progress-stage">${escapeHtml(provisioningProgressText())}</strong></div>
     <dl class="device-summary">${progress?.operationId ? `<dt>${escapeHtml(t('registrationJob'))}</dt><dd class="hash" id="registration-job-id">${escapeHtml(progress.operationId)}</dd>` : ''}
-      <dt>${escapeHtml(t('status'))}</dt><dd>${escapeHtml(progress?.status || (deviceState.provisioned ? 'registered' : '—'))}</dd>
+      <dt>${escapeHtml(t('status'))}</dt><dd>${status(progress?.status || (deviceState.provisioned ? 'registered' : 'pending'))}</dd>
+      ${queued ? `<dt>${escapeHtml(t(processingSchedule()?.processingEligibleNow ? 'progress' : 'nextProcessingStart'))}</dt><dd class="processing-start-time">${escapeHtml(processingStartText())}</dd>` : ''}
       <dt>${escapeHtml(t('deviceRegistrationTx'))}</dt><dd class="hash" id="registration-device-tx">${escapeHtml(deviceTxId || '—')}</dd>
       <dt>${escapeHtml(t('assignmentRegistrationTx'))}</dt><dd class="hash" id="registration-assignment-tx">${escapeHtml(assignmentTxId || '—')}</dd></dl>
+    ${queued ? `<div class="queued-workflow-hint">${escapeHtml(t('queuedWorkflowHint'))}</div>` : ''}
   </div>`;
 }
 
@@ -901,13 +926,10 @@ function dailyProofAction(day) {
   }
   if (!day.capture) return `<span class="muted">${escapeHtml(t('privateUnavailable'))}</span>`;
   if (!day.capture.completeDay) return `<span class="status status-pending">${escapeHtml(t('incompleteDay'))}</span>`;
-  if (!day.proofJob) {
-    return `<button type="button" class="compact-button daily-proof-request" data-period-date="${escapeHtml(day.periodDate)}">${escapeHtml(t('requestDaily'))}</button>`;
-  }
-  if (day.proofJob && [
+  if (!day.proofJob || [
     'ready_for_input', 'proving', 'proof_ready', 'reproof_required',
-  ].includes(day.proofJob.status)) {
-    const allowed = sponsorQuotaAllows(day.proofJob.proofJobId);
+  ].includes(day.proofJob?.status)) {
+    const allowed = sponsorQuotaAllows(day.proofJob?.proofJobId);
     return `<button type="button" class="compact-button daily-submit" data-period-date="${escapeHtml(day.periodDate)}" ${allowed ? '' : 'disabled'} title="${allowed ? '' : escapeHtml(t('sponsorQuotaReached'))}">${escapeHtml(t('submitDaily'))}</button>`;
   }
   if (day.proofJob.errorCode === 'measurement_group_already_attested') {
@@ -962,28 +984,25 @@ function nextDeviceAction() {
   if (!deviceState.wallet) return 'wallet-connect-button';
   if (!deviceState.device) return 'device-identity-create';
   if (!(deviceState.configuration?.policies || []).length) return 'device-policy-add';
-  if (!deviceState.provisioned && ['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status)) return '';
-  if (!deviceState.provisioned) return 'device-register';
+  const registrationAccepted = Boolean(deviceState.provisioned)
+    || ['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status);
+  if (!registrationAccepted) return 'device-register';
   if (!deviceState.measurement || deviceState.transaction) return 'device-capture';
-  if (!deviceState.proofJob) return 'device-proof-request';
-  if (
-    !deviceState.transaction
-    && ['ready_for_input', 'proving', 'proof_ready', 'reproof_required'].includes(deviceState.proofJob.status)
-    && sponsorQuotaAllows(deviceState.proofJob.proofJobId)
-  ) return 'device-submit';
+  if (!deviceState.transaction && !deviceState.submissionQueued) return 'device-submit';
   return '';
 }
 
-function workflowButton(id, label, complete, disabled) {
+function workflowButton(id, label, complete, disabled, queued = false) {
   const current = nextDeviceAction() === id;
-  const active = deviceState.busy && deviceState.activeAction === id;
+  const active = deviceState.busy && deviceState.activeAction === id && !queued;
   const classes = ['workflow-action'];
   if (complete) classes.push('completed-action');
+  if (queued) classes.push('queued-action');
   if (current) classes.push('next-action');
   if (active) classes.push('active-action');
-  const state = active ? `${t('inProgress')}…` : current ? t('nextAction') : '';
+  const state = active ? `${t('inProgress')}…` : queued ? t('queued') : current ? t('nextAction') : '';
   return `<button type="button" id="${escapeHtml(id)}" class="${classes.join(' ')}" ${disabled ? 'disabled' : ''} ${current ? 'aria-current="step"' : ''} ${active ? 'aria-busy="true"' : ''}>
-    ${complete ? '<span class="action-check" aria-hidden="true">✓</span>' : ''}${active ? '<span class="action-spinner" aria-hidden="true"></span>' : ''}<span>${escapeHtml(label)}</span>
+    ${complete ? '<span class="action-check" aria-hidden="true">✓</span>' : queued ? '<span class="queued-clock" aria-hidden="true">◷</span>' : ''}${active ? '<span class="action-spinner" aria-hidden="true"></span>' : ''}<span>${escapeHtml(label)}</span>
     ${state ? `<span class="action-badge"${active ? ' role="status" aria-live="polite"' : ''}>${active ? '<span class="activity-dot" aria-hidden="true"></span>' : ''}${escapeHtml(state)}</span>` : ''}
   </button>`;
 }
@@ -992,6 +1011,33 @@ function fixedOffsetLabel(minutes) {
   const sign = minutes < 0 ? '-' : '+';
   const absolute = Math.abs(minutes);
   return `UTC${sign}${String(Math.floor(absolute / 60)).padStart(2, '0')}:${String(absolute % 60).padStart(2, '0')}`;
+}
+
+function processingSchedule() {
+  return deviceState.provisioning?.processingSchedule
+    || deviceState.configuration?.processingSchedule
+    || null;
+}
+
+function processingStartText() {
+  const schedule = processingSchedule();
+  if (!schedule) return '—';
+  if (schedule.mode === 'always-on') return t('processingAlwaysOn');
+  if (schedule.mode === 'on-demand') {
+    const cooldownUntil = schedule.nextContainerStartAllowedAt;
+    if (!cooldownUntil || Date.parse(cooldownUntil) <= Date.now()) return t('processingOnDemand');
+    return `${t('processingCooldown')}: ${dateTime(cooldownUntil)}`;
+  }
+  if (schedule.processingEligibleNow) return t('processingNow');
+  const startsAt = schedule.nextProcessingStartsAt;
+  if (!startsAt || !Number.isFinite(Date.parse(startsAt))) return '—';
+  const shifted = new Date(Date.parse(startsAt) + schedule.timeZoneOffsetMinutes * 60_000);
+  const date = new Intl.DateTimeFormat(locale() === 'ja' ? 'ja-JP' : 'en-GB', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC',
+  }).format(shifted);
+  return `${date} (${fixedOffsetLabel(schedule.timeZoneOffsetMinutes)})`;
 }
 
 function timeZoneOffsetOptions() {
@@ -1064,8 +1110,10 @@ function policyManagementView() {
   return `<section class="window policy-management-window"><div class="window-title">${escapeHtml(t('policy'))}</div><div class="window-body device-form">
     <div class="project-selector-body">
       <button type="button" class="compact-button project-add-button ${nextDeviceAction() === 'device-policy-add' ? 'next-action' : ''}" id="device-policy-add" ${deviceState.busy || atLimit ? 'disabled' : ''} ${nextDeviceAction() === 'device-policy-add' ? 'aria-current="step"' : ''}>${escapeHtml(t('policyAdd'))}</button>
+      <button type="button" class="compact-button" id="device-policy-refresh" ${deviceState.busy ? 'disabled' : ''}>${escapeHtml(t('policyRefresh'))}</button>
       <span class="project-count" id="device-policy-count">${escapeHtml(t('policyLimit'))}: <strong>${escapeHtml(count)} / ${escapeHtml(deviceState.maximumPolicies)}</strong></span>
     </div>
+    <small>${escapeHtml(t('policyRefreshHint'))}</small>
     <form id="device-policy-create-form" class="policy-create-form" ${deviceState.policyCreateOpen ? '' : 'hidden'}>
       <label>${escapeHtml(t('policyName'))}<input id="device-policy-name" name="policyName" maxlength="80" required autofocus></label>
       <label>${escapeHtml(t('policyMode'))}<select id="device-policy-mode" name="policyMode">
@@ -1105,6 +1153,8 @@ function deviceView() {
     unit: '°C',
   }) : '—';
   const result = deviceState.transaction;
+  const registrationAccepted = Boolean(deviceState.provisioned)
+    || ['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status);
   const submitActionLabel = deviceState.proofJob?.status === 'reproof_required'
     ? t('retrySubmitAction')
     : t('submitAction');
@@ -1146,22 +1196,20 @@ function deviceView() {
           </div><small>${escapeHtml(t('generationRange'))}: ${escapeHtml(generationBounds.minimum)} – ${escapeHtml(generationBounds.maximum)}</small></div>
           <label>${escapeHtml(t('generationMode'))}<select id="device-generation-mode"><option value="with-outliers" ${deviceState.generationMode === 'with-outliers' ? 'selected' : ''}>${escapeHtml(t('withOutliers'))}</option><option value="within-threshold" ${deviceState.generationMode === 'within-threshold' ? 'selected' : ''}>${escapeHtml(t('withinThreshold'))}</option></select></label>
         </div>
-        ${workflowButton('device-capture', t('autoGenerate'), Boolean(deviceState.measurement), deviceState.busy || !deviceState.provisioned)}
+        ${workflowButton('device-capture', t('autoGenerate'), Boolean(deviceState.measurement), deviceState.busy || !registrationAccepted)}
         <dl class="device-summary" id="device-sensor-summary"><dt>${escapeHtml(t('period'))}</dt><dd>${escapeHtml(deviceState.measurement?.periodDate || '—')}</dd>
           <dt>${escapeHtml(t('sampleCount'))}</dt><dd>${escapeHtml(deviceState.measurement?.records?.length ?? '—')}</dd>
           <dt>${escapeHtml(t('outlierCount'))}</dt><dd>${escapeHtml(deviceState.measurement?.outlierCount ?? '—')}</dd>
           <dt>${escapeHtml(t('thresholdResult'))}</dt><dd>${deviceState.measurement ? thresholdResult(deviceState.measurement.thresholdSatisfied, deviceState.measurement.attestation.publicData.observedHourCount) : '—'}</dd>
           <dt>Attestation</dt><dd class="hash">${escapeHtml(short(deviceState.measurement?.attestation?.publicData?.attestationCommitment, 30))}</dd></dl>
       </div></section>
-      <section class="window"><div class="window-title">4. ${escapeHtml(t('proofCreate'))}</div><div class="window-body device-form">
-        ${workflowButton('device-proof-request', t('proofAction'), Boolean(deviceState.proofJob), deviceState.busy || !deviceState.measurement || !deviceState.measurement.completeDay || Boolean(deviceState.proofJob))}
+      <section class="window full-width"><div class="window-title">4. ${escapeHtml(t('proofAndRecord'))}</div><div class="window-body device-form transaction-workflow">
+        ${workflowButton('device-submit', submitActionLabel, Boolean(deviceState.transaction), deviceState.busy || !deviceState.measurement || !deviceState.measurement.completeDay || Boolean(deviceState.transaction) || deviceState.submissionQueued || ['confirmed', 'dead_lettered'].includes(deviceState.proofJob?.status) || !sponsorQuotaAllows(deviceState.proofJob?.proofJobId), deviceState.submissionQueued)}
         <dl class="device-summary" id="device-proof-summary"><dt>${escapeHtml(t('job'))}</dt><dd class="hash">${escapeHtml(short(deviceState.proofJob?.proofJobId, 30))}</dd>
           <dt>${escapeHtml(t('status'))}</dt><dd>${deviceState.proofJob ? status(deviceState.proofJob.status) : '—'}</dd></dl>
-      </div></section>
-      <section class="window full-width"><div class="window-title">5. ${escapeHtml(t('chainRecord'))}</div><div class="window-body device-form transaction-workflow">
-        ${workflowButton('device-submit', submitActionLabel, Boolean(deviceState.transaction), deviceState.busy || !deviceState.proofJob || Boolean(deviceState.transaction) || !['ready_for_input', 'proving', 'proof_ready', 'reproof_required'].includes(deviceState.proofJob?.status) || !sponsorQuotaAllows(deviceState.proofJob?.proofJobId))}
         <div id="device-chain-details">
         <div class="transaction-progress"><strong>${escapeHtml(t('progress'))}:</strong> <span id="device-progress">${escapeHtml(deviceState.message || '—')}</span></div>
+        ${deviceState.submissionQueued ? `<div class="notice queued-submission-notice"><strong>${escapeHtml(t('submissionQueued'))}</strong><span>${escapeHtml(t('submissionQueuedDetail'))}</span><small>${escapeHtml(t('nextProcessingStart'))}: ${escapeHtml(processingStartText())}</small></div>` : ''}
         <div class="hash transaction-id">TX: ${escapeHtml(result?.transactionId || '—')}</div>
         ${result?.sponsorTransactionId ? `<div class="hash sponsor-transaction">Sponsor TX: ${escapeHtml(result.sponsorTransactionId)} / ${escapeHtml(result.feeDust)} tDUST</div>` : ''}
         <div class="notice transaction-fee-notice"><strong>${escapeHtml(t('feeSponsoredLabel'))}</strong><span>${escapeHtml(t('feeSponsored'))}</span></div>
@@ -1254,6 +1302,7 @@ async function refreshProjectPolicies(flow, { showProgress = false } = {}) {
       deviceState.selectedPolicyId = available[0]?.policyId || '';
     }
     deviceState.policyListState = 'ready';
+    deviceState.policyListError = '';
   } catch (error) {
     deviceState.policyListState = 'error';
     deviceState.policyListError = error instanceof Error ? error.message : String(error);
@@ -1264,7 +1313,7 @@ async function refreshProjectPolicies(flow, { showProgress = false } = {}) {
 async function loadDeviceModule() {
   if (!deviceLoadPromise) {
     deviceLoadPromise = (async () => {
-      deviceModule ||= await import('/device-flow.js?v=20260831-4');
+      deviceModule ||= await import('/device-flow.js?v=20260904-1');
       if (!deviceState.configuration) {
         deviceState.configuration = await deviceModule.browserDeviceFlow.loadConfiguration();
       }
@@ -1280,12 +1329,12 @@ async function loadDeviceModule() {
 }
 
 async function verifyPublicProofOnMidnight(data) {
-  deviceModule ||= await import('/device-flow.js?v=20260831-4');
+  deviceModule ||= await import('/device-flow.js?v=20260904-1');
   return deviceModule.verifyPublicAttestation(data);
 }
 
 async function loadPublicProofFromMidnight(transactionHash) {
-  deviceModule ||= await import('/device-flow.js?v=20260831-4');
+  deviceModule ||= await import('/device-flow.js?v=20260904-1');
   return deviceModule.loadPublicAttestationByTransactionHash(transactionHash);
 }
 
@@ -1353,6 +1402,16 @@ async function refreshPendingDeviceRegistration() {
     const completed = await flow.resumePendingDeviceRegistration(updateProvisioningProgress);
     if (completed) {
       deviceState.provisioned = completed;
+      const deferred = await flow.loadDeferredWorkflow();
+      if (deferred) {
+        deviceState.measurement = deferred.capture;
+        deviceState.selectedDate = deferred.capture.periodDate;
+        deviceState.submissionQueued = deferred.workflow.submissionRequested;
+        deviceState.proofJob = await flow.requestProof({
+          admitNow: false,
+          periodDate: deferred.capture.periodDate,
+        });
+      }
       await refreshDeviceHistory(flow);
       deviceState.message = `${t('registered')}: ${completed.registeredTxId}`;
       deviceState.error = '';
@@ -1364,33 +1423,8 @@ async function refreshPendingDeviceRegistration() {
     }
   } finally {
     provisioningStatusRequestActive = false;
-    refreshRegistrationComponents({ includeHistory: Boolean(deviceState.provisioned) });
-  }
-}
-
-async function refreshPendingPolicyOperations() {
-  if (
-    policyStatusRequestActive
-    || deviceState.busy
-    || !deviceState.wallet
-    || !(
-      deviceState.policyListState === 'error'
-      || deviceState.policyOperations.some((operation) => (
-        ['queued', 'running', 'retrying', 'registered'].includes(operation.status)
-      ))
-    )
-  ) return;
-  policyStatusRequestActive = true;
-  try {
-    await refreshProjectPolicies(
-      await loadDeviceModule(),
-      { showProgress: true },
-    );
-  } catch (error) {
-    deviceState.error = error instanceof Error ? error.message : String(error);
-  } finally {
-    policyStatusRequestActive = false;
-    refreshPolicyComponents();
+    if (deviceState.provisioned) refreshDeviceDynamicComponents();
+    else refreshRegistrationComponents();
   }
 }
 
@@ -1399,8 +1433,16 @@ async function submitDeviceDay(flow, periodDate) {
   try {
     submitted = await flow.proveAndSubmit((progress) => {
       deviceState.message = submissionProgressText(progress);
-      const element = document.querySelector('#device-progress');
-      if (element) element.textContent = deviceState.message;
+      deviceState.submissionQueued = new Set([
+        'sponsor-queued',
+        'sponsor-wallet-syncing',
+        'sponsor-wallet-funding-required',
+        'sponsor-pre-dust-retry',
+        'sponsor-retry-wait',
+        'sponsor-interrupted',
+        'transaction-submitted',
+      ]).has(progress);
+      refreshDeviceDynamicComponents({ includeHistory: false });
     }, periodDate);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -1425,7 +1467,80 @@ async function submitDeviceDay(flow, periodDate) {
   deviceState.transaction = submitted;
   await refreshDeviceHistory(flow);
   deviceState.transaction = submitted;
+  deviceState.submissionQueued = false;
   deviceState.message = `${t('confirmed')}: ${submitted.transactionId}`;
+}
+
+async function requestProofAndRecord(flow, periodDate) {
+  try {
+    if (!deviceState.proofJob) {
+      deviceState.proofJob = await flow.requestProof({
+        admitNow: false,
+        periodDate,
+        onAcceptanceProgress(progress) {
+          if (progress.stage === 'uploading') {
+            deviceState.message = t('proofRequestUploading')
+              .replace('{completed}', String(progress.completed))
+              .replace('{total}', String(progress.total));
+          } else {
+            deviceState.message = t(progress.stage === 'registering'
+              ? 'proofRequestRegistering'
+              : 'proofRequestAccepted');
+          }
+          const element = document.querySelector('#device-progress');
+          if (element) element.textContent = deviceState.message;
+        },
+      });
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (
+      error?.name === 'TimeoutError'
+      || /(?:timed?\s*out|timeout|aborted)/iu.test(detail)
+    ) throw new Error(t('proofRequestTimedOut'), { cause: error });
+    throw error;
+  }
+  flow.queueDeferredSubmission(periodDate);
+  deviceState.submissionQueued = true;
+  deviceState.message = `${t('submissionQueued')} — ${processingStartText()}`;
+}
+
+async function refreshQueuedProofWorkflow() {
+  if (
+    queuedWorkflowStatusRequestActive
+    || deviceState.busy
+    || !deviceState.wallet
+    || !deviceState.provisioned
+    || !deviceState.submissionQueued
+    || !deviceState.proofJob
+    || deviceState.transaction
+    || deviceState.proofJob.status === 'waiting_for_registration'
+  ) return;
+  queuedWorkflowStatusRequestActive = true;
+  try {
+    const flow = await loadDeviceModule();
+    deviceState.proofJob = await flow.refreshProofJob(deviceState.proofJob.proofJobId);
+    if (['ready_for_input', 'proving', 'proof_ready', 'reproof_required'].includes(deviceState.proofJob.status)) {
+      deviceState.submissionQueued = false;
+      refreshDeviceDynamicComponents();
+      await deviceAction('device-submit', t('submitAction'), (currentFlow) => (
+        submitDeviceDay(currentFlow, deviceState.selectedDate)
+      ));
+      return;
+    }
+    if (deviceState.proofJob.status === 'dead_lettered') {
+      deviceState.submissionQueued = false;
+      deviceState.error = deviceState.proofJob.errorCode || t('statusFailed');
+    } else {
+      deviceState.message = `${deviceState.proofJob.proofJobId}: ${statusText(deviceState.proofJob.status)}`;
+    }
+    refreshDeviceDynamicComponents();
+  } catch (error) {
+    deviceState.error = error instanceof Error ? error.message : String(error);
+    refreshDeviceDynamicComponents();
+  } finally {
+    queuedWorkflowStatusRequestActive = false;
+  }
 }
 
 function resetProjectDeviceState() {
@@ -1437,6 +1552,7 @@ function resetProjectDeviceState() {
   deviceState.history = null;
   deviceState.sponsorQuota = null;
   deviceState.provisioning = null;
+  deviceState.submissionQueued = false;
   deviceState.policyListState = 'idle';
   deviceState.policyListError = '';
   deviceState.policyOperations = [];
@@ -1457,6 +1573,19 @@ async function restoreActiveProject(flow) {
   if (!restored.provisioned) {
     deviceState.provisioned = await flow.resumePendingDeviceRegistration(updateProvisioningProgress);
   }
+  const deferred = await flow.loadDeferredWorkflow();
+  if (deferred) {
+    deviceState.measurement = deferred.capture;
+    deviceState.selectedDate = deferred.capture.periodDate;
+    deviceState.proofJob = deferred.job;
+    deviceState.submissionQueued = deferred.workflow.submissionRequested;
+  }
+  if (deviceState.provisioned && deferred) {
+    deviceState.proofJob = await flow.requestProof({
+      admitNow: false,
+      periodDate: deferred.capture.periodDate,
+    });
+  }
   if (deviceState.provisioned) await refreshDeviceHistory(flow);
   if (deviceState.provisioned) deviceState.selectedPolicyId = deviceState.provisioned.policyId;
   return restored;
@@ -1470,20 +1599,11 @@ function attachDeviceHistoryActions() {
       deviceState.message = periodDate;
     });
   }));
-  document.querySelectorAll('.daily-proof-request').forEach((button) => button.addEventListener('click', () => {
-    const periodDate = button.dataset.periodDate || '';
-    return deviceAction('device-proof-request', t('requestDaily'), async (flow) => {
-      await applySelectedDeviceDay(flow, periodDate);
-      deviceState.proofJob = await flow.requestProof({ admitNow: true, periodDate });
-      await refreshDeviceHistory(flow);
-      deviceState.message = `${periodDate}: ${statusText(deviceState.proofJob.status)}`;
-    });
-  }));
   document.querySelectorAll('.daily-submit').forEach((button) => button.addEventListener('click', () => {
     const periodDate = button.dataset.periodDate || '';
     return deviceAction('device-submit', t('submitDaily'), async (flow) => {
       await applySelectedDeviceDay(flow, periodDate);
-      await submitDeviceDay(flow, periodDate);
+      await requestProofAndRecord(flow, periodDate);
     });
   }));
 }
@@ -1538,6 +1658,12 @@ function attachDeviceActions() {
     deviceState.policyCreateOpen = true;
     document.querySelector('#device-policy-create-form').hidden = false;
     document.querySelector('#device-policy-name')?.focus();
+  });
+  document.querySelector('#device-policy-refresh')?.addEventListener('click', () => {
+    void deviceAction('device-policy-refresh', t('policyRefresh'), async (flow) => {
+      await refreshProjectPolicies(flow, { showProgress: true });
+      deviceState.message = t('syncComplete');
+    });
   });
   document.querySelector('#device-policy-cancel')?.addEventListener('click', () => {
     deviceState.policyCreateOpen = false;
@@ -1641,19 +1767,15 @@ function attachDeviceActions() {
       deviceState.selectedDate = periodDate;
       deviceState.proofJob = null;
       deviceState.transaction = null;
+      deviceState.submissionQueued = false;
       await refreshDeviceHistory(flow);
       deviceState.message = `${periodDate}: ${t('sampleCount')} ${deviceState.measurement.records.length} / ${t('outlierCount')} ${deviceState.measurement.outlierCount}`;
     });
   });
-  document.querySelector('#device-proof-request')?.addEventListener('click', () => deviceAction('device-proof-request', t('proofAction'), async (flow) => {
-    deviceState.proofJob = await flow.requestProof({ admitNow: true, periodDate: deviceState.selectedDate });
-    await refreshDeviceHistory(flow);
-    deviceState.message = `${deviceState.proofJob.proofJobId}: ${statusText(deviceState.proofJob.status)}`;
-  }));
   document.querySelector('#device-submit')?.addEventListener('click', () => (
-    deviceAction('device-submit', t('submitAction'), (flow) => (
-      submitDeviceDay(flow, deviceState.selectedDate)
-    ))
+    deviceAction('device-submit', t('submitAction'), async (flow) => {
+      await requestProofAndRecord(flow, deviceState.selectedDate);
+    })
   ));
   attachDeviceHistoryActions();
 }
@@ -1975,7 +2097,11 @@ function renderError(error) {
 }
 
 function refreshDeviceMessageForLocale() {
-  if (deviceState.provisioning && !deviceState.provisioned) {
+  if (deviceState.submissionQueued) {
+    deviceState.message = `${t('submissionQueued')} — ${processingStartText()}`;
+    return;
+  }
+  if (deviceState.provisioning && !deviceState.provisioned && !deviceState.measurement) {
     deviceState.message = provisioningProgressText();
     return;
   }
@@ -2193,5 +2319,5 @@ setInterval(clock, 1000);
 health();
 setInterval(health, 60_000);
 setInterval(() => void refreshPendingDeviceRegistration(), 5_000);
-setInterval(() => void refreshPendingPolicyOperations(), 5_000);
+setInterval(() => void refreshQueuedProofWorkflow(), 5_000);
 if (routeReady) render();

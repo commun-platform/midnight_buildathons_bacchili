@@ -1010,6 +1010,29 @@ a:visited { color: #551a8b; }
 }
 .registration-progress .device-summary { margin-bottom: 0; }
 .registration-progress-failed { background: #ffd6d6; }
+.queued-clock {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 2px solid #805000;
+  border-radius: 50%;
+  background: #fff4c2;
+  color: #5b3900;
+  font-weight: 700;
+}
+.processing-start-time { font-weight: 700; color: #000080; }
+.queued-workflow-hint {
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-left: 5px solid #d88a00;
+  background: #fff4c2;
+  font-family: sans-serif;
+  font-weight: 700;
+}
+.proof-stepper li.queued { background: #fff4c2; border-color: #d88a00; }
+.queued-action { background: #fff4c2; }
+.queued-submission-notice { grid-column: 1 / -1; background: #fff4c2; }
 .transaction-fee-notice, .sponsor-quota {
   min-width: 0;
   align-self: stretch;
