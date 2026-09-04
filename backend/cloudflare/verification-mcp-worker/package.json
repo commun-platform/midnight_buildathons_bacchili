@@ -1,0 +1,26 @@
+{
+  "name": "@midnight-demo/verification-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "types": "wrangler types src/worker-configuration.d.ts --include-runtime=false --config ../deployment/wrangler.verification-mcp.jsonc",
+    "types:check": "wrangler types src/worker-configuration.d.ts --include-runtime=false --config ../deployment/wrangler.verification-mcp.jsonc --check",
+    "build": "wrangler deploy --dry-run --outdir dist --config ../deployment/wrangler.verification-mcp.jsonc",
+    "typecheck": "npm run types:check && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "deploy": "node ../../../tools/repository-checks/require-development-host.mjs && node ../../../tools/cloudflare-admin/run-wrangler-from-root.mjs deploy --config backend/cloudflare/deployment/wrangler.verification-mcp.jsonc"
+  },
+  "dependencies": {
+    "@midnight-demo/public-attestation-verifier": "*",
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260828.1",
+    "typescript": "^6.0.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.127.0"
+  }
+}

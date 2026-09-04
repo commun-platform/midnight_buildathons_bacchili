@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-現行ソースは、6つの証明回路のコンパイル、355件の自動テスト、全構成領域の型検査とビルド、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録を確認しています。ソース検証と日付付きネットワーク記録は、別の証拠として扱います。
+現行ソースは、8つの証明回路のコンパイル、448件の自動テスト、全構成領域の型検査とビルド、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録、2026-09-03のWallet不要Managed API Attestationを確認しています。これらの日付付きTXは旧配備Contractの証跡であり、互換性のない現行8回路SourceをLive Evidenceとするには再配備が必要です。
 
 | 審査成果物 | 文書 |
 | --- | --- |
@@ -50,6 +50,8 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 | [`implementation/`](implementation/) | 仕様と実装の対応、6つの運用ZK回路、将来機能バックログ、DUST送信手数料のスポンサー、ウォレット同期中のトランザクション保留、費用実測、保存先の移行設計 |
 
 Wave 2の運用可視化、Wallet同期、処理件数、顧客UCのAPI証跡は[システム運用ダッシュボード仕様](architecture/wave2_system_operations.md)にまとめています。
+[MCPのセキュリティ境界](architecture/mcp_security_boundary.md)には、非公開サポートMCPと公開TX検証MCPを別Workerへ分離する構成、認証認可、返却禁止情報、配備順序をまとめています。
+[Sponsor Wallet日次処理](operations/sponsor_wallet_operating_hours.md)には、24時間受付、JST 02:00の締切バッチ、依存順制御、安全な停止、切替コマンドをまとめています。
 
 日本語のスライド図版は[`assets/review/`](assets/review/)、文書専用図版は[`assets/guides/`](assets/guides/)に集約し、英語図版とは分離しています。
 
@@ -138,6 +140,8 @@ frontend/
 backend/
   cloudflare/
     proof-gateway-worker/             Worker API・Queue Consumer・Storage Adapter
+    support-mcp-worker/               Access保護されたカスタマーサポートMCP
+    verification-mcp-worker/          公開Midnight TX検証MCP
     sponsor-wallet-container/         Fee専用Midnight Wallet Runtime
     d1-schema/migrations/             Backend永続Schemaの履歴
     deployment/wrangler.jsonc         Worker・D1・R2・Queue・Container・Assets
@@ -152,6 +156,7 @@ midnight/
   experiments/daily-attestation-cost/ 開発専用の固定Profile費用実験
 shared/
   measurement-protocol/               Commitment・集計・Provisioning Message
+  public-attestation-verifier/        D1非依存の公開Midnight TX Decode・検証
 tools/
   midnight-operator/                  Local開発Wallet・Midnight管理
   cloudflare-admin/                   Local Provisioning・Secret設定Command
@@ -187,7 +192,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-期待結果は、運用する6つの証明回路のコンパイル、355件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用する8つの証明回路のコンパイル、448件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 

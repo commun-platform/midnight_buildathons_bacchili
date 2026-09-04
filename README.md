@@ -10,7 +10,7 @@
 
 ## Judge review
 
-The current review tree compiles all 6 operational proof circuits and passes 355 automated tests, every configured type check and build, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records, the 2026-08-30 Sponsor-funded schema-5 record, and the 2026-09-02 missing-hour, stopped-day, and OUTSIDE conformance records. Source validation and dated network records are kept as separate evidence.
+The current review tree compiles all 8 operational proof circuits and passes 448 automated tests, every configured type check and build, the API SCT, the 22-checkpoint GUI SCT, and the Cloudflare pre-deployment check. Midnight preproduction-network evidence includes the 2026-08-28 self-funded WITHIN/OUTSIDE records, the 2026-08-30 Sponsor-funded schema-5 record, the 2026-09-02 missing-hour, stopped-day, and OUTSIDE conformance records, and the 2026-09-03 walletless Managed API Attestation. Those dated transactions use the prior deployed contract; the incompatible eight-circuit source requires a fresh deployment before it can be claimed as live evidence.
 
 | Review artifact | Link |
 | --- | --- |
@@ -46,7 +46,7 @@ The documentation is organized by purpose. Submission copy, English / Japanese d
 | [`docs/architecture/`](docs/architecture/) | Product specification, four-domain architecture, and the daily proof with 24 hourly slots |
 | [`docs/security/`](docs/security/) | Private-information boundary, keys and authentication, and multi-Device management |
 | [`docs/operations/`](docs/operations/) | Development environment, deployment and review procedure, and Edge Device software installation / rollback |
-| [`docs/implementation/`](docs/implementation/) | Specification-to-code map, six operational ZK circuits, future feature backlog, DUST fee sponsorship and Wallet-sync transaction hold, measured cost, and storage-migration design |
+| [`docs/implementation/`](docs/implementation/) | Specification-to-code map, eight operational ZK circuits, future feature backlog, DUST fee sponsorship and Wallet-sync transaction hold, measured cost, and storage-migration design |
 
 English slide figures are under [`docs/assets/review/`](docs/assets/review/) and English document-specific figures are under [`docs/assets/guides/`](docs/assets/guides/). Japanese assets are kept separately below [`docs/ja/assets/`](docs/ja/assets/).
 
@@ -144,6 +144,8 @@ frontend/
 backend/
   cloudflare/
     proof-gateway-worker/             Worker API, Queue consumers, storage adapters
+    support-mcp-worker/               Access-protected customer-support MCP
+    verification-mcp-worker/          public Midnight TX-verification MCP
     sponsor-wallet-container/         dedicated fee-only Midnight Wallet runtime
     d1-schema/migrations/             persistent Backend schema history
     deployment/wrangler.jsonc         Worker, D1, R2, Queues, Containers, and assets
@@ -158,6 +160,7 @@ midnight/
   experiments/daily-attestation-cost/ development-only fixed-profile cost experiment
 shared/
   measurement-protocol/               commitments, aggregates, provisioning messages
+  public-attestation-verifier/        D1-free public Midnight TX decoder and verifier
 tools/
   midnight-operator/                  local development Wallet and Midnight administration
   cloudflare-admin/                   local provisioning and secret-management commands
@@ -193,7 +196,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-The expected review result is 6 compiled operational proof circuits, 355 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The expected review result is 8 compiled operational proof circuits, 448 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 
@@ -218,7 +221,7 @@ Wave 2 and Wave 3 are plans, not current capabilities. Product and submission do
 
 The development wallet exists only in the ignored `tools/midnight-operator/.env.development`; its encrypted/offline backup is the recovery copy. Independent Device transaction identity and Compact private state exist only below `~/.midnight/midnight-cloudflare-demo/device-wallet/`. The dedicated Sponsor Wallet uses a separate deployment secret and encrypted synchronization checkpoint; its recovery source is never stored in D1, R2 plaintext, Worker source, or Device firmware. Installed operational configuration is `config/device.env`; staged `edge-device/release/.env.device` is removed after installation and never contains a mnemonic or seed. The Edge Device receives compiled runtime artifacts, never Compact sources or proving-key generation tooling. Browser APIs expose none of these values.
 
-See [system architecture](docs/architecture/system_architecture.md), [private-state specification](docs/security/private_spec.md), and the [deployment runbook](docs/operations/demo_runbook.md).
+See [system architecture](docs/architecture/system_architecture.md), [private-state specification](docs/security/private_spec.md), [Sponsor Wallet daily processing](docs/operations/sponsor_wallet_operating_hours.md), and the [deployment runbook](docs/operations/demo_runbook.md).
 
 ## References
 

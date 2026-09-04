@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "midnight-support-mcp",
+  "main": "../support-mcp-worker/src/index.ts",
+  "compatibility_date": "2026-09-04",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "vars": {
+    "CLOUDFLARE_ACCESS_TEAM_DOMAIN": "https://morning-unit-c72e.cloudflareaccess.com",
+    "CLOUDFLARE_ACCESS_AUDIENCE": "0bcc33f975316e67ad924c2ba21479fab65e827acedebb95a687efa453c207ab"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "midnight-sensor-data-v2",
+      "migrations_dir": "../d1-schema/migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "invocation_logs": true
+    }
+  }
+}

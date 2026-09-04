@@ -121,7 +121,7 @@ Event、Health Snapshot、配送完了済み通知のオンライン保持期間
 通知判定に使うしきい値を先に管理画面へ表示します。Scheduled Workerは次を評価し、重複通知を防ぎます。
 
 - Sponsor Walletを取得できない
-- Block Lagが設定値以上、または未完了Channelが切断した状態（`0/0`停止を含む）が通知保護期間を通して継続している
+- Block Lagが設定値以上、または未完了Channelが切断した状態（`0/0`停止を含む）で、適用済み同期進捗がWallet通知保護期間を通して変化していない
 - 実DUST残高を直近の完了済みSponsored TX手数料で割った推定残り送信回数がしきい値以下になった
 - ProofまたはSponsor待ちが件数と待機時間の両方のしきい値を超えた
 - 直近5分のProof API Rate Limit応答がしきい値を超えた
@@ -131,13 +131,14 @@ Event、Health Snapshot、配送完了済み通知のオンライン保持期間
 | 監視対象 | 初期しきい値 |
 |---|---:|
 | 推定残りSponsored TX | 1件以下 |
-| Wallet同期 | 250 Block以上のLagまたは未完了Channel切断が5分間連続 |
+| Wallet同期 | 250 Block以上のLagまたは未完了Channel切断 |
+| Wallet系通知保護 | 5分間連続 |
 | Proof滞留 | 8 Job以上かつ最古待機10分以上 |
 | Sponsor滞留 | 16 Job以上かつ最古待機10分以上 |
 | Proof HTTP 429 | 5分間に5回 |
 | 未解決Alertの再通知 | 60分 |
 
-Wallet取得不能と同期異常には5分間の通知保護期間を設けます。Scheduled Workerが初回検出時刻をD1へ記録し、異常が5分間連続した場合にだけOpen通知を発行します。5分以内に復旧した場合はOpen通知もResolved通知も発行しません。その他のAlertは即時通知です。通知済みの異常は、継続中に間隔を制限したReminder、復旧時にResolved通知を発行します。Workerは通知予定をD1 Outboxへ先に記録し、復旧時には未配送のOpen／Reminderを無効化します。このため、復旧後に古い異常通知が届きません。顧客Requestを待たせず、失敗時はBackoff付きで再送し、配送中にWorkerが中断した場合は10分後に配送Leaseを回収します。
+間欠起動したWalletの`starting`と進捗中の`syncing`は正常状態であり、Discord Incidentを作りません。未同期かつ適用済み同期進捗が5分間変化しない場合だけ、同期停滞AlertをOpenします。DUST残量はWalletが`ready`または`waiting-for-funding`へ到達してから評価するため、起動途中の未確定残高は低DUST通知になりません。Healthをまったく取得できない状態と実際の低DUSTには5分間の通知保護を維持します。通知保護期間内に復旧した場合はOpen通知もResolved通知も発行しません。その他のAlertは即時通知です。通知済みの異常は、継続中に間隔を制限したReminder、復旧時にResolved通知を発行します。Workerは通知予定をD1 Outboxへ先に記録し、復旧時には未配送のOpen／Reminderを無効化します。このため、復旧後に古い異常通知が届きません。顧客Requestを待たせず、失敗時はBackoff付きで再送し、配送中にWorkerが中断した場合は10分後に配送Leaseを回収します。
 
 Discord通知は日本語で配信し、冒頭に管理者判断として`対応不要`、`要監視`、`対応必要`のいずれかを表示します。各通知には原因、推奨対応、該当するCloudflare Containers、Queues、Observability画面への直接リンクを含めます。復旧通知は`対応不要`です。
 
@@ -166,6 +167,10 @@ GET /api/v1/proof-jobs/:proofJobId                Device認証済みJob状態と
 ```
 
 全Responseは`Cache-Control: no-store`とRequest IDを持ちます。管理APIは読み取り専用です。
+
+カスタマーサポート自動化は、別Workerである`midnight-support-mcp`から、この運用状態のRedact済みSubset
+だけを参照します。このWorkerはHost全体をAccessで保護し、公開Proof Gateway配下には配置しません。
+詳細は[MCPのセキュリティ境界](mcp_security_boundary.md)を参照してください。
 
 ### 6.1 Cloudflare Access配備条件
 

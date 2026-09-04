@@ -23,6 +23,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 - [System architecture](architecture/system_architecture.md): Edge Device, Frontend, Backend, and Midnight responsibilities.
 - [Hourly extrema attestation](architecture/hourly_extrema_attestation_proposal.md): fixed 24-slot circuit and daily proof flow.
 - [Wave 2 system operations console](architecture/wave2_system_operations.md): Access-protected Wallet synchronization, processing, metrics, and audit design.
+- [MCP security boundary](architecture/mcp_security_boundary.md): separate private support and public transaction-verification Workers, bindings, authorization, redaction, and deployment order.
 
 ## Security
 
@@ -35,6 +36,7 @@ The documentation is grouped by review purpose. Start with architecture, then us
 - [Development environment](operations/development_environment.md): development-only setup, compilation, verification, deployment preparation, and release creation.
 - [Deployment and review runbook](operations/demo_runbook.md): ordered deployment, enrollment, proof, and review procedure.
 - [Device firmware](operations/device_firmware.md): package, installation, rollback, and device runtime boundary.
+- [Sponsor Wallet daily processing](operations/sponsor_wallet_operating_hours.md): 24-hour admission, daily cutoff batches, dependency ordering, safe Wallet shutdown, and cost estimate.
 
 ## Implementation and evidence
 
@@ -45,6 +47,8 @@ The documentation is grouped by review purpose. Start with architecture, then us
 - [Transaction-hash verification specification](implementation/transaction_hash_verification.md): trust anchors, public ledger field meanings, the 24-hour proof relation, normative third-party verification steps, and a real Preprod conformance vector.
 - [Future feature backlog](implementation/future_features.md): contract-first changes, later operational features, priorities, and completion conditions.
 - [Midnight fee sponsorship](implementation/fee_sponsorship.md): DUST-only fee payer, key boundaries, asynchronous Wallet synchronization, exact-byte transaction hold, retries, and current integration status.
+- [Managed API attestation](architecture/managed_api_attestation.md): walletless fixed-window source connectors, System Wallet proving, failure handling, idempotency, and verification acceptance criteria.
+- [Deterministic measurement source test API](implementation/mock_measurement_source_api.md): reproducible success, missing-data, malformed-data, authentication, rate-limit, timeout, and server-failure scenarios.
 - [Cost benchmark](implementation/cost_benchmark.md): measured results and planning model.
 - [Storage migration](implementation/storage_migration.md): optional D1-to-Turso adapter and cutover design.
 

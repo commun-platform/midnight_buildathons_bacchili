@@ -165,7 +165,8 @@ evaluates and deduplicates these conditions:
 
 - Sponsor Wallet unavailable;
 - block lag remains above the configured limit, or an incomplete synchronization channel remains
-  disconnected (including a stuck `0/0` state), for the full notification grace period;
+  disconnected (including a stuck `0/0` state), while applied synchronization progress remains
+  unchanged for the full Wallet grace period;
 - estimated remaining sponsored transactions, calculated as actual DUST balance divided by the
   latest completed sponsored-TX fee, reach the low-funds limit;
 - Proof or Sponsor work remains above both its count and age limits; and
@@ -176,21 +177,25 @@ The initial deployment policy is intentionally explicit and can be changed witho
 | Signal | Initial threshold |
 |---|---:|
 | Estimated sponsored-TX capacity | 1 transaction or less |
-| Wallet synchronization | 250-block lag or an incomplete disconnected channel continuously for 5 minutes |
+| Wallet synchronization | 250-block lag or an incomplete disconnected channel |
+| Wallet notification grace | 5 continuous minutes |
 | Proof backlog | 8 jobs with the oldest waiting at least 10 minutes |
 | Sponsor backlog | 16 jobs with the oldest waiting at least 10 minutes |
 | Proof HTTP 429 | 5 responses in 5 minutes |
 | Open-alert reminder | 60 minutes |
 
-Wallet unavailability and synchronization failure use a five-minute notification grace period. The
-scheduled Worker records the first observation in D1 and sends an open notification only when the
-condition has remained active continuously for the full period. Recovery within the grace period
-produces neither an open nor a recovery notification. Other alerts remain immediate. A notified
-alert produces bounded reminders while it remains open and one recovery notification. The Worker
-writes these intentions transactionally to the D1 Outbox. Pending or retrying open notifications
-are cancelled when the condition recovers, so stale incidents are not delivered afterward. Discord
-delivery is therefore outside customer request latency, retries with backoff, and reclaims a
-delivery lease left behind by an interrupted Worker.
+`starting` and progressing `syncing` are expected states for an intermittently started Wallet and do
+not create Discord incidents. A synchronization-stalled alert opens only when the Wallet remains
+unsynchronized and its applied synchronization progress has not changed for five minutes. DUST
+capacity is evaluated only after the Wallet reaches `ready` or `waiting-for-funding`, so incomplete
+startup balances do not create low-DUST notifications. Complete Wallet unavailability and a real
+low-DUST condition retain the five-minute notification grace. Recovery within a notification grace
+period produces neither an open nor a recovery notification. Other alerts remain immediate. A
+notified alert produces bounded reminders while it remains open and one recovery notification. The
+Worker writes these intentions transactionally to the D1 Outbox. Pending or retrying open
+notifications are cancelled when the condition recovers, so stale incidents are not delivered
+afterward. Discord delivery is therefore outside customer request latency, retries with backoff, and
+reclaims a delivery lease left behind by an interrupted Worker.
 
 Discord messages are delivered in Japanese and lead with one operator decision: `対応不要`, `要監視`,
 or `対応必要`. Each message contains a concise cause, a recommended next action, and a direct link to
@@ -232,6 +237,10 @@ GET /api/v1/proof-jobs/:proofJobId                Device-authenticated Job statu
 ```
 
 All responses use `Cache-Control: no-store` and include a request identifier. The APIs are read-only.
+
+Customer-support automation reads a redacted subset of this operational state through the separate
+`midnight-support-mcp` Worker. That Worker is protected across its entire hostname and is never
+mounted below this public Proof Gateway. See [MCP security boundary](mcp_security_boundary.md).
 
 ### 6.1 Cloudflare Access deployment requirement
 
