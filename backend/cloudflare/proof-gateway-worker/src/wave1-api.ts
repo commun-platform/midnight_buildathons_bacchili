@@ -148,6 +148,31 @@ interface ThresholdPolicyRow {
   status: 'registered' | 'retired';
 }
 
+interface CompletedProvisioningOperationRow {
+  created_at: string;
+  updated_at: string;
+}
+
+const deferredProvisioningContinuationMilliseconds = 6 * 60 * 60 * 1000;
+
+export function deferredProvisioningCreatedAt(
+  operation: CompletedProvisioningOperationRow | null,
+  previousProofCount: number,
+  now: Date,
+): string {
+  if (
+    !operation
+    || !Number.isFinite(Date.parse(operation.created_at))
+    || !Number.isFinite(Date.parse(operation.updated_at))
+    || now.valueOf() - Date.parse(operation.updated_at) > deferredProvisioningContinuationMilliseconds
+    || Date.parse(operation.updated_at) > now.valueOf() + 5 * 60_000
+  ) throw new Error('Deferred Proof request is not linked to a recent completed Device registration');
+  if (previousProofCount > 0) {
+    throw new Error('Deferred Device registration continuation was already used');
+  }
+  return operation.created_at;
+}
+
 function json(status: number, value: unknown): Response {
   return Response.json(value, {
     status,
@@ -213,6 +238,10 @@ function identifier(body: Record<string, unknown>, key: string): string {
     throw new Error(`${key} contains unsupported characters`);
   }
   return value;
+}
+
+function optionalIdentifier(body: Record<string, unknown>, key: string): string | null {
+  return body[key] === undefined ? null : identifier(body, key);
 }
 
 function finiteNumber(body: Record<string, unknown>, key: string): number {
@@ -437,7 +466,7 @@ async function deviceConfiguration(request: Request, env: Env): Promise<Response
       midnight: {
         network,
         contractAddress: configuredAddress,
-        contractSchemaVersion: 4,
+        contractSchemaVersion: 5,
         registrationVersion: row.midnight_registration_version,
       },
       policy: {
@@ -755,13 +784,34 @@ async function ingestAnomalyEvent(request: Request, env: Env): Promise<Response>
   }
 }
 
-function nextProofWindow(value: Date): string {
-  const shifted = new Date(value.valueOf() + 9 * 60 * 60 * 1000);
-  const hour = shifted.getUTCHours();
-  if (hour >= 2 && hour < 6) return value.toISOString();
-  if (hour >= 6) shifted.setUTCDate(shifted.getUTCDate() + 1);
-  shifted.setUTCHours(2, 0, 0, 0);
-  return new Date(shifted.valueOf() - 9 * 60 * 60 * 1000).toISOString();
+async function deferredProofCreatedAt(
+  database: ReturnType<typeof createSqlDatabase>,
+  operationId: string | null,
+  proofJobId: string,
+  deviceId: string,
+  projectId: string,
+  policyId: string,
+  now: Date,
+): Promise<string> {
+  if (!operationId) return now.toISOString();
+  const existing = await database.first<{ id: string }>(
+    'SELECT id FROM daily_proof_jobs WHERE id = ?1',
+    [proofJobId],
+  );
+  if (existing) return now.toISOString();
+  const operation = await database.first<CompletedProvisioningOperationRow>(
+    `SELECT created_at, updated_at
+     FROM browser_provisioning_operations
+     WHERE id = ?1 AND device_id = ?2 AND project_id = ?3 AND policy_id = ?4
+       AND status = 'registered' AND stage = 'completed'`,
+    [operationId, deviceId, projectId, policyId],
+  );
+  const previous = await database.first<{ proof_count: number }>(
+    `SELECT COUNT(*) AS proof_count FROM daily_proof_jobs
+     WHERE device_id = ?1 AND project_id = ?2 AND created_at = ?3`,
+    [deviceId, projectId, operation?.created_at ?? ''],
+  );
+  return deferredProvisioningCreatedAt(operation, previous?.proof_count ?? 0, now);
 }
 
 async function createProofJob(request: Request, env: Env): Promise<Response> {
@@ -792,6 +842,10 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     const deviceCommitment = publicCommitment(body, 'deviceCommitment');
     const sampleCount = nonnegativeInteger(body, 'sampleCount');
     const thresholdPolicyVersion = requiredString(body, 'thresholdPolicyVersion', 80);
+    const deferredProvisioningOperationId = optionalIdentifier(
+      body,
+      'deferredProvisioningOperationId',
+    );
     const policyKey = publicCommitment(body, 'policyKey');
     const assignmentId = identifier(body, 'assignmentId');
     const assignmentKey = publicCommitment(body, 'assignmentKey');
@@ -839,8 +893,9 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
        JOIN threshold_policies p ON p.policy_id = a.policy_id
        WHERE a.assignment_id = ?1 AND a.assignment_key = ?2
          AND a.device_id = ?3 AND a.project_id = ?4
-         AND a.status = 'registered' AND p.status = 'registered'`,
-      [assignmentId, assignmentKey, deviceId, projectId],
+         AND a.status = 'registered' AND p.status = 'registered'
+         AND a.contract_address = ?5 AND p.contract_address = ?5`,
+      [assignmentId, assignmentKey, deviceId, projectId, device.midnight_contract_address],
     );
     if (
       !assignment
@@ -874,7 +929,18 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
       || (assignment.valid_until && periodEnd > Date.parse(assignment.valid_until))
     ) return json(400, { error: 'Proof period is outside the registered policy assignment' });
     const now = new Date();
-    const availableAfter = nextProofWindow(now);
+    // Scheduling is applied by the daily processing cutoff. `available_after`
+    // is reserved for retry backoff and starts at the admission time.
+    const availableAfter = now.toISOString();
+    const createdAt = await deferredProofCreatedAt(
+      database,
+      deferredProvisioningOperationId,
+      proofJobId,
+      deviceId,
+      projectId,
+      thresholdPolicyVersion,
+      now,
+    );
     const changes = await database.execute(
       `INSERT OR IGNORE INTO daily_proof_jobs (
          id, project_id, device_id, period_date, contract_address, measurement_group_id,
@@ -891,7 +957,7 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
         device.midnight_contract_address, measurementGroupId,
         attestationCommitment, deviceCommitment, sampleCount, thresholdPolicyVersion, policyKey,
         assignmentId, assignmentKey, presence.encoded, hourlyResults.encoded, observedHourCount,
-        thresholdSatisfied ? 1 : 0, schemaVersion, circuitVersion, availableAfter, now.toISOString(),
+        thresholdSatisfied ? 1 : 0, schemaVersion, circuitVersion, availableAfter, createdAt,
       ],
     );
     const job = await database.first<ProofJobRow>(
@@ -1016,8 +1082,12 @@ async function deviceAdministratorDashboard(request: Request, env: Env): Promise
        FROM threshold_policies p
        JOIN policy_assignments a
          ON a.policy_id = p.policy_id
+       JOIN devices d
+         ON d.id = a.device_id AND d.project_id = a.project_id
        WHERE a.device_id = ?1 AND a.project_id = ?2 AND p.project_id = a.project_id
          AND a.status = 'registered'
+         AND a.contract_address = d.midnight_contract_address
+         AND p.contract_address = d.midnight_contract_address
        ORDER BY p.policy_version DESC`,
       [deviceId, authorizedProjectId],
     ),

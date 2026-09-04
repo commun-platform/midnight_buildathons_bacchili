@@ -127,7 +127,7 @@ export function parseSponsorCheckpointUpload(request: Request): SponsorCheckpoin
   return { body: request.body, bytes, bootId, reason, progress };
 }
 
-async function storeSponsorCheckpointAt(
+export async function storeWalletCheckpointAt(
   env: Env,
   key: string,
   body: ReadableStream<Uint8Array>,
@@ -184,7 +184,7 @@ export async function storeSponsorCheckpoint(
   },
   signal?: AbortSignal,
 ): Promise<void> {
-  await storeSponsorCheckpointAt(env, sponsorCheckpointKey, body, bytes, metadata, signal);
+  await storeWalletCheckpointAt(env, sponsorCheckpointKey, body, bytes, metadata, signal);
 }
 
 export async function storeSponsorDustReplayCheckpoint(
@@ -192,7 +192,7 @@ export async function storeSponsorDustReplayCheckpoint(
   body: ReadableStream<Uint8Array>,
   bytes: number,
 ): Promise<void> {
-  await storeSponsorCheckpointAt(env, sponsorCheckpointRecoveryKey, body, bytes, {
+  await storeWalletCheckpointAt(env, sponsorCheckpointRecoveryKey, body, bytes, {
     source: 'dust-replay-base',
   });
 }

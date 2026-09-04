@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ProofJobRow } from './jobs.js';
-import { proofJobView, requiredBlockHeight } from './wave1-api.js';
+import {
+  deferredProvisioningCreatedAt,
+  proofJobView,
+  requiredBlockHeight,
+} from './wave1-api.js';
 
 describe('Proof result block height validation', () => {
   it.each(['0', '1', '2317466'])('accepts numeric block height %s', (value) => {
@@ -18,6 +22,27 @@ describe('Proof result block height validation', () => {
     2_317_466,
   ])('rejects invalid block height %s', (value) => {
     expect(() => requiredBlockHeight(value)).toThrow(/blockHeight/u);
+  });
+});
+
+describe('Deferred Proof request scheduling', () => {
+  const operation = {
+    created_at: '2026-09-03T16:30:00.000Z',
+    updated_at: '2026-09-03T17:15:00.000Z',
+  };
+  const now = new Date('2026-09-03T17:20:00.000Z');
+
+  it('preserves the pre-cutoff registration acceptance time for one continuation', () => {
+    expect(deferredProvisioningCreatedAt(operation, 0, now)).toBe(operation.created_at);
+  });
+
+  it('rejects reuse and stale or missing registration continuations', () => {
+    expect(() => deferredProvisioningCreatedAt(operation, 1, now)).toThrow(/already used/u);
+    expect(() => deferredProvisioningCreatedAt(null, 0, now)).toThrow(/not linked/u);
+    expect(() => deferredProvisioningCreatedAt({
+      ...operation,
+      updated_at: '2026-09-03T10:00:00.000Z',
+    }, 0, now)).toThrow(/not linked/u);
   });
 });
 

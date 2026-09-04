@@ -1,5 +1,6 @@
 import { handleWave1Api } from './wave1-api.js';
 import { handleProvisioningApi } from './provisioning.js';
+import { handleManagedSourcesApi } from './managed-sources.js';
 
 function json(status: number, value: unknown): Response {
   return Response.json(value, {
@@ -11,9 +12,21 @@ function json(status: number, value: unknown): Response {
   });
 }
 
-export async function handleApi(request: Request, env: Env): Promise<Response | null> {
+export async function handleApi(
+  request: Request,
+  env: Env,
+  context?: ExecutionContext,
+): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return null;
+
+  if (url.pathname.startsWith('/api/v1/managed-sources')) {
+    return handleManagedSourcesApi(
+      request,
+      env,
+      context ?? ({} as ExecutionContext),
+    );
+  }
 
   const provisioning = await handleProvisioningApi(request, env);
   if (provisioning) return provisioning;

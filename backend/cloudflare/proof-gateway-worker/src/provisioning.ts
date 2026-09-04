@@ -14,8 +14,14 @@ import {
   validateOperationalDayBoundary,
 } from '@midnight-demo/shared/operational-day';
 
+import {
+  verifyBrowserPolicyAuthorization,
+  verifyBrowserProjectAuthorization,
+  verifyBrowserProvisioningAuthorization,
+} from './browser-wallet-signature.js';
 import { sponsorWalletCanSubmit } from './sponsor-policy.js';
-import { sponsorContainerName } from './sponsor-container.js';
+import { authorityContainerRequest } from './authority-container.js';
+import { sponsorWalletOperatingWindow } from './sponsor-operating-window.js';
 import { createSqlDatabase, type SqlDatabase } from './storage/index.js';
 
 export { browserProvisioningCanonicalMessage } from '@midnight-demo/shared/browser-provisioning';
@@ -530,7 +536,9 @@ async function existingRegistration(
      FROM devices d
      LEFT JOIN policy_assignments a ON a.device_id = d.id AND a.project_id = d.project_id
        AND a.status = 'registered'
+       AND a.contract_address = d.midnight_contract_address
      LEFT JOIN threshold_policies p ON p.policy_id = a.policy_id AND p.status = 'registered'
+       AND p.contract_address = d.midnight_contract_address
      LEFT JOIN device_auth_keys k ON k.device_id = d.id AND k.project_id = d.project_id
        AND k.status = 'active'
      WHERE d.id = ?1 AND d.project_id = ?2
@@ -546,11 +554,9 @@ async function sponsorOperatorRequest(
   body: unknown,
   options: { progress?: boolean; signal?: AbortSignal } = {},
 ): Promise<Response> {
-  const { getContainer } = await import('@cloudflare/containers');
-  const container = getContainer(env.SPONSOR_WALLET, sponsorContainerName);
   const serialized = JSON.stringify(body);
   for (let attempt = 1; attempt <= 6; attempt += 1) {
-    const response = await container.fetch(new Request(`http://sponsor-wallet${pathname}`, {
+    const response = await authorityContainerRequest(env, 'fleet-authority', pathname, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -558,8 +564,8 @@ async function sponsorOperatorRequest(
         ...(options.progress ? { 'X-Operator-Progress': 'ndjson-v1' } : {}),
       },
       body: serialized,
-      signal: options.signal ?? AbortSignal.timeout(20 * 60_000),
-    }));
+      signal: options.signal ?? AbortSignal.timeout(5 * 60_000),
+    });
     if (response.status !== 503) return response;
     const detail = await response.text();
     const processStarting = detail.includes('Sponsor Wallet process is starting')
@@ -611,6 +617,26 @@ function provisioningOperationView(operation: ProvisioningOperationRow, contract
     result: operation.status === 'registered'
       ? provisioningResult(operation, contractAddress)
       : null,
+  };
+}
+
+async function serverProcessingSchedule(env: Env, acceptedAt?: string) {
+  const schedule = await sponsorWalletOperatingWindow(env);
+  const processingEligibleNow = schedule.executionAllowed && (
+    schedule.mode === 'always-on'
+    || schedule.mode === 'on-demand'
+    || (acceptedAt !== undefined
+      && schedule.eligibleThrough !== null
+      && acceptedAt <= schedule.eligibleThrough)
+  ) && schedule.startAllowed;
+  return {
+    mode: schedule.mode,
+    timeZoneOffsetMinutes: schedule.timeZoneOffsetMinutes,
+    processingStartsAtMinute: schedule.processingStartsAtMinute,
+    nextProcessingStartsAt: schedule.nextProcessingStartsAt,
+    nextContainerStartAllowedAt: schedule.nextStartAllowedAt,
+    processingCadenceSeconds: 60,
+    processingEligibleNow,
   };
 }
 
@@ -1163,6 +1189,79 @@ export async function processBrowserProvisioningQueueMessage(
   return true;
 }
 
+function scheduledWalletMessage(body: BrowserPolicyQueueMessage | BrowserProvisioningQueueMessage): Message<unknown> {
+  return {
+    body,
+    attempts: 1,
+    ack() {},
+    retry() {},
+  } as unknown as Message<unknown>;
+}
+
+export async function processScheduledBrowserPolicy(
+  env: Env,
+  operationId: string,
+): Promise<void> {
+  await processBrowserPolicyQueueMessage(
+    scheduledWalletMessage({ kind: 'browser-policy-provisioning', operationId }),
+    env,
+  );
+}
+
+export async function processScheduledBrowserDevice(
+  env: Env,
+  operationId: string,
+): Promise<void> {
+  await processBrowserProvisioningQueueMessage(
+    scheduledWalletMessage({ kind: 'browser-device-provisioning', operationId }),
+    env,
+  );
+}
+
+export async function dispatchPendingBrowserProvisioning(
+  env: Env,
+  acceptedThrough: string | null = null,
+): Promise<void> {
+  const database = createSqlDatabase(env);
+  const acceptedClause = acceptedThrough === null ? '' : ' AND operation.created_at <= ?1';
+  const parameters = acceptedThrough === null ? [] : [acceptedThrough];
+  const [policies, devices] = await Promise.all([
+    database.all<{ id: string }>(
+      `SELECT operation.id FROM browser_policy_operations operation
+       WHERE operation.status IN ('queued', 'retrying')${acceptedClause}
+       ORDER BY operation.created_at ASC LIMIT 8`,
+      parameters,
+    ),
+    database.all<{ id: string }>(
+      `SELECT operation.id FROM browser_provisioning_operations operation
+       WHERE operation.status IN ('queued', 'retrying')${acceptedClause}
+         AND EXISTS (
+           SELECT 1
+           FROM project_policies project_policy
+           JOIN threshold_policies policy
+             ON policy.policy_id = project_policy.policy_id
+           WHERE project_policy.project_id = operation.project_id
+             AND project_policy.policy_id = operation.policy_id
+             AND policy.status = 'registered'
+         )
+       ORDER BY operation.created_at ASC LIMIT 8`,
+      parameters,
+    ),
+  ]);
+  for (const policy of policies) {
+    await env.SPONSOR_QUEUE.send({
+      kind: 'browser-policy-provisioning',
+      operationId: policy.id,
+    } satisfies BrowserPolicyQueueMessage);
+  }
+  for (const device of devices) {
+    await env.SPONSOR_QUEUE.send({
+      kind: 'browser-device-provisioning',
+      operationId: device.id,
+    } satisfies BrowserProvisioningQueueMessage);
+  }
+}
+
 async function provisioningOperation(request: Request, env: Env, operationId: string): Promise<Response> {
   const token = request.headers.get('X-Provisioning-Token')?.trim() ?? '';
   if (!token || token.length > 256) return json(401, { error: 'Provisioning progress token is required' });
@@ -1173,7 +1272,10 @@ async function provisioningOperation(request: Request, env: Env, operationId: st
   );
   if (!operation) return json(404, { error: 'Provisioning operation was not found' });
   const contractAddress = env.PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS?.trim() ?? '';
-  return json(200, provisioningOperationView(operation, contractAddress));
+  return json(200, {
+    ...provisioningOperationView(operation, contractAddress),
+    processingSchedule: await serverProcessingSchedule(env, operation.created_at),
+  });
 }
 
 function randomToken(byteLength = 32): string {
@@ -1311,17 +1413,7 @@ async function createProjectSession(request: Request, env: Env): Promise<Respons
   if (walletSignature.data !== browserProjectCanonicalMessage(authorization)) {
     throw new Error('Midnight Wallet signed data does not match the Project session request');
   }
-  const verificationResponse = await sponsorOperatorRequest(
-    env,
-    '/operator/verify-wallet-signature',
-    'verify-project-signature-v1',
-    authorization,
-    { signal: request.signal },
-  );
-  if (!verificationResponse.ok) {
-    const detail = await verificationResponse.text();
-    throw new Error(`Midnight Wallet signature verification failed: ${detail.slice(0, 1000)}`);
-  }
+  verifyBrowserProjectAuthorization(authorization);
   const consumed = await database.execute(
     `UPDATE browser_project_challenges SET consumed_at = ?1
      WHERE id = ?2 AND consumed_at IS NULL AND expires_at >= ?1`,
@@ -1653,17 +1745,7 @@ async function createPolicy(request: Request, env: Env): Promise<Response> {
   if (walletKeySha256 !== session.wallet_key_sha256) {
     throw new Error('Policy Wallet does not match the active Project session');
   }
-  const verificationResponse = await sponsorOperatorRequest(
-    env,
-    '/operator/verify-wallet-signature',
-    'verify-policy-signature-v1',
-    authorization,
-    { signal: request.signal },
-  );
-  if (!verificationResponse.ok) {
-    const detail = await verificationResponse.text();
-    throw new Error(`Midnight Wallet signature verification failed: ${detail.slice(0, 1000)}`);
-  }
+  verifyBrowserPolicyAuthorization(authorization);
   const consumed = await database.execute(
     `UPDATE browser_policy_challenges SET consumed_at = ?1
      WHERE id = ?2 AND consumed_at IS NULL AND expires_at >= ?1`,
@@ -1704,13 +1786,16 @@ async function createPolicy(request: Request, env: Env): Promise<Response> {
       operationId,
     } satisfies BrowserPolicyQueueMessage);
   } catch (error) {
-    await database.execute(
-      `UPDATE browser_policy_operations
-       SET status = 'failed', stage = 'failed', error_message = ?1, updated_at = ?2
-       WHERE id = ?3`,
-      [errorMessage(error).slice(0, 2_000), new Date().toISOString(), operationId],
-    );
-    throw error;
+    // D1 is authoritative after admission. The minute dispatcher retries a
+    // queued operation, so a transient Queue producer failure must not turn a
+    // valid, signed request into a client-owned failure.
+    console.error(JSON.stringify({
+      message: 'browser_policy_initial_queue_send_failed',
+      operationId,
+      projectId: authorization.projectId,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: errorMessage(error).slice(0, 1_000),
+    }));
   }
   const operation = await database.first<PolicyOperationRow>(
     'SELECT * FROM browser_policy_operations WHERE id = ?1',
@@ -1758,12 +1843,14 @@ async function configuration(request: Request, env: Env): Promise<Response> {
     [selectedProjectId, contractAddress],
   );
   const boundary = await operationalDayBoundary(database, selectedProjectId);
+  const processingSchedule = await serverProcessingSchedule(env);
   return json(200, {
     network: 'preprod',
     projectId: selectedProjectId,
     contractAddress,
     serviceUrl: new URL(request.url).origin,
     operationalDay: boundary,
+    processingSchedule,
     policies: rows.map((row) => ({
       policyId: row.policy_id,
       name: row.name ?? row.policy_id,
@@ -1895,17 +1982,7 @@ async function registerDevice(request: Request, env: Env): Promise<Response> {
   if (enrollment.deviceId !== expectedDeviceId) {
     throw new Error('Device ID does not match the connected Midnight Wallet');
   }
-  const verificationResponse = await sponsorOperatorRequest(
-    env,
-    '/operator/verify-wallet-signature',
-    'verify-wallet-signature-v1',
-    authorization,
-    { signal: request.signal },
-  );
-  if (!verificationResponse.ok) {
-    const text = await verificationResponse.text();
-    throw new Error(`Midnight Wallet signature verification failed: ${text.slice(0, 1000)}`);
-  }
+  verifyBrowserProvisioningAuthorization(authorization);
   const consumed = await database.execute(
     `UPDATE browser_provisioning_challenges SET consumed_at = ?1
      WHERE id = ?2 AND consumed_at IS NULL AND expires_at >= ?1`,
@@ -2006,10 +2083,6 @@ async function registerDevice(request: Request, env: Env): Promise<Response> {
         now,
       ],
     );
-    await env.SPONSOR_QUEUE.send({
-      kind: 'browser-device-provisioning',
-      operationId,
-    } satisfies BrowserProvisioningQueueMessage);
   } catch (error) {
     const failedAt = new Date().toISOString();
     await database.batch([
@@ -2027,12 +2100,30 @@ async function registerDevice(request: Request, env: Env): Promise<Response> {
     ]);
     throw error;
   }
+  try {
+    await env.SPONSOR_QUEUE.send({
+      kind: 'browser-device-provisioning',
+      operationId,
+    } satisfies BrowserProvisioningQueueMessage);
+  } catch (error) {
+    // The operation and Device lease are durable in D1. Keep them queued for
+    // dispatchPendingBrowserProvisioning instead of asking the Browser to
+    // resubmit the same signed intent.
+    console.error(JSON.stringify({
+      message: 'browser_device_initial_queue_send_failed',
+      operationId,
+      deviceId: enrollment.deviceId,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: errorMessage(error).slice(0, 1_000),
+    }));
+  }
   return json(202, {
     operationId,
     progressToken,
     statusUrl: `/api/v1/provisioning/operations/${encodeURIComponent(operationId)}`,
     status: 'queued',
     stage: 'queued',
+    processingSchedule: await serverProcessingSchedule(env, now),
   });
 }
 

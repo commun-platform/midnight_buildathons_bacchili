@@ -18,17 +18,17 @@ import {
 } from './jobs.js';
 import { authorizeOperatorProofRequest } from './operator-proof.js';
 import {
+  maxSponsorCheckpointBytes,
   parseSponsorCheckpointUpload,
   restoreSponsorRecoveryCheckpoint,
   sponsorCheckpointKey,
   sponsorCheckpointRecoveryKey,
-  storeSponsorCheckpoint,
+  storeWalletCheckpointAt,
 } from './sponsor-checkpoint.js';
 import {
-  dispatchSponsorJobs,
   handleSponsorQueue,
-  processNextSponsorJob,
   sponsorProofTransaction,
+  stopSponsorWalletAfterDrain,
   warmSponsorWallet,
 } from './sponsor.js';
 import {
@@ -41,15 +41,38 @@ import {
   dispatchOperationsNotifications,
   evaluateOperationalAlerts,
 } from './operations-notifications.js';
+import {
+  deadLetterQueueNames,
+  handleDeadLetterQueue,
+} from './queue-dead-letters.js';
 import { handleSystemOperations } from './system-operations.js';
+import {
+  dispatchManagedSourceJobs,
+  handleManagedSourceQueue,
+} from './managed-sources.js';
 import { createSqlDatabase } from './storage/index.js';
 import { parseSponsorArtifactReference, sha256Hex } from './container-request.js';
+import {
+  recordSponsorWalletStopped,
+  sponsorWalletOperatingWindow,
+} from './sponsor-operating-window.js';
+import {
+  acquireServerWalletWarmupLease,
+  pendingServerWalletWork,
+  processNextServerWalletWork,
+  releaseServerWalletWarmupLease,
+  serverWalletWorkCanProceed,
+} from './server-wallet-work.js';
+import {
+  walletRuntimeProcessEnvironment,
+  type WalletRuntimeRole,
+} from './wallet-runtime-secrets.js';
 
 const instanceName = 'midnight-proof-server';
 // Keep the Durable Object lifecycle revision coupled to Sponsor Wallet image
 // changes. Cloudflare can otherwise retain a stale "restarting" state after a
 // container-only rollout while the replacement instance remains inactive.
-const sponsorWalletRuntimeRevision = 'adaptive-checkpoint-v1';
+const serverWalletRuntimeRevision = 'unified-wallet-v2';
 const maxProofBodyBytes = 95 * 1024 * 1024;
 const securityHeaders = {
   'Cross-Origin-Resource-Policy': 'same-site',
@@ -152,11 +175,12 @@ export class ProofServerContainer extends Container {
   }
 }
 
-export class SponsorWalletContainer extends Container {
+export class ServerWalletContainer extends Container {
   defaultPort = 8789;
   requiredPorts = [8789];
-  // Wallet synchronization is a continuous process. The development Cron
-  // checks it every minute, while this hook also prevents an idle shutdown.
+  // The always-on profile touches the Wallet every minute. In the scheduled
+  // profile this timeout lets an empty, synchronized runtime checkpoint and
+  // stop after the eligible backlog has drained.
   sleepAfter = '10m';
   // The official Wallet SDK requires native TLS/WebSocket connections to the
   // public Indexer and RPC services. Container HTTPS interception cancels the
@@ -171,6 +195,57 @@ export class SponsorWalletContainer extends Container {
     'rpc.preprod.midnight.network',
   ];
   pingEndpoint = 'sponsor-wallet/health';
+
+  protected runtimeRole(): WalletRuntimeRole {
+    return 'server-wallet';
+  }
+
+  protected runtimeSeed(): string | undefined {
+    return this.env.SPONSOR_WALLET_SEED?.trim();
+  }
+
+  protected runtimeSecrets(seed: string): Record<string, string> {
+    return walletRuntimeProcessEnvironment('server-wallet', {
+      SPONSOR_WALLET_SEED: seed,
+      OPERATOR_AUTHORITY_SECRET: this.env.OPERATOR_AUTHORITY_SECRET,
+      MANAGED_ATTESTOR_ROOT_SECRET: this.env.MANAGED_ATTESTOR_ROOT_SECRET,
+    });
+  }
+
+  private async stopRuntimeGracefully(reason: string): Promise<{
+    stopped: boolean;
+    state: string;
+  }> {
+    const runtime = this.ctx.container;
+    if (!runtime?.running) {
+      const state = await this.getState();
+      return { stopped: false, state: state.status };
+    }
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_scheduled_drain_stop_started',
+      reason,
+    }));
+    await this.stop('SIGTERM');
+    const deadline = Date.now() + 3 * 60_000;
+    let state = await this.getState();
+    while (!['stopped', 'stopped_with_code'].includes(state.status) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      state = await this.getState();
+    }
+    if (!['stopped', 'stopped_with_code'].includes(state.status)) {
+      throw new Error('Server Wallet did not stop after the scheduled backlog drained');
+    }
+    console.log(JSON.stringify({
+      message: 'sponsor_wallet_scheduled_drain_stop_completed',
+      reason,
+      state: state.status,
+    }));
+    return { stopped: true, state: state.status };
+  }
+
+  async stopAfterScheduledDrain(): Promise<{ stopped: boolean; state: string }> {
+    return this.stopRuntimeGracefully('scheduled-drain');
+  }
 
   private async artifactOperation<T>(
     operation: Promise<T>,
@@ -197,7 +272,7 @@ export class SponsorWalletContainer extends Container {
       "const result = { pidOne: 'unavailable', pidOneStatus: null, stageEvents: [], healthStatus: null, healthBody: null, healthError: null, cpu: null, memory: null, pressure: null, loadAverage: null };",
       "try { result.pidOne = (await readFile('/proc/1/cmdline', 'utf8')).replaceAll('\\0', ' ').slice(0, 256); } catch {}",
       "const statusText = await readText('/proc/1/status'); result.pidOneStatus = statusText?.split('\\n').filter((line) => /^(?:State|VmRSS|Threads):/u.test(line)).join('; ') ?? null;",
-      "const stageLog = await readText('/tmp/sponsor-wallet-diagnostics.jsonl'); result.stageEvents = (stageLog ?? '').split('\\n').filter(Boolean).flatMap((line) => { try { const event = JSON.parse(line); const message = String(event.message ?? ''); const operationalRequest = /^(?:sponsor_wallet_request_(?:started|completed|failed))$/u.test(message) && !['/health', '/status'].includes(String(event.pathname ?? '')); return /^(?:sponsor_wallet_(?:prepare|balance|finalize|submit|supervisor_proxy))/u.test(message) || operationalRequest ? [event] : []; } catch { return []; } }).slice(-40);",
+      "const stageLog = await readText('/tmp/sponsor-wallet-diagnostics.jsonl'); result.stageEvents = (stageLog ?? '').split('\\n').filter(Boolean).flatMap((line) => { try { const event = JSON.parse(line); const message = String(event.message ?? ''); const operationalRequest = /^(?:sponsor_wallet_request_(?:started|completed|failed))$/u.test(message) && !['/health', '/status'].includes(String(event.pathname ?? '')); return /^(?:sponsor_wallet_(?:prepare|balance|finalize|submit|supervisor_proxy|managed_registration))/u.test(message) || operationalRequest ? [event] : []; } catch { return []; } }).slice(-40);",
       "const healthPromise = (async () => { try { const response = await fetch('http://127.0.0.1:8789/health', { signal: AbortSignal.timeout(5000) }); result.healthStatus = response.status; result.healthBody = (await response.text()).slice(0, 4096); } catch (error) { result.healthError = error instanceof Error ? `${error.name}: ${error.message}` : String(error); } })();",
       "const sampleStartedAt = performance.now(); const before = parseStats(await readText('/sys/fs/cgroup/cpu.stat'));",
       "const [cpuMaxText, memoryCurrentText, memoryMaxText, memoryEventsText, cpuPressure, memoryPressure, loadAverage] = await Promise.all([readText('/sys/fs/cgroup/cpu.max'), readText('/sys/fs/cgroup/memory.current'), readText('/sys/fs/cgroup/memory.max'), readText('/sys/fs/cgroup/memory.events'), readText('/proc/pressure/cpu'), readText('/proc/pressure/memory'), readText('/proc/loadavg')]);",
@@ -229,10 +304,11 @@ export class SponsorWalletContainer extends Container {
     const requestId = crypto.randomUUID();
     const pathname = new URL(request.url).pathname;
     const startedAt = performance.now();
-    const seed = this.env.SPONSOR_WALLET_SEED?.trim();
-    if (!seed) return json(503, { error: 'Sponsor Wallet is not configured' });
+    const seed = this.runtimeSeed();
+    if (!seed) return json(503, { error: 'Wallet runtime is not configured' });
     const stateBefore = await this.getState();
     if (pathname === '/maintenance/replay-dust') {
+      if (this.runtimeRole() !== 'server-wallet') return json(404, { error: 'Not found' });
       if (
         request.method !== 'POST'
         || request.headers.get('X-Sponsor-Maintenance') !== 'replay-dust-from-chain'
@@ -248,14 +324,9 @@ export class SponsorWalletContainer extends Container {
       await request.arrayBuffer();
       const runtime = this.ctx.container;
       if (runtime?.running) {
-        await this.stop('SIGTERM');
-        const deadline = Date.now() + 3 * 60_000;
-        let state = await this.getState();
-        while (!['stopped', 'stopped_with_code'].includes(state.status) && Date.now() < deadline) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          state = await this.getState();
-        }
-        if (!['stopped', 'stopped_with_code'].includes(state.status)) {
+        try {
+          await this.stopRuntimeGracefully('dust-replay');
+        } catch {
           return json(503, { error: 'Sponsor Wallet did not stop before DUST replay' });
         }
       }
@@ -304,8 +375,7 @@ export class SponsorWalletContainer extends Container {
         await this.startAndWaitForPorts({
           startOptions: {
             envVars: {
-              SPONSOR_WALLET_SEED: seed,
-              OPERATOR_AUTHORITY_SECRET: this.env.OPERATOR_AUTHORITY_SECRET?.trim() ?? '',
+              ...this.runtimeSecrets(seed),
               SPONSOR_ZK_CONFIG_PATH: '/app/midnight/contracts/sensor-registry/src/managed/sensor-registry',
             },
             enableInternet: true,
@@ -390,7 +460,7 @@ export class SponsorWalletContainer extends Container {
     console.log(JSON.stringify({
       message: 'sponsor_wallet_container_started',
       port: this.defaultPort,
-      runtimeRevision: sponsorWalletRuntimeRevision,
+      runtimeRevision: serverWalletRuntimeRevision,
     }));
   }
 
@@ -425,7 +495,7 @@ export class SponsorWalletContainer extends Container {
 
 // Assign through the SDK's inherited setter. A static class field would shadow
 // that setter and install interception without registering these handlers.
-SponsorWalletContainer.outboundByHost = {
+const walletRuntimeOutboundByHost = {
   'proof.internal': async (request: Request, env: Env): Promise<Response> => {
     const startedAt = performance.now();
     const upstreamUrl = new URL(request.url);
@@ -453,12 +523,41 @@ SponsorWalletContainer.outboundByHost = {
   ): Promise<Response> => {
     const startedAt = performance.now();
     try {
+      const stateUrl = new URL(request.url);
+      if (request.method === 'GET' && stateUrl.pathname === '/sponsor-checkpoint') {
+        if (
+          context.className !== 'ServerWalletContainer'
+          || request.headers.get('X-Sponsor-Checkpoint-Operation') !== 'restore-v1'
+        ) return json(404, { error: 'Not found' });
+        const checkpoint = await env.SPONSOR_STATE.get(sponsorCheckpointKey);
+        if (!checkpoint) return json(404, { error: 'Sponsor Wallet checkpoint was not found' });
+        if (checkpoint.size <= 0 || checkpoint.size > maxSponsorCheckpointBytes) {
+          await checkpoint.body.cancel();
+          return json(500, { error: 'Sponsor Wallet checkpoint has an invalid size' });
+        }
+        console.log(JSON.stringify({
+          message: 'sponsor_wallet_restore_checkpoint_served',
+          containerId: context.containerId,
+          bytes: checkpoint.size,
+          durationMs: Math.round(performance.now() - startedAt),
+        }));
+        return new Response(checkpoint.body, {
+          headers: {
+            'Cache-Control': 'no-store',
+            'Content-Length': String(checkpoint.size),
+            'Content-Type': 'application/octet-stream',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
+      }
       const checkpoint = parseSponsorCheckpointUpload(request);
-      const active = await createSqlDatabase(env).first<{ active_count: number }>(
-        `SELECT COUNT(*) AS active_count FROM daily_proof_jobs
-         WHERE status IN ('sponsor_retryable', 'sponsoring', 'sponsored')`,
-      );
-      const activeReservations = Number(active?.active_count ?? 0);
+      const checkpointKey = sponsorCheckpointKey;
+      const activeReservations = context.className === 'ServerWalletContainer'
+        ? Number((await createSqlDatabase(env).first<{ active_count: number }>(
+          `SELECT COUNT(*) AS active_count FROM daily_proof_jobs
+           WHERE status IN ('sponsor_retryable', 'sponsoring', 'sponsored')`,
+        ))?.active_count ?? 0)
+        : 0;
       if (activeReservations !== 0) {
         await checkpoint.body.cancel();
         console.log(JSON.stringify({
@@ -472,7 +571,7 @@ SponsorWalletContainer.outboundByHost = {
         }));
         return new Response(null, { status: 204 });
       }
-      await storeSponsorCheckpoint(env, checkpoint.body, checkpoint.bytes, {
+      await storeWalletCheckpointAt(env, checkpointKey, checkpoint.body, checkpoint.bytes, {
         source: checkpoint.reason === 'periodic-sync'
           ? 'periodic-push'
           : 'graceful-shutdown',
@@ -504,6 +603,8 @@ SponsorWalletContainer.outboundByHost = {
     }
   },
 };
+
+ServerWalletContainer.outboundByHost = walletRuntimeOutboundByHost;
 
 function json(status: number, value: unknown): Response {
   return Response.json(value, {
@@ -541,7 +642,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
     && parts[3]
     && parts[4] === 'sponsor'
   ) return sponsorProofTransaction(request, env, parts[3], ctx);
-  const apiResponse = await handleApi(request, env);
+  const apiResponse = await handleApi(request, env, ctx);
   if (apiResponse) return apiResponse;
   if (url.pathname === '/health') {
     return json(200, {
@@ -718,21 +819,125 @@ export default {
     }
   },
   scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    const sponsorMaintenance = () => warmSponsorWallet(env).then(async ({ health, errorCode }) => {
+    const sponsorMaintenance = () => warmSponsorWallet(env).then(async (result) => {
+      const { health, errorCode } = result;
       if (health) await recordSponsorWalletHealth(env, health);
       else await recordSponsorWalletUnavailable(env, errorCode ?? 'sponsor_wallet_warmup_failed');
       await evaluateOperationalAlerts(env, health);
       await dispatchOperationsNotifications(env, health);
+      return result;
     });
-    const sponsorCycle = processNextSponsorJob(env, controller.scheduledTime)
-      .then(sponsorMaintenance);
+    const sponsorCycle = sponsorWalletOperatingWindow(
+      env,
+      new Date(controller.scheduledTime),
+    ).then(async (operatingWindow) => {
+      if (!operatingWindow.executionAllowed) {
+        console.log(JSON.stringify({
+          message: 'sponsor_wallet_processing_schedule_unavailable',
+          nextProcessingStartsAt: operatingWindow.nextProcessingStartsAt,
+        }));
+        await evaluateOperationalAlerts(env, null, {
+          sponsorScheduledOffline: false,
+          sponsorScheduleUnavailable: true,
+        });
+        await dispatchOperationsNotifications(env, null);
+        return;
+      }
+      const acceptedThrough = operatingWindow.mode === 'scheduled'
+        ? operatingWindow.eligibleThrough
+        : null;
+      const pendingWork = await pendingServerWalletWork(
+        env,
+        controller.scheduledTime,
+        acceptedThrough,
+      );
+      if (pendingWork) {
+        if (!operatingWindow.startAllowed) {
+          console.log(JSON.stringify({
+            message: 'server_wallet_restart_cooldown_active',
+            workKind: pendingWork.kind,
+            workId: pendingWork.id,
+            nextStartAllowedAt: operatingWindow.nextStartAllowedAt,
+          }));
+          return;
+        }
+        const database = createSqlDatabase(env);
+        const warmupLeaseToken = await acquireServerWalletWarmupLease(
+          database,
+          pendingWork,
+          new Date(controller.scheduledTime),
+        );
+        if (!warmupLeaseToken) {
+          console.log(JSON.stringify({
+            message: 'server_wallet_warmup_already_in_progress',
+            workKind: pendingWork.kind,
+            workId: pendingWork.id,
+          }));
+          return;
+        }
+        try {
+          const { health } = await sponsorMaintenance();
+          if (!health || !serverWalletWorkCanProceed(pendingWork, health)) {
+            console.log(JSON.stringify({
+              message: 'server_wallet_work_waiting_for_synchronization',
+              workKind: pendingWork.kind,
+              workId: pendingWork.id,
+              sponsorStatus: pendingWork.sponsorStatus,
+              walletPhase: health?.phase ?? 'unavailable',
+              spendableDustCoins: health?.spendableDustCoins ?? null,
+            }));
+            return;
+          }
+          const result = await processNextServerWalletWork(
+            env,
+            controller.scheduledTime,
+            acceptedThrough,
+          );
+          if (operatingWindow.mode !== 'always-on' && result.status === 'processed') {
+            const remaining = await pendingServerWalletWork(
+              env,
+              Date.now(),
+              acceptedThrough,
+            );
+            if (!remaining) {
+              const stopped = await stopSponsorWalletAfterDrain(env);
+              if (stopped.stopped) await recordSponsorWalletStopped(env);
+            }
+          }
+          return;
+        } finally {
+          await releaseServerWalletWarmupLease(database, warmupLeaseToken);
+        }
+      }
+      if (operatingWindow.mode === 'always-on') {
+        await sponsorMaintenance();
+        return;
+      }
+      console.log(JSON.stringify(operatingWindow.mode === 'on-demand'
+        ? { message: 'sponsor_wallet_on_demand_idle' }
+        : {
+          message: 'sponsor_wallet_waiting_for_next_processing_start',
+          eligibleThrough: operatingWindow.eligibleThrough,
+          nextProcessingStartsAt: operatingWindow.nextProcessingStartsAt,
+        }));
+      // Scheduled waiting and on-demand idle are both intentional offline
+      // states. Resolve transient Wallet alerts without waking the Container so
+      // an earlier startup observation cannot leak into the next job-driven run.
+      await evaluateOperationalAlerts(env, null, { sponsorScheduledOffline: true });
+      await dispatchOperationsNotifications(env, null);
+    });
     ctx.waitUntil(Promise.all([
       dispatchProofJobs(env, controller.scheduledTime),
-      dispatchSponsorJobs(env, controller.scheduledTime),
+      dispatchManagedSourceJobs(env, controller.scheduledTime),
       sponsorCycle,
     ]).then(() => undefined));
   },
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    if (deadLetterQueueNames.has(batch.queue)) {
+      await handleDeadLetterQueue(batch, env);
+      await dispatchOperationsNotifications(env, null);
+      return;
+    }
     if (batch.queue === 'midnight-proof-jobs') {
       await handleJobQueue(batch, env);
       return;
@@ -740,6 +945,10 @@ export default {
     if (batch.queue === 'midnight-sponsor-jobs') {
       await handleSponsorQueue(batch, env);
       await dispatchOperationsNotifications(env, null);
+      return;
+    }
+    if (batch.queue === 'midnight-managed-source-jobs') {
+      await handleManagedSourceQueue(batch, env);
       return;
     }
     batch.retryAll({ delaySeconds: 60 });

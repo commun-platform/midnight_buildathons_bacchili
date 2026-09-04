@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deriveBrowserWalletDeviceId } from '@midnight-demo/shared/browser-provisioning';
+import {
+  sampleSigningKey,
+  signData,
+  signatureVerifyingKey,
+} from '@midnight-ntwrk/onchain-runtime-v3';
 
 const sponsorMocks = vi.hoisted(() => ({
   sponsorWalletHealth: vi.fn(),
@@ -19,13 +24,15 @@ vi.mock('@cloudflare/containers', () => ({
 
 import {
   browserProvisioningCanonicalMessage,
+  dispatchPendingBrowserProvisioning,
   handleProvisioningApi,
   processBrowserProvisioningQueueMessage,
 } from './provisioning.js';
 
 const operationId = 'prv_01990a00-0000-7000-8000-000000000101';
 const progressToken = 'sct-progress-token';
-const walletVerifyingKey = 'wallet-verifying-key';
+const walletSigningKey = sampleSigningKey();
+const walletVerifyingKey = signatureVerifyingKey(walletSigningKey);
 
 async function p256Enrollment() {
   const keyId = '-f88kSuPEq4rh3PUHUWp2CmVgwhQ7pHEnqhGsB2Xtgk';
@@ -88,6 +95,9 @@ function admissionDatabase(input: {
           return statement;
         },
         async first<T>() {
+          if (query.includes('sponsor_wallet_operating_schedule')) {
+            throw new Error('Admission must not read the Server Wallet operating schedule');
+          }
           if (query.includes('FROM browser_project_sessions')) {
             return {
               wallet_key_sha256: await sha256Hex(walletVerifyingKey),
@@ -284,11 +294,6 @@ describe('SCT: asynchronous Browser Device provisioning API', () => {
       SPONSOR_WALLET: {},
       PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS: '33'.repeat(32),
     } as unknown as Env;
-    containerMocks.fetch.mockImplementation(async (request: Request) => {
-      expect(new URL(request.url).pathname).toBe('/operator/verify-wallet-signature');
-      return Response.json({ valid: true });
-    });
-
     const response = await handleProvisioningApi(new Request(
       'https://worker.test/api/v1/provisioning/devices',
       {
@@ -306,7 +311,7 @@ describe('SCT: asynchronous Browser Device provisioning API', () => {
           timestamp,
           walletSignature: {
             data: canonical,
-            signature: 'wallet-signature',
+            signature: signData(walletSigningKey, new TextEncoder().encode(canonical)),
             verifyingKey: walletVerifyingKey,
           },
         }),
@@ -333,7 +338,7 @@ describe('SCT: asynchronous Browser Device provisioning API', () => {
       kind: 'browser-device-provisioning',
       operationId: accepted.operationId,
     });
-    expect(containerMocks.fetch).toHaveBeenCalledOnce();
+    expect(containerMocks.fetch).not.toHaveBeenCalled();
     expect(operation).toMatchObject({
       id: accepted.operationId,
       status: 'queued',
@@ -458,7 +463,15 @@ describe('SCT: asynchronous Browser Device provisioning API', () => {
       { headers: { 'X-Provisioning-Token': progressToken } },
     ), env);
     expect(before?.status).toBe(200);
-    expect(await before?.json()).toMatchObject({ status: 'queued', stage: 'queued' });
+    expect(await before?.json()).toMatchObject({
+      status: 'queued',
+      stage: 'queued',
+      processingSchedule: {
+        mode: 'scheduled',
+        processingStartsAtMinute: 120,
+        processingEligibleNow: false,
+      },
+    });
 
     sponsorMocks.sponsorWalletHealth.mockResolvedValue({
       phase: 'syncing',
@@ -553,7 +566,7 @@ describe('SCT: asynchronous Browser Device provisioning API', () => {
     expect(operation).toMatchObject({
       status: 'failed',
       stage: 'failed',
-      error_message: expect.stringContaining('Operator Wallet returned HTTP 500'),
+      error_message: expect.stringContaining('Server Wallet returned HTTP 500'),
     });
     const status = await handleProvisioningApi(new Request(
       `https://worker.test/api/v1/provisioning/operations/${operationId}`,
@@ -564,7 +577,47 @@ describe('SCT: asynchronous Browser Device provisioning API', () => {
       operationId,
       status: 'failed',
       stage: 'failed',
-      error: expect.stringContaining('Operator Wallet returned HTTP 500'),
+      error: expect.stringContaining('Server Wallet returned HTTP 500'),
     });
+  });
+
+  it('re-enqueues cutoff-eligible Policy work before dependent Device work', async () => {
+    const send = vi.fn(async () => undefined);
+    const queries: string[] = [];
+    const bindings: unknown[][] = [];
+    const env = {
+      DB: {
+        prepare(query: string) {
+          queries.push(query);
+          const statement = {
+            bind(...values: unknown[]) { bindings.push(values); return statement; },
+            async all<T>() {
+              const results = query.includes('browser_policy_operations')
+                ? [{ id: 'pol-off-hours-001' }]
+                : [{ id: 'prv-off-hours-001' }];
+              return { success: true, results: results as T[], meta: { changes: 0 } } as D1Result<T>;
+            },
+          } as unknown as D1PreparedStatement;
+          return statement;
+        },
+      } as D1Database,
+      SPONSOR_QUEUE: { send },
+    } as unknown as Env;
+
+    await dispatchPendingBrowserProvisioning(env, '2026-09-03T17:00:00.000Z');
+
+    expect(send).toHaveBeenNthCalledWith(1, {
+      kind: 'browser-policy-provisioning',
+      operationId: 'pol-off-hours-001',
+    });
+    expect(send).toHaveBeenNthCalledWith(2, {
+      kind: 'browser-device-provisioning',
+      operationId: 'prv-off-hours-001',
+    });
+    expect(queries[1]).toContain("policy.status = 'registered'");
+    expect(bindings).toEqual([
+      ['2026-09-03T17:00:00.000Z'],
+      ['2026-09-03T17:00:00.000Z'],
+    ]);
   });
 });

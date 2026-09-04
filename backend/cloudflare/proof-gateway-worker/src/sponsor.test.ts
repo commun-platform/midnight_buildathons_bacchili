@@ -23,6 +23,7 @@ import {
   releaseStaleSponsorReservationForReproof,
   sponsorClaimWasApplied,
   sponsorProofTransaction,
+  stopSponsorWalletAfterDrain,
   submitSponsoredTransaction,
   warmSponsorWallet,
   withSponsorCheckpointTimeout,
@@ -30,6 +31,16 @@ import {
 } from './sponsor.js';
 
 const runtimeCrypto = crypto;
+
+function alwaysOnSchedule<T>(): T {
+  return {
+    mode: 'always-on',
+    time_zone_offset_minutes: 540,
+    opens_at_minute: 120,
+    closes_at_minute: 360,
+    updated_at: '2026-09-03T00:00:00.000Z',
+  } as T;
+}
 
 describe('Sponsor Wallet DUST replay guard', () => {
   const inconsistentState = {
@@ -70,13 +81,53 @@ describe('prepared Sponsor transaction readiness', () => {
     phase: 'syncing' as const,
     spendableDustCoins: 0,
   };
+  const synchronizedWalletWithReservedDust = {
+    phase: 'ready' as const,
+    spendableDustCoins: 0,
+  };
 
-  it('allows an existing DUST reservation to be submitted or released', () => {
-    expect(sponsorJobCanProceed('sponsored', syncingWallet)).toBe(true);
+  it('waits for Wallet synchronization even when a DUST reservation already exists', () => {
+    expect(sponsorJobCanProceed('sponsored', syncingWallet)).toBe(false);
+  });
+
+  it('submits or releases an existing reservation after synchronization', () => {
+    expect(sponsorJobCanProceed('sponsored', synchronizedWalletWithReservedDust)).toBe(true);
   });
 
   it('requires spendable DUST before preparing a new reservation', () => {
-    expect(sponsorJobCanProceed('awaiting_sponsor', syncingWallet)).toBe(false);
+    expect(sponsorJobCanProceed(
+      'awaiting_sponsor',
+      synchronizedWalletWithReservedDust,
+    )).toBe(false);
+  });
+
+  it('fails closed when the synchronized Wallet supervisor is unhealthy', () => {
+    expect(sponsorJobCanProceed('sponsored', {
+      ...synchronizedWalletWithReservedDust,
+      supervisor: {
+        status: 'degraded',
+        walletProcessAlive: true,
+        walletStatusFresh: false,
+      },
+    })).toBe(false);
+  });
+});
+
+describe('scheduled Server Wallet drain', () => {
+  it('uses the internal singleton RPC to checkpoint and stop the runtime', async () => {
+    const stopAfterScheduledDrain = vi.fn().mockResolvedValue({
+      stopped: true,
+      state: 'stopped',
+    });
+    vi.mocked(getContainer).mockReturnValue({ stopAfterScheduledDrain } as never);
+
+    await expect(stopSponsorWalletAfterDrain({
+      SPONSOR_WALLET: {} as DurableObjectNamespace,
+    } as Env)).resolves.toEqual({
+      stopped: true,
+      state: 'stopped',
+    });
+    expect(stopAfterScheduledDrain).toHaveBeenCalledOnce();
   });
 });
 
@@ -85,6 +136,73 @@ describe('Sponsor Wallet deadlock regression', () => {
     expect(sponsorClaimWasApplied(0)).toBe(false);
     expect(sponsorClaimWasApplied(1)).toBe(true);
     expect(sponsorClaimWasApplied(2)).toBe(true);
+  });
+
+  it('acknowledges post-cutoff work without waking the Container before the next daily run', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-03T00:00:00.000Z')); // 09:00 JST
+    vi.mocked(getContainer).mockClear();
+    try {
+      const database = {
+        prepare(query: string) {
+          const statement = {
+            bind() { return statement; },
+            async first<T>() {
+              if (query.includes('sponsor_wallet_operating_schedule')) {
+                return {
+                  mode: 'scheduled',
+                  time_zone_offset_minutes: 540,
+                  opens_at_minute: 120,
+                  closes_at_minute: 360,
+                  updated_at: '2026-09-02T00:00:00.000Z',
+                } as T;
+              }
+              if (query.includes('SELECT created_at FROM')) {
+                return { created_at: '2026-09-03T00:00:00.000Z' } as T;
+              }
+              throw new Error(`Unexpected D1 query: ${query}`);
+            },
+          } as unknown as D1PreparedStatement;
+          return statement;
+        },
+      } as unknown as D1Database;
+      const acknowledgements = [vi.fn(), vi.fn(), vi.fn()];
+      const retries = [vi.fn(), vi.fn(), vi.fn()];
+      const batch = {
+        queue: 'midnight-sponsor-jobs',
+        messages: [
+          {
+            body: { kind: 'sponsor-transaction', proofJobId: 'proof-scheduled-001' },
+            attempts: 1,
+            ack: acknowledgements[0],
+            retry: retries[0],
+          },
+          {
+            body: { kind: 'browser-policy-provisioning', operationId: 'pol-scheduled-001' },
+            attempts: 1,
+            ack: acknowledgements[1],
+            retry: retries[1],
+          },
+          {
+            body: { kind: 'browser-device-provisioning', operationId: 'prv-scheduled-001' },
+            attempts: 1,
+            ack: acknowledgements[2],
+            retry: retries[2],
+          },
+        ],
+      } as unknown as MessageBatch<unknown>;
+
+      await handleSponsorQueue(batch, {
+        DB: database,
+        SPONSOR_WALLET: {},
+      } as unknown as Env);
+
+      for (const acknowledgement of acknowledgements) expect(acknowledgement).toHaveBeenCalledOnce();
+      for (const retry of retries) expect(retry).not.toHaveBeenCalled();
+      expect(getContainer).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('returns control after 60 seconds even when Container RPC ignores abort', async () => {
@@ -192,6 +310,9 @@ describe('Sponsor Wallet deadlock regression', () => {
         const statement = {
           bind() { return statement; },
           async first<T>() {
+            if (query.includes('sponsor_wallet_operating_schedule')) {
+              return alwaysOnSchedule<T>();
+            }
             if (query.includes('COUNT(*) AS active_count')) {
               return { active_count: activeReservations } as T;
             }
@@ -228,6 +349,7 @@ describe('Sponsor Wallet deadlock regression', () => {
       sponsor_serialized_sha256: serializedHash,
       sponsor_fee_specks: '1000',
       sponsor_transaction_bytes: bytes.byteLength,
+      sponsor_available_after: '2026-08-30T02:17:06.159Z',
       sponsorship_started_at: '2026-08-30T02:17:06.159Z',
       attest_tx_id: 'expired-contract-transaction-id',
       attest_tx_hash: 'expired-contract-transaction-hash',
@@ -275,6 +397,9 @@ describe('Sponsor Wallet deadlock regression', () => {
             return statement;
           },
           async first<T>() {
+            if (query.includes('sponsor_wallet_operating_schedule')) {
+              return alwaysOnSchedule<T>();
+            }
             if (query.includes('FROM daily_proof_jobs')) return { ...job } as T;
             throw new Error(`Unexpected D1 first query: ${query}`);
           },
@@ -1410,6 +1535,12 @@ describe('stale Sponsor request recovery', () => {
             bindings = values;
             return statement;
           },
+          async first<T>() {
+            if (query.includes('sponsor_wallet_operating_schedule')) {
+              return alwaysOnSchedule<T>();
+            }
+            throw new Error(`Unexpected D1 first query: ${query}`);
+          },
           async run<T>() {
             updates.push({ query, bindings });
             if (
@@ -1475,6 +1606,12 @@ describe('stale Sponsor request recovery', () => {
           bind(...values: unknown[]) {
             bindings = values;
             return statement;
+          },
+          async first<T>() {
+            if (query.includes('sponsor_wallet_operating_schedule')) {
+              return alwaysOnSchedule<T>();
+            }
+            throw new Error(`Unexpected D1 first query: ${query}`);
           },
           async run<T>() {
             return d1Result(0) as D1Result<T>;

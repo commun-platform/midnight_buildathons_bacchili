@@ -5,9 +5,13 @@ import {
   japaneseAlertPresentation,
   nextAlertNotificationKind,
   notificationEmbed,
+  operationalAlertNotificationGraceMinutes,
   operationalAlertThresholds,
+  shouldNotifyAlertResolution,
   sponsorLowDustCondition,
+  sponsorSynchronizationStalled,
   sponsorSynchronizationUnsynced,
+  sponsorWalletUnavailableCondition,
 } from './operations-notifications.js';
 import type { SponsorWalletOperationsView } from './operations-audit.js';
 import type { SqlDatabase } from './storage/sql.js';
@@ -61,7 +65,7 @@ describe('operations notifications', () => {
     expect(operationalAlertThresholds({} as Env)).toEqual({
       lowDustTransactions: 1,
       syncLagBlocks: 250,
-      syncUnsyncedMinutes: 5,
+      walletNotificationGraceMinutes: 5,
       proofBacklog: 8,
       proofBacklogAgeMinutes: 10,
       sponsorBacklog: 16,
@@ -72,12 +76,12 @@ describe('operations notifications', () => {
     expect(operationalAlertThresholds({
       OPERATIONS_ALERT_LOW_DUST_TRANSACTIONS: '4',
       OPERATIONS_ALERT_SYNC_LAG_BLOCKS: '800',
-      OPERATIONS_ALERT_SYNC_UNSYNCED_MINUTES: '7',
+      OPERATIONS_ALERT_WALLET_GRACE_MINUTES: '7',
       OPERATIONS_ALERT_REMINDER_MINUTES: '120',
     } as Env)).toMatchObject({
       lowDustTransactions: 4,
       syncLagBlocks: 800,
-      syncUnsyncedMinutes: 7,
+      walletNotificationGraceMinutes: 7,
       reminderMinutes: 120,
     });
   });
@@ -129,7 +133,56 @@ describe('operations notifications', () => {
     expect(sponsorSynchronizationUnsynced(connected, thresholds)).toBe(false);
   });
 
-  it('opens a synchronization alert only after five continuous minutes', () => {
+  it('alerts only after synchronization progress is unchanged for the grace period', () => {
+    const thresholds = operationalAlertThresholds({} as Env);
+    const view = synchronizationView();
+    expect(sponsorSynchronizationStalled(view, thresholds, null)).toBe(false);
+    expect(sponsorSynchronizationStalled(view, thresholds, 4)).toBe(false);
+    expect(sponsorSynchronizationStalled(view, thresholds, 5)).toBe(true);
+    expect(sponsorSynchronizationStalled({ ...view, phase: 'ready' }, thresholds, 30)).toBe(false);
+  });
+
+  it('treats a healthy startup phase as expected even if the supervisor is not ready yet', () => {
+    const starting = synchronizationView({
+      healthClass: 'unavailable',
+      phase: 'syncing',
+      initialization: {
+        status: 'running',
+        startedAt: '2026-08-31T00:00:00.000Z',
+        completedAt: null,
+        error: null,
+      },
+    });
+    expect(sponsorWalletUnavailableCondition(starting)).toBe(false);
+    expect(sponsorWalletUnavailableCondition({
+      ...starting,
+      initialization: { ...starting.initialization!, status: 'failed' },
+    })).toBe(true);
+    expect(sponsorWalletUnavailableCondition(null)).toBe(true);
+  });
+
+  it('does not evaluate low DUST while the intermittent Wallet is synchronizing', () => {
+    const latestFee = {
+      proofJobId: 'proof-job-1',
+      specks: '632920000000001',
+      recordedAt: '2026-08-31T09:00:00.000Z',
+    };
+    expect(sponsorLowDustCondition(synchronizationView({
+      balances: {
+        night: null,
+        dust: '0',
+        spendableDustCoins: 0,
+        pendingDustCoins: 0,
+        totalDustCoins: 0,
+        nightCoins: null,
+      },
+    }), latestFee, 1)).toMatchObject({
+      active: false,
+      summary: expect.stringContaining('not evaluated during phase syncing'),
+    });
+  });
+
+  it('opens a graced Wallet alert only after five continuous minutes', () => {
     const firstObservedAt = '2026-08-31T00:00:00.000Z';
     const current = {
       status: 'open' as const,
@@ -151,12 +204,59 @@ describe('operations notifications', () => {
     )).toBe('alert-opened');
   });
 
+  it('graces transient Wallet alerts while sync stall uses progress age', () => {
+    const thresholds = operationalAlertThresholds({} as Env);
+    for (const alertKey of [
+      'sponsor-wallet-unavailable',
+      'sponsor-wallet-low-dust',
+    ]) {
+      expect(operationalAlertNotificationGraceMinutes(alertKey, thresholds)).toBe(5);
+    }
+    expect(operationalAlertNotificationGraceMinutes(
+      'sponsor-wallet-sync-stalled',
+      thresholds,
+    )).toBe(0);
+    expect(operationalAlertNotificationGraceMinutes('proof-backlog-high', thresholds)).toBe(0);
+
+    const firstObservedAt = '2026-09-02T23:15:42.185Z';
+    const current = {
+      status: 'open' as const,
+      first_observed_at: firstObservedAt,
+      last_notified_at: null,
+    };
+    expect(nextAlertNotificationKind(null, firstObservedAt, 5, 60)).toBeNull();
+    expect(nextAlertNotificationKind(
+      current,
+      '2026-09-02T23:20:42.184Z',
+      5,
+      60,
+    )).toBeNull();
+    expect(nextAlertNotificationKind(
+      current,
+      '2026-09-02T23:20:42.185Z',
+      5,
+      60,
+    )).toBe('alert-opened');
+  });
+
   it('starts a new grace period after an alert recovers', () => {
     expect(nextAlertNotificationKind({
       status: 'resolved',
       first_observed_at: '2026-08-31T00:00:00.000Z',
       last_notified_at: '2026-08-31T00:05:00.000Z',
     }, '2026-08-31T01:00:00.000Z', 5, 60)).toBeNull();
+  });
+
+  it('silences Wallet recovery notifications for intentional scheduled shutdown', () => {
+    for (const alertKey of [
+      'sponsor-wallet-unavailable',
+      'sponsor-wallet-sync-stalled',
+      'sponsor-wallet-low-dust',
+    ]) {
+      expect(shouldNotifyAlertResolution(alertKey, true)).toBe(false);
+      expect(shouldNotifyAlertResolution(alertKey, false)).toBe(true);
+    }
+    expect(shouldNotifyAlertResolution('proof-backlog-high', true)).toBe(true);
   });
 
   it('keeps immediate alerts and bounded reminders unchanged', () => {
@@ -189,6 +289,8 @@ describe('operations notifications', () => {
       ['proof-backlog-high', 'Proof backlog is 9; oldest wait is 12 minutes.', '要監視', '/workers/queues'],
       ['sponsor-backlog-high', 'Sponsor backlog is 17; oldest wait is 11 minutes.', '要監視', '/workers/queues'],
       ['proof-api-rate-limited', 'Proof APIs returned HTTP 429 6 times in the last 5 minutes.', '要監視', '/observability'],
+      ['sponsor-wallet-schedule-unavailable', 'Sponsor Wallet operating schedule could not be read; wallet execution failed closed.', '対応必要', '/workers-and-pages'],
+      ['queue-dead-letter:midnight-proof-jobs-dlq:message-001', 'Cloudflare Queue exhausted retries.', '対応必要', '/workers/queues'],
     ] as const;
     for (const [key, summary, decision, linkFragment] of cases) {
       const presentation = japaneseAlertPresentation(key, summary, false, 'warning');

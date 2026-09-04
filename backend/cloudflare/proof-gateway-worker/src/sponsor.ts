@@ -20,7 +20,12 @@ import {
   storeSponsorDustReplayCheckpoint,
 } from './sponsor-checkpoint.js';
 import { reconcileReplayProtectedSponsorTransaction } from './sponsor-reconciliation.js';
-import { sponsorContainerName } from './sponsor-container.js';
+import { serverWalletContainerName } from './sponsor-container.js';
+import {
+  sponsorWalletOperatingWindow,
+  sponsorWorkIsEligible,
+  type SponsorWalletOperatingWindow,
+} from './sponsor-operating-window.js';
 import { createSqlDatabase } from './storage/index.js';
 
 const sponsorQueueName = 'midnight-sponsor-jobs';
@@ -141,7 +146,7 @@ export interface SponsorWalletHealth {
     bytes: number | null;
     dustApplied: string | null;
     error: string | null;
-    delivery?: 'local-cache';
+    delivery?: 'local-cache' | 'local-cache+r2';
   };
   supervisor?: {
     status: 'healthy' | 'degraded' | 'unavailable';
@@ -244,6 +249,41 @@ async function enqueueSponsorJob(env: Env, proofJobId: string, delaySeconds = 0)
   );
 }
 
+async function sponsorQueueMessageAcceptedAt(
+  env: Env,
+  body: unknown,
+): Promise<string | null> {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const candidate = body as { kind?: unknown; proofJobId?: unknown; operationId?: unknown };
+  const database = createSqlDatabase(env);
+  if (candidate.kind === 'sponsor-transaction' && typeof candidate.proofJobId === 'string') {
+    return (await database.first<{ created_at: string }>(
+      'SELECT created_at FROM daily_proof_jobs WHERE id = ?1',
+      [candidate.proofJobId],
+    ))?.created_at ?? null;
+  }
+  if (candidate.kind === 'browser-policy-provisioning' && typeof candidate.operationId === 'string') {
+    return (await database.first<{ created_at: string }>(
+      'SELECT created_at FROM browser_policy_operations WHERE id = ?1',
+      [candidate.operationId],
+    ))?.created_at ?? null;
+  }
+  if (candidate.kind === 'browser-device-provisioning' && typeof candidate.operationId === 'string') {
+    return (await database.first<{ created_at: string }>(
+      'SELECT created_at FROM browser_provisioning_operations WHERE id = ?1',
+      [candidate.operationId],
+    ))?.created_at ?? null;
+  }
+  return null;
+}
+
+function sponsorDispatchCutoff(
+  schedule: SponsorWalletOperatingWindow,
+): string | null | undefined {
+  if (!schedule.executionAllowed) return undefined;
+  return schedule.mode === 'scheduled' ? schedule.eligibleThrough ?? undefined : null;
+}
+
 async function recordSponsorProgress(
   env: Env,
   proofJobId: string,
@@ -290,7 +330,23 @@ async function readSmallJson<T>(response: Response): Promise<T> {
 }
 
 function sponsorContainer(env: Env) {
-  return getContainer(env.SPONSOR_WALLET, sponsorContainerName);
+  return getContainer(env.SPONSOR_WALLET, serverWalletContainerName);
+}
+
+export async function sponsorWalletRuntimeDiagnostics(
+  env: Env,
+): Promise<Record<string, unknown>> {
+  const response = await sponsorContainer(env).fetch(new Request(
+    'http://sponsor-wallet/runtime-diagnostics',
+    { signal: AbortSignal.timeout(15_000) },
+  ));
+  return readSmallJson<Record<string, unknown>>(response);
+}
+
+export async function stopSponsorWalletAfterDrain(
+  env: Env,
+): Promise<{ stopped: boolean; state: string }> {
+  return sponsorContainer(env).stopAfterScheduledDrain();
 }
 
 async function sponsorArtifactResponse(
@@ -316,16 +372,12 @@ async function restoreSponsorWallet(env: Env): Promise<void> {
   }));
   let detail = '';
   for (let attempt = 1; attempt <= 4; attempt += 1) {
-    const checkpoint = checkpointExists
-      ? await env.SPONSOR_STATE.get(sponsorCheckpointKey)
-      : null;
-    if (checkpointExists && !checkpoint) {
-      throw new Error('Sponsor Wallet checkpoint disappeared during restore');
-    }
     const response = await sponsorContainer(env).fetch(new Request('http://sponsor-wallet/restore', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: checkpoint?.body ?? new Uint8Array(),
+      headers: {
+        'Content-Length': '0',
+        'X-Sponsor-Restore-Source': 'state-internal-v1',
+      },
       signal: AbortSignal.timeout(10 * 60_000),
     }));
     if (response.ok) {
@@ -1670,6 +1722,19 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
   }
 }
 
+export async function processScheduledSponsorJob(
+  env: Env,
+  proofJobId: string,
+): Promise<void> {
+  const message = {
+    body: { kind: 'sponsor-transaction', proofJobId },
+    attempts: 1,
+    ack() {},
+    retry() {},
+  } as unknown as Message<unknown>;
+  await processSponsorQueueMessage(message, env);
+}
+
 export async function dispatchSponsorJobs(env: Env, scheduledTime: number): Promise<void> {
   const database = createSqlDatabase(env);
   const nowIso = new Date(scheduledTime).toISOString();
@@ -1721,6 +1786,20 @@ export async function dispatchSponsorJobs(env: Env, scheduledTime: number): Prom
        AND sponsorship_completed_at IS NULL AND attest_tx_id IS NULL AND attest_tx_hash IS NULL`,
     [nowIso, safeRecoveryLeaseCutoff],
   );
+  const operatingWindow = await sponsorWalletOperatingWindow(
+    env,
+    new Date(scheduledTime),
+  );
+  const acceptedThrough = sponsorDispatchCutoff(operatingWindow);
+  if (acceptedThrough === undefined) {
+    console.log(JSON.stringify({
+      message: 'sponsor_queue_dispatch_deferred_schedule_unavailable',
+      nextProcessingStartsAt: operatingWindow.nextProcessingStartsAt,
+    }));
+    return;
+  }
+  const acceptedClause = acceptedThrough === null ? '' : ' AND created_at <= ?2';
+  const parameters = acceptedThrough === null ? [nowIso] : [nowIso, acceptedThrough];
   const jobs = await database.all<{ id: string }>(
     `SELECT id FROM daily_proof_jobs
      WHERE (
@@ -1732,8 +1811,9 @@ export async function dispatchSponsorJobs(env: Env, scheduledTime: number): Prom
          )
        )
        AND sponsor_available_after <= ?1
+       ${acceptedClause}
      ORDER BY sponsor_available_after ASC, created_at ASC LIMIT 16`,
-    [nowIso],
+    parameters,
   );
   for (const job of jobs) {
     try {
@@ -1756,8 +1836,26 @@ export async function handleSponsorQueue(
     batch.retryAll({ delaySeconds: 60 });
     return;
   }
-  if (typeof env.SPONSOR_WALLET.getByName === 'function') {
-    for (const message of batch.messages) {
+  const operatingWindow = await sponsorWalletOperatingWindow(env);
+  for (const message of batch.messages) {
+    const acceptedAt = await sponsorQueueMessageAcceptedAt(env, message.body);
+    if (acceptedAt === null || !sponsorWorkIsEligible(operatingWindow, acceptedAt)) {
+      const body = message.body as { kind?: unknown; proofJobId?: unknown; operationId?: unknown };
+      console.log(JSON.stringify({
+        message: 'sponsor_queue_delivery_deferred_until_processing_start',
+        kind: typeof body?.kind === 'string' ? body.kind : 'unknown',
+        proofJobId: typeof body?.proofJobId === 'string' ? body.proofJobId : null,
+        operationId: typeof body?.operationId === 'string' ? body.operationId : null,
+        acceptedAt,
+        eligibleThrough: operatingWindow.eligibleThrough,
+        nextProcessingStartsAt: operatingWindow.nextProcessingStartsAt,
+      }));
+      // D1 remains authoritative. Cron re-enqueues the operation after its
+      // accepted-at timestamp enters a daily processing batch.
+      message.ack();
+      continue;
+    }
+    if (typeof env.SPONSOR_WALLET.getByName === 'function') {
       if (isSponsorQueueMessage(message.body)) {
         console.log(JSON.stringify({
           message: 'sponsor_queue_job_admitted',
@@ -1766,14 +1864,22 @@ export async function handleSponsorQueue(
         }));
       }
       message.ack();
+      continue;
     }
-    return;
+    await processSponsorQueueMessage(message, env);
   }
-  for (const message of batch.messages) await processSponsorQueueMessage(message, env);
 }
 
-export async function processNextSponsorJob(env: Env, scheduledTime: number): Promise<void> {
+export async function processNextSponsorJob(env: Env, scheduledTime: number): Promise<boolean> {
+  const operatingWindow = await sponsorWalletOperatingWindow(
+    env,
+    new Date(scheduledTime),
+  );
+  const acceptedThrough = sponsorDispatchCutoff(operatingWindow);
+  if (acceptedThrough === undefined) return false;
   const nowIso = new Date(scheduledTime).toISOString();
+  const acceptedClause = acceptedThrough === null ? '' : ' AND created_at <= ?2';
+  const parameters = acceptedThrough === null ? [nowIso] : [nowIso, acceptedThrough];
   const job = await createSqlDatabase(env).first<{ id: string }>(
     `SELECT id FROM daily_proof_jobs
      WHERE (
@@ -1785,10 +1891,11 @@ export async function processNextSponsorJob(env: Env, scheduledTime: number): Pr
          )
        )
        AND sponsor_available_after <= ?1
+       ${acceptedClause}
      ORDER BY sponsor_available_after ASC, created_at ASC LIMIT 1`,
-    [nowIso],
+    parameters,
   );
-  if (!job) return;
+  if (!job) return false;
   let acknowledged = false;
   const message = {
     body: { kind: 'sponsor-transaction', proofJobId: job.id },
@@ -1807,9 +1914,14 @@ export async function processNextSponsorJob(env: Env, scheduledTime: number): Pr
     proofJobId: job.id,
     acknowledged,
   }));
+  return true;
 }
 
 export async function warmSponsorWallet(env: Env): Promise<SponsorWalletWarmupResult> {
+  const operatingWindow = await sponsorWalletOperatingWindow(env);
+  if (!operatingWindow.executionAllowed) {
+    return { health: null, errorCode: 'sponsor_wallet_schedule_unavailable' };
+  }
   if (!env.SPONSOR_WALLET_SEED?.trim()) {
     return { health: null, errorCode: 'sponsor_wallet_not_configured' };
   }

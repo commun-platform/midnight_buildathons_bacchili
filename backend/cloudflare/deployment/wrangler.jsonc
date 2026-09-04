@@ -3,13 +3,13 @@
   "name": "midnight-proof-gateway",
   "main": "../proof-gateway-worker/src/index.ts",
   "compatibility_date": "2026-08-29",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
     "CLOUDFLARE_ACCESS_TEAM_DOMAIN": "https://morning-unit-c72e.cloudflareaccess.com",
     "CLOUDFLARE_ACCESS_AUDIENCE": "1e64d80f43ed648a2e7c0bfb059c737f76f27ab311cb786d84ab793d296460f9",
     "OPERATIONS_ALERT_LOW_DUST_TRANSACTIONS": "1",
     "OPERATIONS_ALERT_SYNC_LAG_BLOCKS": "250",
-    "OPERATIONS_ALERT_SYNC_UNSYNCED_MINUTES": "5",
+    "OPERATIONS_ALERT_WALLET_GRACE_MINUTES": "5",
     "OPERATIONS_ALERT_PROOF_BACKLOG": "8",
     "OPERATIONS_ALERT_PROOF_BACKLOG_AGE_MINUTES": "10",
     "OPERATIONS_ALERT_SPONSOR_BACKLOG": "16",
@@ -28,6 +28,10 @@
     {
       "binding": "SPONSOR_STATE",
       "bucket_name": "midnight-sponsor-wallet-state"
+    },
+    {
+      "binding": "MANAGED_SOURCE_DATA",
+      "bucket_name": "midnight-managed-source-private"
     }
   ],
   "queues": {
@@ -39,6 +43,10 @@
       {
         "binding": "SPONSOR_QUEUE",
         "queue": "midnight-sponsor-jobs"
+      },
+      {
+        "binding": "MANAGED_SOURCE_QUEUE",
+        "queue": "midnight-managed-source-jobs"
       }
     ],
     "consumers": [
@@ -57,6 +65,39 @@
         "max_batch_timeout": 5,
         "max_retries": 12,
         "dead_letter_queue": "midnight-sponsor-jobs-dlq",
+        "max_concurrency": 1,
+        "retry_delay": 60
+      },
+      {
+        "queue": "midnight-managed-source-jobs",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 12,
+        "dead_letter_queue": "midnight-managed-source-jobs-dlq",
+        "max_concurrency": 1,
+        "retry_delay": 60
+      },
+      {
+        "queue": "midnight-proof-jobs-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "max_concurrency": 1,
+        "retry_delay": 60
+      },
+      {
+        "queue": "midnight-sponsor-jobs-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "max_concurrency": 1,
+        "retry_delay": 60
+      },
+      {
+        "queue": "midnight-managed-source-jobs-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
         "max_concurrency": 1,
         "retry_delay": 60
       }
@@ -100,8 +141,8 @@
       "max_instances": 1
     },
     {
-      "name": "midnight-sponsor-wallet",
-      "class_name": "SponsorWalletContainer",
+      "name": "midnight-server-wallet",
+      "class_name": "ServerWalletContainer",
       "image": "../sponsor-wallet-container/Dockerfile",
       "image_build_context": "../../..",
       "instance_type": "standard-4",
@@ -116,7 +157,7 @@
       },
       {
         "name": "SPONSOR_WALLET",
-        "class_name": "SponsorWalletContainer"
+        "class_name": "ServerWalletContainer"
       }
     ]
   },
@@ -126,10 +167,22 @@
       "container": "midnight-proof-server",
       "storage": "sqlite"
     },
+    "ServerWalletContainer": {
+      "type": "durable-object",
+      "container": "midnight-server-wallet",
+      "storage": "sqlite"
+    },
     "SponsorWalletContainer": {
       "type": "durable-object",
-      "container": "midnight-sponsor-wallet",
-      "storage": "sqlite"
+      "state": "deleted"
+    },
+    "FleetAuthorityContainer": {
+      "type": "durable-object",
+      "state": "deleted"
+    },
+    "ManagedAttestorContainer": {
+      "type": "durable-object",
+      "state": "deleted"
     }
   },
   "assets": {

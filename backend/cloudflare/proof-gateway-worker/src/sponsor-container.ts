@@ -1,1 +1,1 @@
-export const sponsorContainerName = 'midnight-sponsor-wallet';
+export const serverWalletContainerName = 'midnight-server-wallet';

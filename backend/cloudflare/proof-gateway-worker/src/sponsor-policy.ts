@@ -83,12 +83,11 @@ export function sponsorSubmissionIsReplayProtectionViolation(message: string): b
   return /(?:Custom error:\s*193\b|ReplayProtectionViolation)/iu.test(message);
 }
 
-export function sponsorWalletCanSubmit(health: SponsorWalletReadiness): boolean {
+export function sponsorWalletIsSynchronized(health: SponsorWalletReadiness): boolean {
   if (health.phase !== 'ready') return false;
-  if (health.spendableDustCoins !== undefined && health.spendableDustCoins <= 0) return false;
   // Deployments predating the supervisor do not include this field. Once the
   // supervisor is present, only a live Wallet process with a fresh successful
-  // probe may authorize a transaction.
+  // probe may authorize any server-wallet work.
   return health.supervisor === undefined || (
     health.supervisor.status === 'healthy'
     && health.supervisor.walletProcessAlive
@@ -96,13 +95,21 @@ export function sponsorWalletCanSubmit(health: SponsorWalletReadiness): boolean 
   );
 }
 
+export function sponsorWalletCanSubmit(health: SponsorWalletReadiness): boolean {
+  if (!sponsorWalletIsSynchronized(health)) return false;
+  if (health.spendableDustCoins !== undefined && health.spendableDustCoins <= 0) return false;
+  return true;
+}
+
 export function sponsorJobCanProceed(
   status: string,
   health: SponsorWalletReadiness,
 ): boolean {
+  if (!sponsorWalletIsSynchronized(health)) return false;
   // A prepared transaction already owns its DUST input. It must be submitted
   // or released even when no additional DUST is currently spendable; otherwise
-  // that reservation permanently prevents Wallet recovery.
+  // that reservation permanently prevents Wallet recovery. Synchronization and
+  // supervisor readiness remain mandatory before touching the prepared bytes.
   return status === 'sponsored' || sponsorWalletCanSubmit(health);
 }
 

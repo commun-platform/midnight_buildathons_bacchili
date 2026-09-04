@@ -21,6 +21,13 @@ function challengeDatabase(
           return statement;
         },
         async first<T>() {
+          if (query.includes('sponsor_wallet_operating_schedule')) {
+            return {
+              mode: 'always-on', time_zone_offset_minutes: 540,
+              opens_at_minute: 120, closes_at_minute: 360,
+              updated_at: '2026-09-03T00:00:00.000Z',
+            } as T;
+          }
           if (query.includes('FROM browser_project_sessions')) {
             return { wallet_key_sha256: walletKeySha256, expires_at: 4_102_444_800 } as T;
           }
@@ -222,7 +229,9 @@ describe('Worker browser Device provisioning', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       },
-    ), {} as Env);
+    ), {
+      DB: challengeDatabase([], '11'.repeat(32)),
+    } as unknown as Env);
     expect(response?.status).toBe(400);
     expect(await response?.json()).toMatchObject({ error: 'enrollment is required' });
   });

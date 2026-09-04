@@ -17,7 +17,7 @@ const maxNotificationAttempts = 8;
 export interface AlertThresholds {
   lowDustTransactions: number;
   syncLagBlocks: number;
-  syncUnsyncedMinutes: number;
+  walletNotificationGraceMinutes: number;
   proofBacklog: number;
   proofBacklogAgeMinutes: number;
   sponsorBacklog: number;
@@ -113,7 +113,11 @@ export function operationalAlertThresholds(env: Env): AlertThresholds {
   return {
     lowDustTransactions: integerSetting(env.OPERATIONS_ALERT_LOW_DUST_TRANSACTIONS, 1, 0),
     syncLagBlocks: integerSetting(env.OPERATIONS_ALERT_SYNC_LAG_BLOCKS, 250, 1),
-    syncUnsyncedMinutes: integerSetting(env.OPERATIONS_ALERT_SYNC_UNSYNCED_MINUTES, 5, 1),
+    walletNotificationGraceMinutes: integerSetting(
+      env.OPERATIONS_ALERT_WALLET_GRACE_MINUTES,
+      5,
+      1,
+    ),
     proofBacklog: integerSetting(env.OPERATIONS_ALERT_PROOF_BACKLOG, 8, 1),
     proofBacklogAgeMinutes: integerSetting(env.OPERATIONS_ALERT_PROOF_BACKLOG_AGE_MINUTES, 10, 1),
     sponsorBacklog: integerSetting(env.OPERATIONS_ALERT_SPONSOR_BACKLOG, 16, 1),
@@ -121,6 +125,30 @@ export function operationalAlertThresholds(env: Env): AlertThresholds {
     proofRateLimitEvents: integerSetting(env.OPERATIONS_ALERT_PROOF_RATE_LIMIT_EVENTS, 5, 1),
     reminderMinutes: integerSetting(env.OPERATIONS_ALERT_REMINDER_MINUTES, 60, 15),
   };
+}
+
+const walletAlertKeys = new Set([
+  'sponsor-wallet-unavailable',
+  'sponsor-wallet-low-dust',
+]);
+const intermittentWalletAlertKeys = new Set([
+  'sponsor-wallet-unavailable',
+  'sponsor-wallet-sync-stalled',
+  'sponsor-wallet-low-dust',
+]);
+
+export function operationalAlertNotificationGraceMinutes(
+  alertKey: string,
+  thresholds: Pick<AlertThresholds, 'walletNotificationGraceMinutes'>,
+): number {
+  return walletAlertKeys.has(alertKey) ? thresholds.walletNotificationGraceMinutes : 0;
+}
+
+export function shouldNotifyAlertResolution(
+  alertKey: string,
+  sponsorScheduledOffline: boolean,
+): boolean {
+  return !sponsorScheduledOffline || !intermittentWalletAlertKeys.has(alertKey);
 }
 
 export function sponsorLowDustCondition(
@@ -132,6 +160,12 @@ export function sponsorLowDustCondition(
     return {
       active: false,
       summary: 'Sponsor Wallet DUST balance is unavailable.',
+    };
+  }
+  if (!['ready', 'waiting-for-funding'].includes(view.phase)) {
+    return {
+      active: false,
+      summary: `Sponsor Wallet DUST capacity is not evaluated during phase ${view.phase}.`,
     };
   }
   const funds = sponsorDustFunds(view.balances.dust, latestFee);
@@ -202,6 +236,27 @@ export function sponsorSynchronizationUnsynced(
   return maxLag(view) >= BigInt(thresholds.syncLagBlocks) || disconnectedIncomplete;
 }
 
+export function sponsorSynchronizationStalled(
+  view: SponsorWalletOperationsView,
+  thresholds: Pick<AlertThresholds, 'syncLagBlocks' | 'walletNotificationGraceMinutes'>,
+  unchangedMinutes: number | null,
+): boolean {
+  return unchangedMinutes !== null
+    && unchangedMinutes >= thresholds.walletNotificationGraceMinutes
+    && sponsorSynchronizationUnsynced(view, thresholds);
+}
+
+export function sponsorWalletUnavailableCondition(
+  view: SponsorWalletOperationsView | null,
+): boolean {
+  if (!view) return true;
+  if (view.healthClass !== 'unavailable') return false;
+  const expectedStartup = ['starting', 'syncing'].includes(view.phase)
+    && view.initialization?.status !== 'failed'
+    && view.errorCode === null;
+  return !expectedStartup;
+}
+
 type AlertNotificationKind = 'alert-opened' | 'alert-reminder' | null;
 
 export function nextAlertNotificationKind(
@@ -255,6 +310,7 @@ async function setAlertCondition(
   condition: AlertCondition,
   nowIso: string,
   thresholds: AlertThresholds,
+  notifyResolution: boolean,
 ): Promise<void> {
   const current = await database.first<AlertStateRow>(
     'SELECT * FROM operations_alert_state WHERE alert_key = ?1',
@@ -278,7 +334,7 @@ async function setAlertCondition(
         parameters: [nowIso, condition.key],
       },
     ];
-    if (current.last_notified_at) {
+    if (current.last_notified_at && notifyResolution) {
       statements.push({
         sql: `INSERT OR IGNORE INTO operations_notification_outbox (
                 id, kind, dedupe_key, alert_key, resource_type, resource_id,
@@ -321,7 +377,9 @@ async function setAlertCondition(
               WHEN operations_alert_state.status = 'resolved' THEN NULL
               ELSE operations_alert_state.last_notified_at END,
             resolved_at = NULL,
-            occurrence_count = operations_alert_state.occurrence_count + 1`,
+            occurrence_count = CASE
+              WHEN operations_alert_state.status = 'resolved' THEN 1
+              ELSE operations_alert_state.occurrence_count + 1 END`,
     parameters: [condition.key, condition.severity, condition.summary, firstObservedAt, nowIso],
   }];
   if (notificationKind) {
@@ -346,13 +404,17 @@ async function setAlertCondition(
 export async function evaluateOperationalAlerts(
   env: Env,
   health: SponsorWalletHealth | null,
+  options: {
+    sponsorScheduledOffline?: boolean;
+    sponsorScheduleUnavailable?: boolean;
+  } = {},
 ): Promise<void> {
   try {
     const database = createSqlDatabase(env);
     const thresholds = operationalAlertThresholds(env);
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
-    const [queueState, rateLimited, latestFee] = await Promise.all([
+    const [queueState, rateLimited, latestFee, walletComponentState] = await Promise.all([
       backlog(database),
       database.first<{ count: number }>(
         `SELECT COUNT(*) AS count FROM operational_events
@@ -362,10 +424,20 @@ export async function evaluateOperationalAlerts(
         [new Date(now - 5 * 60_000).toISOString()],
       ),
       latestSponsorFee(database),
+      database.first<{ last_changed_at: string }>(
+        `SELECT last_changed_at FROM system_component_state
+         WHERE component = 'sponsor-wallet'`,
+      ),
     ]);
     const view = health ? sponsorWalletOperationsView(health) : null;
     const lag = view ? maxLag(view) : 0n;
-    const stateAge = ageMinutes(view?.lastStateAt ?? view?.initializedAt ?? null, now);
+    const stateAge = ageMinutes(
+      walletComponentState?.last_changed_at
+        ?? view?.lastStateAt
+        ?? view?.initialization?.startedAt
+        ?? null,
+      now,
+    );
     const disconnectedChannels = view?.synchronization
       .filter(({ connected, complete }) => !connected && !complete)
       .map(({ channel }) => channel) ?? [];
@@ -373,29 +445,42 @@ export async function evaluateOperationalAlerts(
     const sponsorAge = ageMinutes(queueState.sponsor_oldest_at, now);
     const rateLimitedCount = Number(rateLimited?.count ?? 0);
     const lowDust = sponsorLowDustCondition(view, latestFee, thresholds.lowDustTransactions);
+    const sponsorScheduledOffline = options.sponsorScheduledOffline === true;
     const conditions: AlertCondition[] = [
       {
-        key: 'sponsor-wallet-unavailable',
-        active: !view || view.healthClass === 'unavailable',
+        key: 'sponsor-wallet-schedule-unavailable',
+        active: options.sponsorScheduleUnavailable === true,
         severity: 'error',
-        notificationGraceMinutes: thresholds.syncUnsyncedMinutes,
+        summary: 'Sponsor Wallet operating schedule could not be read; wallet execution failed closed.',
+      },
+      {
+        key: 'sponsor-wallet-unavailable',
+        active: !sponsorScheduledOffline && sponsorWalletUnavailableCondition(view),
+        severity: 'error',
+        notificationGraceMinutes: operationalAlertNotificationGraceMinutes(
+          'sponsor-wallet-unavailable',
+          thresholds,
+        ),
         summary: view
           ? `Sponsor Wallet is ${view.healthClass} in phase ${view.phase}.`
           : 'Sponsor Wallet health is unavailable.',
       },
       {
         key: 'sponsor-wallet-sync-stalled',
-        active: view?.healthClass !== 'unavailable'
+        active: !sponsorScheduledOffline
           && view !== null
-          && sponsorSynchronizationUnsynced(view, thresholds),
+          && sponsorSynchronizationStalled(view, thresholds, stateAge),
         severity: 'error',
-        notificationGraceMinutes: thresholds.syncUnsyncedMinutes,
         summary: `Sponsor Wallet synchronization lag is ${lag.toString()} blocks; disconnected incomplete channels are ${disconnectedChannels.join(', ') || 'none'}; last state age is ${stateAge ?? 'unknown'} minutes.`,
       },
       {
         key: 'sponsor-wallet-low-dust',
-        active: lowDust.active,
+        active: !sponsorScheduledOffline && lowDust.active,
         severity: 'warning',
+        notificationGraceMinutes: operationalAlertNotificationGraceMinutes(
+          'sponsor-wallet-low-dust',
+          thresholds,
+        ),
         summary: lowDust.summary,
       },
       {
@@ -408,7 +493,8 @@ export async function evaluateOperationalAlerts(
       },
       {
         key: 'sponsor-backlog-high',
-        active: Number(queueState.sponsor_backlog ?? 0) >= thresholds.sponsorBacklog
+        active: !sponsorScheduledOffline
+          && Number(queueState.sponsor_backlog ?? 0) >= thresholds.sponsorBacklog
           && sponsorAge !== null
           && sponsorAge >= thresholds.sponsorBacklogAgeMinutes,
         severity: 'warning',
@@ -422,7 +508,13 @@ export async function evaluateOperationalAlerts(
       },
     ];
     for (const condition of conditions) {
-      await setAlertCondition(database, condition, nowIso, thresholds);
+      await setAlertCondition(
+        database,
+        condition,
+        nowIso,
+        thresholds,
+        shouldNotifyAlertResolution(condition.key, sponsorScheduledOffline),
+      );
     }
   } catch (error) {
     console.error(JSON.stringify({
@@ -468,7 +560,20 @@ function resolvedAlertDetail(alertKey: string): Pick<
   JapaneseAlertPresentation,
   'description' | 'detailLabel' | 'detailUrl'
 > {
+  if (alertKey.startsWith('queue-dead-letter:')) {
+    return {
+      description: 'Queueの要対応メッセージは解決済みになりました。',
+      detailLabel: 'Cloudflare Queuesで現在の状態を確認',
+      detailUrl: cloudflareQueuesUrl,
+    };
+  }
   switch (alertKey) {
+    case 'sponsor-wallet-schedule-unavailable':
+      return {
+        description: 'Sponsor Walletの営業時間設定を再び取得できるようになりました。',
+        detailLabel: 'Cloudflare Workersで現在の状態を確認',
+        detailUrl: cloudflareWorkersUrl,
+      };
     case 'sponsor-wallet-unavailable':
       return {
         description: 'Sponsor Walletの状態取得は復旧しました。',
@@ -531,7 +636,25 @@ export function japaneseAlertPresentation(
     };
   }
 
+  if (alertKey.startsWith('queue-dead-letter:')) {
+    return {
+      decision: '対応必要',
+      description: 'Queueの自動再試行を使い切ったメッセージがあります。対象Jobは要対応状態へ移されました。',
+      recommendation: 'Queueと運用ログで原因を確認し、原因を解消してから対象Jobを再投入してください。',
+      detailLabel: 'Cloudflare Queuesを確認',
+      detailUrl: cloudflareQueuesUrl,
+    };
+  }
+
   switch (alertKey) {
+    case 'sponsor-wallet-schedule-unavailable':
+      return {
+        decision: '対応必要',
+        description: 'Sponsor Walletの営業時間設定を取得できないため、安全側に停止しました。',
+        recommendation: 'D1とMigrationの状態を確認してください。設定を取得できるまでSponsor処理はQueueで待機します。',
+        detailLabel: 'Cloudflare Workersを確認',
+        detailUrl: cloudflareWorkersUrl,
+      };
     case 'sponsor-wallet-unavailable':
       return {
         decision: '対応必要',

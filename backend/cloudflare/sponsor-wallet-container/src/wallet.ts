@@ -19,6 +19,7 @@ import {
   WalletFacade,
   createKeystore,
 } from '@midnight-ntwrk/wallet-sdk';
+import type { UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
 
 import {
   diagnosticError,
@@ -36,6 +37,12 @@ import {
   summarizeSponsorSubmissionConfirmation,
   type SponsorSubmissionConfirmation,
 } from './submission-confirmation.js';
+import {
+  preservedContractTransactionId,
+  transactionMetrics,
+  validateAllowlistedSponsorTransaction,
+  type SponsoredContractEntryPoint,
+} from './transaction.js';
 
 class DiagnosticWebSocket extends WebSocket {
   constructor(address: string | URL, protocols?: string | string[]) {
@@ -105,7 +112,7 @@ export interface SponsorWalletStatus {
 const indexerHttpUrl = 'https://indexer.preprod.midnight.network/api/v4/graphql';
 const indexerWsUrl = 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws';
 const relayURL = 'wss://rpc.preprod.midnight.network';
-// This virtual hostname never leaves Cloudflare: SponsorWalletContainer maps
+// This virtual hostname never leaves Cloudflare: ServerWalletContainer maps
 // it to the bound Proof Server Container through outboundByHost. Keeping this
 // route on HTTP lets external Indexer/RPC TLS and WSS bypass HTTPS interception.
 const proofServerUrl = 'http://proof.internal';
@@ -195,9 +202,12 @@ export class SponsorWalletRuntime {
   #initializedAt: string | null = null;
   #lastStateAt: string | null = null;
 
-  constructor(readonly seedHex: string) {
+  constructor(
+    readonly seedHex: string,
+    readonly role: 'sponsor' | 'authority' = 'sponsor',
+  ) {
     if (!/^(?:[0-9a-f]{2}){32}$/u.test(seedHex)) {
-      throw new Error('SPONSOR_WALLET_SEED must be exactly 32 lowercase hexadecimal bytes');
+      throw new Error('Wallet seed must be exactly 32 lowercase hexadecimal bytes');
     }
     setNetworkId('preprod');
     const keys = deriveKeys(seedHex);
@@ -411,9 +421,96 @@ export class SponsorWalletRuntime {
     await activation;
   }
 
+  async finalizeAuthorityTransaction(
+    transaction: UnboundTransaction,
+    ttl = new Date(Date.now() + 30 * 60 * 1000),
+  ): Promise<ledger.FinalizedTransaction> {
+    const recipe = await this.wallet.balanceUnboundTransaction(
+      transaction,
+      {
+        shieldedSecretKeys: this.shieldedSecretKeys,
+        dustSecretKey: this.dustSecretKey,
+      },
+      {
+        ttl,
+        tokenKindsToBalance: ['shielded', 'unshielded'],
+      },
+    );
+    const signed = await this.wallet.signRecipe(
+      recipe,
+      (payload) => this.unshieldedKeystore.signData(payload),
+    );
+    return this.wallet.finalizeRecipe(signed);
+  }
+
+  async sponsorContractTransactionAndConfirm(
+    transaction: ledger.FinalizedTransaction,
+    contractAddress: string,
+    expectedEntryPoint: SponsoredContractEntryPoint,
+    operationId: string,
+    onPrepared: ((prepared: {
+      contractTransactionId: string;
+      transactionHash: string;
+      feeSpecks: string;
+      transactionBytes: number;
+    }) => void | Promise<void>) = () => undefined,
+  ): Promise<SponsorSubmissionConfirmation & {
+    replayRecovered: boolean;
+    contractTransactionId: string;
+    feeSpecks: string;
+    transactionBytes: number;
+  }> {
+    if (this.role !== 'sponsor') throw new Error('Authority Wallet cannot sponsor transactions');
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u.test(operationId)) {
+      throw new Error('Sponsored operation ID is invalid');
+    }
+    await this.waitUntilReady();
+    const originalPolicy = validateAllowlistedSponsorTransaction(
+      transaction,
+      contractAddress,
+      expectedEntryPoint,
+      false,
+    );
+    const recipe = await this.wallet.balanceFinalizedTransaction(
+      transaction,
+      {
+        shieldedSecretKeys: this.shieldedSecretKeys,
+        dustSecretKey: this.dustSecretKey,
+      },
+      {
+        ttl: new Date(Date.now() + 30 * 60 * 1000),
+        tokenKindsToBalance: ['dust'],
+      },
+    );
+    const signed = await this.wallet.signRecipe(
+      recipe,
+      (payload) => this.unshieldedKeystore.signData(payload),
+    );
+    const finalized = await this.wallet.finalizeRecipe(signed);
+    const finalPolicy = validateAllowlistedSponsorTransaction(
+      finalized,
+      contractAddress,
+      expectedEntryPoint,
+      true,
+    );
+    const contractTransactionId = preservedContractTransactionId(
+      originalPolicy.transactionIdentifiers,
+      finalPolicy.transactionIdentifiers,
+    );
+    const metrics = transactionMetrics(finalized);
+    await onPrepared({
+      contractTransactionId,
+      transactionHash: finalPolicy.transactionHash,
+      ...metrics,
+    });
+    const confirmation = await this.submitPreparedTransactionAndConfirm(finalized);
+    return { ...confirmation, contractTransactionId, ...metrics };
+  }
+
   async submitPreparedTransactionAndConfirm(
     transaction: ledger.FinalizedTransaction,
   ): Promise<SponsorSubmissionConfirmation & { replayRecovered: boolean }> {
+    if (this.role !== 'sponsor') throw new Error('Authority Wallet cannot submit transactions');
     await Rx.firstValueFrom(
       this.wallet.state().pipe(
         Rx.filter((state) => (
@@ -516,6 +613,14 @@ export class SponsorWalletRuntime {
       shielded: sponsorSyncProgressDetails(state.shielded.progress),
       unshielded: sponsorSyncProgressDetails(state.unshielded.progress),
     });
+    if (this.role === 'authority') {
+      this.#phase = 'ready';
+      this.#lastError = null;
+      diagnosticLog('authority_wallet_ready', {
+        durationMs: Math.round(performance.now() - syncStartedAt),
+      });
+      return;
+    }
     const nightBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
     if (nightBalance === 0n) {
       throw new Error(`Sponsor Wallet has no tNIGHT: ${this.address}`);

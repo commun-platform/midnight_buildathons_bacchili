@@ -3,7 +3,10 @@ import {
   authorizeDeviceRequest,
   type DevicePrincipal,
 } from './device-auth.js';
-import { isProofOperatingWindow } from './proof-window.js';
+import {
+  sponsorWalletOperatingWindow,
+  sponsorWorkIsEligible,
+} from './sponsor-operating-window.js';
 import { createSqlDatabase } from './storage/index.js';
 
 const proofQueueName = 'midnight-proof-jobs';
@@ -110,12 +113,21 @@ export async function dispatchProofJobs(env: Env, scheduledTime: number): Promis
       [nowIso],
     ),
   ]);
-  if (!isProofOperatingWindow(scheduledAt)) return;
+  const processingSchedule = await sponsorWalletOperatingWindow(env, scheduledAt);
+  if (!processingSchedule.executionAllowed) return;
+  const acceptedThrough = processingSchedule.mode === 'scheduled'
+    ? processingSchedule.eligibleThrough
+    : null;
+  if (processingSchedule.mode === 'scheduled' && acceptedThrough === null) return;
+  const acceptedClause = acceptedThrough === null ? '' : ' AND created_at <= ?2';
+  const parameters = acceptedThrough === null ? [nowIso] : [nowIso, acceptedThrough];
   const jobs = await database.all<{ id: string }>(
     `SELECT id FROM daily_proof_jobs
-     WHERE status IN ('pending', 'retryable_failed') AND available_after <= ?1
+     WHERE origin != 'managed-api'
+       AND status IN ('pending', 'retryable_failed') AND available_after <= ?1
+       ${acceptedClause}
      ORDER BY created_at ASC LIMIT ${dispatchBatchSize}`,
-    [nowIso],
+    parameters,
   );
   for (const job of jobs) {
     const updatedAt = new Date().toISOString();
@@ -160,7 +172,8 @@ async function admitProofJob(message: Message<unknown>, env: Env): Promise<void>
     message.ack();
     return;
   }
-  if (!isProofOperatingWindow(new Date())) {
+  const processingSchedule = await sponsorWalletOperatingWindow(env);
+  if (!sponsorWorkIsEligible(processingSchedule, job.created_at)) {
     await database.execute(
       `UPDATE daily_proof_jobs SET status = 'pending', updated_at = ?1
        WHERE id = ?2 AND status IN ('dispatched', 'retryable_failed')`,

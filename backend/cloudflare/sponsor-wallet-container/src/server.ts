@@ -7,6 +7,10 @@ import {
   selectCheckpointState,
 } from './checkpoint.js';
 import {
+  downloadRestoreCheckpoint,
+  restoreCheckpointSource,
+} from './checkpoint-restore.js';
+import {
   canPersistSynchronizationCheckpoint,
   uploadShutdownCheckpoint,
 } from './checkpoint-upload.js';
@@ -28,6 +32,7 @@ import {
 } from './transaction.js';
 import {
   registerOperatorDevice,
+  registerServiceDevice,
   type OperatorDeviceRegistration,
 } from './operator-registration.js';
 import {
@@ -36,6 +41,22 @@ import {
 } from './operator-policy.js';
 import { verifyWalletSignatureRequest } from './wallet-signature.js';
 import { SponsorWalletRuntime, type SponsorSerializedState } from './wallet.js';
+import {
+  deriveManagedDeviceAuthorityHex,
+  submitManagedAttestation,
+  type ManagedAttestationInput,
+} from './managed-attestation.js';
+import {
+  prepareManagedAttestation,
+  type ManagedPreparationInput,
+} from './managed-preparation.js';
+import {
+  type AuthorityTransactionRuntime,
+} from './authority-transaction-runtime.js';
+import {
+  requireWalletRuntimeRole,
+  walletRuntimeAllows,
+} from './runtime-role-policy.js';
 
 const configuredPort = Number(process.env.SPONSOR_WALLET_SERVICE_PORT ?? 8789);
 if (!Number.isSafeInteger(configuredPort) || configuredPort < 1 || configuredPort > 65_535) {
@@ -48,8 +69,14 @@ const gracefulOperationWaitMs = 60_000;
 const walletStopWaitMs = 45_000;
 const forcedShutdownMs = 14 * 60_000;
 const initialSynchronizationCheckpointDelayMs = 60_000;
-const seedHex = process.env.SPONSOR_WALLET_SEED?.trim() ?? '';
+const runtimeRole = requireWalletRuntimeRole(
+  process.env.WALLET_RUNTIME_ROLE?.trim() ?? 'server-wallet',
+);
+const seedHex = process.env.WALLET_RUNTIME_SEED?.trim()
+  ?? process.env.SPONSOR_WALLET_SEED?.trim()
+  ?? '';
 const operatorSecretHex = process.env.OPERATOR_AUTHORITY_SECRET?.trim() ?? '';
+const managedAttestorRootSecretHex = process.env.MANAGED_ATTESTOR_ROOT_SECRET?.trim() ?? '';
 let sponsor: SponsorWalletRuntime | null = null;
 let mutation = Promise.resolve();
 let initialization: Promise<void> | null = null;
@@ -69,7 +96,7 @@ let synchronizationCheckpointStatus: {
   bytes: number | null;
   dustApplied: string | null;
   error: string | null;
-  delivery: 'local-cache';
+  delivery: 'local-cache' | 'local-cache+r2';
 } = {
   status: 'idle',
   attemptedAt: null,
@@ -82,7 +109,7 @@ let synchronizationCheckpointStatus: {
 };
 
 function requireSponsor(): SponsorWalletRuntime {
-  sponsor ??= new SponsorWalletRuntime(seedHex);
+  sponsor ??= new SponsorWalletRuntime(seedHex, 'sponsor');
   return sponsor;
 }
 
@@ -122,6 +149,10 @@ async function initializedSponsor(): Promise<SponsorWalletRuntime> {
   if (!initialization) throw new Error('Sponsor Wallet restore must run before this operation');
   await initialization;
   return requireSponsor();
+}
+
+async function initializedAuthority(): Promise<AuthorityTransactionRuntime> {
+  return initializedSponsor();
 }
 
 function serviceStatus() {
@@ -193,7 +224,14 @@ async function handleRestore(
   request: http.IncomingMessage,
   response: http.ServerResponse,
 ): Promise<void> {
-  const checkpoint = await readBody(request, maxCheckpointBytes);
+  const inlineCheckpoint = await readBody(request, maxCheckpointBytes);
+  const restoreSource = request.headers['x-sponsor-restore-source'];
+  if (restoreSource === restoreCheckpointSource && inlineCheckpoint.byteLength !== 0) {
+    throw new Error('State-backed restore must not include an inline checkpoint');
+  }
+  const checkpoint = restoreSource === restoreCheckpointSource
+    ? await downloadRestoreCheckpoint()
+    : inlineCheckpoint;
   let restored: SponsorSerializedState = {};
   let checkpointAccepted = false;
   if (checkpoint.length > 0) {
@@ -373,7 +411,7 @@ async function handleOperatorDeviceRegistration(
     operatorSecretHex,
   };
   if (request.headers['x-operator-progress'] !== 'ndjson-v1') {
-    const result = await registerOperatorDevice(await initializedSponsor(), input);
+    const result = await registerOperatorDevice(await initializedAuthority(), input);
     responseJson(response, 200, result);
     return;
   }
@@ -387,7 +425,7 @@ async function handleOperatorDeviceRegistration(
   };
   try {
     const result = await registerOperatorDevice(
-      await initializedSponsor(),
+      await initializedAuthority(),
       input,
       (progress) => {
         diagnosticLog('sponsor_wallet_operator_registration_progress', { ...progress });
@@ -428,7 +466,7 @@ async function handleOperatorPolicyRegistration(
     operatorSecretHex,
   };
   if (request.headers['x-operator-progress'] !== 'ndjson-v1') {
-    const result = await registerOperatorPolicy(await initializedSponsor(), input);
+    const result = await registerOperatorPolicy(await initializedAuthority(), input);
     responseJson(response, 200, result);
     return;
   }
@@ -442,7 +480,7 @@ async function handleOperatorPolicyRegistration(
   };
   try {
     const result = await registerOperatorPolicy(
-      await initializedSponsor(),
+      await initializedAuthority(),
       input,
       (progress) => {
         diagnosticLog('sponsor_wallet_operator_policy_progress', { ...progress });
@@ -461,6 +499,129 @@ async function handleOperatorPolicyRegistration(
     });
   }
   response.end();
+}
+
+async function handleManagedSourceRegistration(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  if (requiredHeader(request, 'X-Operator-Provisioning') !== 'register-service-device-v1') {
+    throw new Error('Service Device registration request is invalid');
+  }
+  if (!/^(?:[0-9a-f]{2}){32}$/u.test(operatorSecretHex)) {
+    throw new Error('Operator Authority is not configured');
+  }
+  const bytes = await readBody(request, 32 * 1024);
+  const parsed = JSON.parse(bytes.toString('utf8')) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Service Device registration body must be a JSON object');
+  }
+  const input = {
+    ...(parsed as Omit<OperatorDeviceRegistration, 'operatorSecretHex' | 'browserAuthorization'>),
+    operatorSecretHex,
+  };
+  const result = await registerServiceDevice(await initializedAuthority(), input);
+  responseJson(response, 200, result);
+}
+
+async function handleManagedSourceAuthority(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  if (requiredHeader(request, 'X-Managed-Source') !== 'derive-authority-v1') {
+    throw new Error('Managed Source authority request is invalid');
+  }
+  if (!/^(?:[0-9a-f]{2}){32}$/u.test(managedAttestorRootSecretHex)) {
+    throw new Error('Managed Attestor Authority is not configured');
+  }
+  const bytes = await readBody(request, 8 * 1024);
+  const parsed = JSON.parse(bytes.toString('utf8')) as {
+    projectId?: unknown;
+    sourceId?: unknown;
+  };
+  if (
+    !parsed
+    || typeof parsed !== 'object'
+    || Array.isArray(parsed)
+    || typeof parsed.projectId !== 'string'
+    || typeof parsed.sourceId !== 'string'
+  ) throw new Error('Managed Source authority body is invalid');
+  const deviceAuthority = deriveManagedDeviceAuthorityHex(
+    managedAttestorRootSecretHex,
+    parsed.projectId,
+    parsed.sourceId,
+  );
+  responseJson(response, 200, { deviceAuthority });
+}
+
+async function handleManagedAttestation(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  if (requiredHeader(request, 'X-Managed-Attestation') !== 'submit-v1') {
+    throw new Error('Managed attestation request is invalid');
+  }
+  if (!/^(?:[0-9a-f]{2}){32}$/u.test(managedAttestorRootSecretHex)) {
+    throw new Error('Managed Attestor Authority is not configured');
+  }
+  const bytes = await readBody(request, 512 * 1024);
+  const parsed = JSON.parse(bytes.toString('utf8')) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Managed attestation body must be a JSON object');
+  }
+  const input = {
+    ...(parsed as Omit<ManagedAttestationInput, 'managedAttestorRootSecretHex'>),
+    managedAttestorRootSecretHex,
+  };
+  response.writeHead(200, {
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/x-ndjson; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  const writeEvent = (event: unknown): void => {
+    response.write(`${JSON.stringify(event)}\n`);
+  };
+  try {
+    const result = await submitManagedAttestation(
+      await initializedAuthority(),
+      input,
+      (progress) => {
+        diagnosticLog('sponsor_wallet_managed_attestation_progress', {
+          sourceId: input.sourceId,
+          ...progress,
+        });
+        writeEvent({ type: 'progress', ...progress });
+      },
+    );
+    writeEvent({ type: 'result', result });
+  } catch (error) {
+    diagnosticLog('sponsor_wallet_managed_attestation_failed', {
+      sourceId: input.sourceId,
+      ...diagnosticError(error),
+    }, 'error');
+    writeEvent({
+      type: 'error',
+      error: error instanceof Error ? error.message : 'Managed attestation failed',
+      causes: safeErrorCauses(error),
+    });
+  }
+  response.end();
+}
+
+async function handleManagedPreparation(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<void> {
+  if (requiredHeader(request, 'X-Managed-Attestation') !== 'prepare-v1') {
+    throw new Error('Managed preparation request is invalid');
+  }
+  const bytes = await readBody(request, 512 * 1024);
+  const parsed = JSON.parse(bytes.toString('utf8')) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Managed preparation body must be a JSON object');
+  }
+  const result = await prepareManagedAttestation(parsed as ManagedPreparationInput);
+  responseJson(response, 200, result);
 }
 
 async function handleWalletSignatureVerification(
@@ -529,6 +690,10 @@ const server = http.createServer((request, response) => {
       responseJson(response, 503, { error: 'Sponsor Wallet is shutting down' });
       return;
     }
+    if (!walletRuntimeAllows(runtimeRole, pathname)) {
+      responseJson(response, 404, { error: 'Endpoint is not available in this Wallet runtime' });
+      return;
+    }
     if (request.method === 'POST' && pathname === '/restore') {
       await handleRestore(request, response);
       return;
@@ -563,6 +728,22 @@ const server = http.createServer((request, response) => {
       await exclusive(() => handleOperatorPolicyRegistration(request, response));
       return;
     }
+    if (request.method === 'POST' && pathname === '/operator/register-service-device') {
+      await exclusive(() => handleManagedSourceRegistration(request, response));
+      return;
+    }
+    if (request.method === 'POST' && pathname === '/managed/source-authority') {
+      await handleManagedSourceAuthority(request, response);
+      return;
+    }
+    if (request.method === 'POST' && pathname === '/managed/prepare') {
+      await handleManagedPreparation(request, response);
+      return;
+    }
+    if (request.method === 'POST' && pathname === '/managed/attest') {
+      await exclusive(() => handleManagedAttestation(request, response));
+      return;
+    }
     if (request.method === 'POST' && pathname === '/operator/verify-wallet-signature') {
       await handleWalletSignatureVerification(request, response);
       return;
@@ -594,11 +775,15 @@ const server = http.createServer((request, response) => {
 server.listen(port, '0.0.0.0', () => {
   diagnosticLog('sponsor_wallet_service_started', {
     port,
+    runtimeRole,
     seedConfigured: /^(?:[0-9a-f]{2}){32}$/u.test(seedHex),
     nodeVersion: process.version,
     walletSdkVersion: '1.2.0',
     midnightJsVersion: '4.1.1',
     operatorAuthorityConfigured: /^(?:[0-9a-f]{2}){32}$/u.test(operatorSecretHex),
+    managedAttestorAuthorityConfigured: /^(?:[0-9a-f]{2}){32}$/u.test(
+      managedAttestorRootSecretHex,
+    ),
   });
 });
 
@@ -703,6 +888,14 @@ async function persistSynchronizationCheckpoint(): Promise<void> {
       unshieldedApplied: status.progressDetails.unshielded.applied,
       dustApplied: status.progressDetails.dust.applied,
     });
+    await uploadShutdownCheckpoint(checkpoint, 'periodic-sync', {
+      progress: {
+        phase: status.phase,
+        shieldedApplied: status.progressDetails.shielded.applied,
+        unshieldedApplied: status.progressDetails.unshielded.applied,
+        dustApplied: status.progressDetails.dust.applied,
+      },
+    });
     synchronizationCheckpointStatus = {
       status: 'succeeded',
       attemptedAt,
@@ -711,9 +904,9 @@ async function persistSynchronizationCheckpoint(): Promise<void> {
       bytes: checkpoint.byteLength,
       dustApplied: status.progressDetails.dust.applied,
       error: null,
-      delivery: 'local-cache',
+      delivery: 'local-cache+r2',
     };
-    diagnosticLog('sponsor_wallet_periodic_checkpoint_cached', {
+    diagnosticLog('sponsor_wallet_periodic_checkpoint_persisted', {
       bytes: checkpoint.byteLength,
       durationMs: Math.round(performance.now() - startedAt),
       progressDetails: status.progressDetails,

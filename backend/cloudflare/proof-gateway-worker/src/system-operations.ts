@@ -9,11 +9,19 @@ import {
 } from './operations-audit.js';
 import { sponsorCheckpointKey } from './sponsor-checkpoint.js';
 import { latestSponsorFee, sponsorDustFunds } from './sponsor-dust.js';
-import { probeSponsorWalletHealth } from './sponsor.js';
+import {
+  probeSponsorWalletHealth,
+  sponsorWalletRuntimeDiagnostics,
+} from './sponsor.js';
+import { sponsorWalletOperatingWindow } from './sponsor-operating-window.js';
 import {
   authorizeSystemOperator,
   type SystemOperatorPrincipal,
 } from './system-operations-auth.js';
+import {
+  isGlobalSystemOperator,
+  loadSystemOperatorAccess,
+} from './system-operator-security.js';
 import { createSqlDatabase } from './storage/index.js';
 import type { SqlDatabase, SqlParameter } from './storage/sql.js';
 
@@ -164,6 +172,7 @@ async function overview(
   principal: SystemOperatorPrincipal,
 ): Promise<Response> {
   const database = createSqlDatabase(env);
+  const operatingWindow = await sponsorWalletOperatingWindow(env);
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const [
     jobStates,
@@ -180,6 +189,7 @@ async function overview(
     latestFee,
     checkpoint,
     sponsorJobs,
+    openDeadLetters,
   ] = await Promise.all([
     database.all<StatusCountRow>(
       `SELECT status, COUNT(*) AS count, MIN(updated_at) AS oldest_at,
@@ -238,6 +248,9 @@ async function overview(
        WHERE status IN ('awaiting_sponsor', 'sponsor_retryable', 'sponsoring', 'sponsored')
        ORDER BY COALESCE(sponsor_stage_updated_at, updated_at) ASC LIMIT 32`,
     ),
+    database.first<CountRow>(
+      "SELECT COUNT(*) AS count FROM queue_dead_letters WHERE status = 'open'",
+    ),
   ]);
 
   let sponsorWallet: SponsorWalletOperationsView | null = componentState
@@ -245,15 +258,17 @@ async function overview(
     : null;
   let live = false;
   let liveErrorCode: string | null = null;
-  try {
-    const health = await probeSponsorWalletHealth(env);
-    sponsorWallet = sponsorWalletOperationsView(health);
-    live = true;
-    context.waitUntil(recordSponsorWalletHealth(env, health));
-  } catch (error) {
-    liveErrorCode = error instanceof DOMException && error.name === 'TimeoutError'
-      ? 'sponsor_wallet_probe_timeout'
-      : 'sponsor_wallet_probe_failed';
+  if (operatingWindow.mode === 'always-on' && operatingWindow.executionAllowed) {
+    try {
+      const health = await probeSponsorWalletHealth(env);
+      sponsorWallet = sponsorWalletOperationsView(health);
+      live = true;
+      context.waitUntil(recordSponsorWalletHealth(env, health));
+    } catch (error) {
+      liveErrorCode = error instanceof DOMException && error.name === 'TimeoutError'
+        ? 'sponsor_wallet_probe_timeout'
+        : 'sponsor_wallet_probe_failed';
+    }
   }
 
   const proofBacklog = sumStates(jobStates, proofQueueStates);
@@ -269,6 +284,9 @@ async function overview(
     : 'healthy';
   const openAlerts = alerts.filter((alert) => alert.status === 'open');
   const funds = sponsorDustFunds(sponsorWallet?.balances.dust, latestFee);
+  const sponsorHealthClass = operatingWindow.mode === 'always-on'
+    ? sponsorWallet?.healthClass ?? 'unavailable'
+    : 'healthy';
 
   return json(200, {
     generatedAt: new Date().toISOString(),
@@ -276,9 +294,9 @@ async function overview(
     overall: {
       healthClass: openAlerts.some((alert) => alert.severity === 'error')
         ? 'unavailable'
-        : openAlerts.length > 0 || sponsorWallet?.healthClass === 'degraded'
+        : openAlerts.length > 0 || sponsorHealthClass === 'degraded'
           ? 'degraded'
-          : sponsorWallet?.healthClass ?? 'degraded',
+          : sponsorHealthClass,
       openAlerts: openAlerts.length,
       failures24h: Number(failures24h?.count ?? 0),
     },
@@ -293,14 +311,19 @@ async function overview(
         note: 'No container wake-up is performed by this dashboard.',
       },
       sponsorWallet: {
-        healthClass: sponsorWallet?.healthClass ?? 'unavailable',
-        source: live ? 'live-probe' : componentState ? 'last-known-state' : 'unavailable',
+        healthClass: sponsorHealthClass,
+        source: operatingWindow.mode === 'scheduled'
+          ? 'waiting-for-processing-start'
+          : operatingWindow.mode === 'on-demand' && sponsorBacklog === 0
+            ? 'on-demand-idle'
+          : live ? 'live-probe' : componentState ? 'last-known-state' : 'unavailable',
         live,
         liveErrorCode,
         lastObservedAt: live ? new Date().toISOString() : componentState?.last_observed_at ?? null,
         lastChangedAt: componentState?.last_changed_at ?? null,
         state: sponsorWallet,
         funds,
+        operatingWindow,
       },
     },
     inventory: {
@@ -345,6 +368,7 @@ async function overview(
         };
       }),
       terminalFailures: failures,
+      openDeadLetters: Number(openDeadLetters?.count ?? 0),
     },
     checkpoint: checkpoint ? {
       present: true,
@@ -533,6 +557,11 @@ export async function handleSystemOperations(
 
   const authorization = await authorizeSystemOperator(request, env, context, assetRoute);
   if (!authorization.ok) return authorization.response;
+  const database = createSqlDatabase(env);
+  const operatorAccess = await loadSystemOperatorAccess(database, authorization.principal);
+  if (!isGlobalSystemOperator(operatorAccess)) {
+    return json(403, { error: 'Global system operations authorization is required' });
+  }
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return json(405, { error: 'Method not allowed' });
   }
@@ -546,7 +575,6 @@ export async function handleSystemOperations(
     return env.ASSETS.fetch(request);
   }
 
-  const database = createSqlDatabase(env);
   if (url.pathname === '/api/v1/system-operations/overview') {
     return overview(env, context, authorization.principal);
   }
@@ -556,6 +584,29 @@ export async function handleSystemOperations(
   }
   if (url.pathname === '/api/v1/system-operations/events') {
     return events(database, url);
+  }
+  if (url.pathname === '/api/v1/system-operations/sponsor-runtime-diagnostics') {
+    const operatingWindow = await sponsorWalletOperatingWindow(env);
+    if (!operatingWindow.executionAllowed) {
+      return json(200, {
+        generatedAt: new Date().toISOString(),
+        diagnostics: {
+          containerRunning: false,
+          waitingForProcessingStart: true,
+          nextProcessingStartsAt: operatingWindow.nextProcessingStartsAt,
+        },
+      });
+    }
+    const diagnostics = await sponsorWalletRuntimeDiagnostics(env);
+    return json(200, {
+      generatedAt: new Date().toISOString(),
+      diagnostics: {
+        ...diagnostics,
+        waitingForProcessingStart: operatingWindow.mode === 'scheduled'
+          && diagnostics.containerRunning !== true,
+        nextProcessingStartsAt: operatingWindow.nextProcessingStartsAt,
+      },
+    });
   }
   return json(404, { error: 'Unknown system operations endpoint' });
 }
