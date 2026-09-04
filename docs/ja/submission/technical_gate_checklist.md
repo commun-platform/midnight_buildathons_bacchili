@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 運用Compact Contract | PASS | midnight/contracts/sensor-registry/src/sensor-registry.compact |
 | Compact Compile | PASS | 8 Circuit、submitDailyAttestation 28,699 rows、k=15 |
-| Repository Test | PASS | 9 Workspaceと疑似対向Serviceで448 / 448成功 |
+| Repository Test | PASS | 12 Workspaceと疑似対向Serviceで496 / 496成功 |
 | Typecheck | PASS | 設定済み全Workspace |
 | Production Build | PASS | Dashboard、CLI、Device Workspace |
 | Cloudflare Package検証 | PASS | Wrangler Deploy dry-run、Worker Version `68a511ba-0703-479c-91df-8cdb5c19c4a5`をDeploy済み |

@@ -39,8 +39,8 @@ The repository also contains supporting field-runtime authentication, collection
 
 The current working source was validated on 2026-09-02 JST:
 
-- all 6 proof circuits compiled;
-- all 448 automated tests passed;
+- all 8 proof circuits compiled;
+- all 496 automated tests passed;
 - all workspace type checks and builds passed; and
 - the Cloudflare pre-deployment check passed.
 

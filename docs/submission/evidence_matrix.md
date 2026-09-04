@@ -2,7 +2,7 @@
 
 [日本語版](../ja/submission/evidence_matrix.md)
 
-Validation date: 2026-09-03 JST
+Validation date: 2026-09-04 JST
 Local baseline: current working tree
 Preprod evidence date: 2026-09-03 JST
 
@@ -13,17 +13,17 @@ Attestation; neither is inferred from a Worker/GUI deployment.
 | ID | Review claim | Source / design evidence | Current local validation | Runtime / Preprod evidence | Boundary |
 | --- | --- | --- | --- | --- | --- |
 | CLAIM-01 | Raw readings and the private opening remain at the private source; bounded hourly summaries are restricted operator data, not third-party evidence | browser-private simulated capture, summary APIs, supporting field aggregation, privacy specification | Frontend, Gateway, Shared, and field-runtime boundary tests passed | 1,440 synthetic readings reduced and uploaded as bounded summaries in the recorded run | The trusted Backend stores authorized summaries; Wave 1 does not claim autonomous field operation or prove that no alternate collection path exists |
-| CLAIM-02 | The operational policy and Device assignment are registered before proof | sensor-registry policy and assignment circuits; Fleet Registry specification | Contract compile and 15 simulator tests passed | Operational-day policy and Device-bound assignment recorded on Preprod | Public policy, assignment, and day boundary are fixed before proving |
+| CLAIM-02 | The operational policy and Device assignment are registered before proof | sensor-registry policy and assignment circuits; Fleet Registry specification | Contract compile and 18 simulator tests passed | Operational-day policy and Device-bound assignment recorded on Preprod | Public policy, assignment, and day boundary are fixed before proving |
 | CLAIM-03 | The 24 hourly extrema and nonce are private witness data | sensor-registry source; public-field map | Compile succeeded; redaction tests passed | Public verifier record omits extrema and nonce | Trusted Backend sees the private proof request in transit |
 | CLAIM-04 | Truthful WITHIN and OUTSIDE results use the same daily circuit | submitDailyAttestation circuit and tests | 28,699 rows, k=15; success and rejection tests passed | Previous OUTSIDE and current operational-day WITHIN results confirmed | Does not prove sensor truth or completeness |
 | CLAIM-05 | Missing hours are represented as NO DATA | Wave 1 specification and daily input utilities | Canonical no-data slot test passed | Public result exposes a NO DATA status for the corresponding UTC hour | Missing data is not fraud detection |
 | CLAIM-06 | User transaction authority, field API identity, and service fee authority are separate | browser authorization and supporting field-agent boundaries | Frontend, identity-agent, and transaction-agent tests passed | Authorized Preprod transaction recorded | Hardware-protected attestation is future work |
 | CLAIM-07 | The proof service cannot authorize as the user | proof flow and transaction-authorization source | Boundary and execution-lock tests passed | Recorded flow authorizes the call after proof generation | Backend remains trusted for proof input |
-| CLAIM-08 | Browser APIs expose only public or authorized redacted state | Gateway API tests and frontend responsibility design | 224 Gateway and 75 Dashboard tests passed | Public verifier accepts a TX hash and shows the operational date/boundary, 24 hourly results, policy/validity, Device Commitment, block, and TX | Browser directly compares public Indexer transaction and Contract action state but does not rerun the ZK verifier locally |
+| CLAIM-08 | Browser APIs expose only public or authorized redacted state | Gateway API tests and frontend responsibility design | 246 Gateway and 78 Dashboard tests passed | Public verifier accepts a TX hash and shows the operational date/boundary, 24 hourly results, policy/validity, Device Commitment, block, and TX | Browser directly compares public Indexer transaction and Contract action state but does not rerun the ZK verifier locally |
 | CLAIM-09 | The PoC handles 1,440 readings/day with one fixed 24-slot proof | aggregation utilities and cost benchmark | 24 / 96 / 1,440 fixed-shape tests passed | Device-originated 1,440-reading operational-day WITHIN TX confirmed in block 2,369,094 | One simulated source/day is not a fleet load test |
 | CLAIM-10 | The required operational Compact contract compiles | midnight/contracts/sensor-registry | All 8 circuits compiled on 2026-09-03 | Prior six-circuit operational-day contract and attestations are confirmed on Preprod | The incompatible eight-circuit contract still requires a fresh Preprod deployment |
-| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 448 tests, typecheck, build, API SCT, 22-checkpoint GUI SCT, Wrangler dry-run passed | Prior Worker version `dc5f990d-9943-4242-8066-21a55645aab9` deployed on 2026-09-03 JST | Current hardening changes are locally validated but not yet deployed |
-| CLAIM-12 | The GUI connects the simulated measurement workflow to public verification | dashboard source, routes, and tests | Dashboard build and 75 tests passed | TX-hash-only hosted verification completed without a D1 API request | Combined review UI is not production role separation; English demo pitch produced, public URL pending |
+| CLAIM-11 | Repository verification passes | root verify script and workspace scripts | 496 tests, typecheck, build, API SCT, 22-checkpoint GUI SCT, Wrangler dry-run passed | Prior Worker version `dc5f990d-9943-4242-8066-21a55645aab9` deployed on 2026-09-03 JST | Current hardening changes are locally validated but not yet deployed |
+| CLAIM-12 | The GUI connects the simulated measurement workflow to public verification | dashboard source, routes, and tests | Dashboard build and 78 tests passed | TX-hash-only hosted verification completed without a D1 API request | Combined review UI is not production role separation; English demo pitch produced, public URL pending |
 | CLAIM-13 | A registered cloud API can complete a walletless Managed Attestation | Managed Source adapter, Queue consumer, encrypted private R2 artifact, separated authority/Sponsor Wallet flow, and independent `/managed-proof/` GUI | Mock counterpart, failure classification, idempotency, and Managed GUI tests passed | Two consecutive 1,440-reading days confirmed on the prior Preprod deployment; the scheduled post-fix Run completed on first fetch/proof attempts in block 2,380,338 and TX-hash verification contacted the public Indexer without a D1 API request | The Backend and registered source remain trusted; the source's truthfulness is not guaranteed |
 
 ## Current validation command
@@ -38,15 +38,18 @@ The explicit TMPDIR is required in this WSL environment so tsx creates its IPC s
 | --- | ---: |
 | Shared | 20 |
 | sensor-registry Contract | 18 |
-| Dashboard | 75 |
+| Public Attestation Verifier | 3 |
+| Dashboard | 78 |
 | Development CLI | 5 |
 | Device Auth | 6 |
-| Edge Agent | 15 |
+| Edge Agent | 16 |
 | Device Wallet Agent | 32 |
-| Proof Gateway | 224 |
-| Sponsor Wallet | 49 |
+| Proof Gateway | 246 |
+| Sponsor Wallet | 52 |
+| Support MCP | 11 |
+| Verification MCP | 5 |
 | Mock Measurement Source | 4 |
-| Total | 448 |
+| Total | 496 |
 
 ## Recorded Preprod reference
 

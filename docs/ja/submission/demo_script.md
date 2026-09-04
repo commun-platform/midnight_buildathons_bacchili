@@ -63,7 +63,7 @@
 | GUI-08 | Public Verifier | TX hash検索、運用日／境界、24個の時間帯別結果、Policy／有効期間、Device Commitment、Block、TX |
 | GUI-09 | Negative / Boundary | OUTSIDEまたは明示的Tamper Reject |
 | EVD-01 | Compile | 8 Circuit、submitDailyAttestation Rows |
-| EVD-02 | Test | 448成功 |
+| EVD-02 | Test | 496成功 |
 
 ## Fallback Policy
 

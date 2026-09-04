@@ -8,7 +8,7 @@ Last local check: 2026-09-03 JST
 | --- | --- | --- |
 | Operational Compact contract exists | PASS | midnight/contracts/sensor-registry/src/sensor-registry.compact |
 | Compact compilation | PASS | 8 circuits compiled; submitDailyAttestation 28,699 rows, k=15 |
-| Repository tests | PASS | 448 / 448 passed across nine workspaces and the mock counterpart service |
+| Repository tests | PASS | 496 / 496 passed across 12 workspaces and the mock counterpart service |
 | Type checking | PASS | All configured workspaces |
 | Production builds | PASS | Dashboard, CLI, Device workspaces |
 | Cloudflare package validation | PASS | Wrangler deploy dry-run and deployed Worker version `68a511ba-0703-479c-91df-8cdb5c19c4a5` |

@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-現行ソースは、8つの証明回路のコンパイル、448件の自動テスト、全構成領域の型検査とビルド、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録、2026-09-03のWallet不要Managed API Attestationを確認しています。これらの日付付きTXは旧配備Contractの証跡であり、互換性のない現行8回路SourceをLive Evidenceとするには再配備が必要です。
+現行ソースは、8つの証明回路のコンパイル、496件の自動テスト、全構成領域の型検査とビルド、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。Midnight事前公開ネットワークでは、2026-08-28の自己負担WITHIN／OUTSIDE、2026-08-30のSponsor負担Schema-5、2026-09-02の欠損時間・全停止日・OUTSIDE適合記録、2026-09-03のWallet不要Managed API Attestationを確認しています。これらの日付付きTXは旧配備Contractの証跡であり、互換性のない現行8回路SourceをLive Evidenceとするには再配備が必要です。
 
 | 審査成果物 | 文書 |
 | --- | --- |
@@ -192,7 +192,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-期待結果は、運用する8つの証明回路のコンパイル、448件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用する8つの証明回路のコンパイル、496件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 
