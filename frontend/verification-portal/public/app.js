@@ -513,6 +513,53 @@ function midnightExplorerBase(network) {
   if (normalized.includes('mainnet')) return 'https://midnightexplorer.com';
   return '';
 }
+
+function midnightIndexerUrl(network) {
+  const normalized = String(network || '').toLowerCase();
+  if (normalized.includes('preprod')) return 'https://indexer.preprod.midnight.network/api/v4/graphql';
+  return '';
+}
+
+const explorerTransactionHashCache = new Map();
+const explorerTransactionHashPromises = new Map();
+
+function transactionIdentifier(value) {
+  const normalized = String(value || '').replace(/^0x/iu, '').toLowerCase();
+  return /^(?:[a-f\d]{2}){33}$/u.test(normalized) ? normalized : '';
+}
+
+async function resolveExplorerTransactionHash(identifier, network) {
+  const normalizedIdentifier = transactionIdentifier(identifier);
+  const indexer = midnightIndexerUrl(network);
+  if (!normalizedIdentifier || !indexer) return null;
+  const cacheKey = `${network}:${normalizedIdentifier}`;
+  if (explorerTransactionHashCache.has(cacheKey)) return explorerTransactionHashCache.get(cacheKey);
+  if (explorerTransactionHashPromises.has(cacheKey)) return explorerTransactionHashPromises.get(cacheKey);
+  const promise = fetch(indexer, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      query: `query ExplorerTransactionByIdentifier($offset: TransactionOffset!) {
+        transactions(offset: $offset) { hash }
+      }`,
+      variables: { offset: { identifier: normalizedIdentifier } },
+    }),
+    signal: AbortSignal.timeout(10_000),
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(`Midnight Indexer returned HTTP ${response.status}`);
+    const body = await response.json();
+    const hash = body.data?.transactions?.[0]?.hash;
+    if (typeof hash !== 'string' || !/^[a-f\d]{64}$/iu.test(hash)) {
+      throw new Error('Midnight Indexer returned no transaction hash for the identifier');
+    }
+    const normalizedHash = hash.toLowerCase();
+    explorerTransactionHashCache.set(cacheKey, normalizedHash);
+    return normalizedHash;
+  }).finally(() => explorerTransactionHashPromises.delete(cacheKey));
+  explorerTransactionHashPromises.set(cacheKey, promise);
+  return promise;
+}
+
 function midnightExplorerUrl(kind, value, network) {
   const base = midnightExplorerBase(network);
   if (!base || !value) return '';
@@ -524,9 +571,36 @@ function midnightExplorerUrl(kind, value, network) {
 }
 function explorerLink(kind, value, network, display = value) {
   if (demo) return `<span class="hash" title="SIMULATED — no chain record">${escapeHtml(display || "—")}</span>`;
-  const url = midnightExplorerUrl(kind, value, network);
+  const identifier = kind === 'transaction' ? transactionIdentifier(value) : '';
+  const url = identifier ? `${midnightExplorerBase(network)}/transactions` : midnightExplorerUrl(kind, value, network);
   if (!url) return escapeHtml(display || '—');
-  return `<a class="explorer-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${t('openExplorer')}: ${value}`)}">${escapeHtml(display)} <span aria-hidden="true">↗</span></a>`;
+  const identifierAttributes = identifier
+    ? ` data-explorer-transaction-identifier="${escapeHtml(identifier)}" data-explorer-network="${escapeHtml(network)}"`
+    : '';
+  return `<a class="explorer-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"${identifierAttributes} aria-label="${escapeHtml(`${t('openExplorer')}: ${value}`)}">${escapeHtml(display)} <span aria-hidden="true">↗</span></a>`;
+}
+
+async function openExplorerIdentifierLink(link) {
+  const identifier = link.dataset.explorerTransactionIdentifier;
+  const network = link.dataset.explorerNetwork;
+  if (!identifier || !network) return;
+  const fallback = midnightExplorerUrl('transaction', '', network)
+    || `${midnightExplorerBase(network)}/transactions`;
+  const popup = window.open('about:blank', '_blank');
+  try {
+    const hash = await resolveExplorerTransactionHash(identifier, network);
+    if (!hash) throw new Error('Transaction hash is unavailable');
+    const url = midnightExplorerUrl('transaction', hash, network);
+    link.href = url;
+    link.removeAttribute('data-explorer-transaction-identifier');
+    link.removeAttribute('data-explorer-network');
+    if (popup) popup.location.replace(url);
+    else window.location.assign(url);
+  } catch (error) {
+    console.warn('explorer_transaction_identifier_resolution_failed', { identifier, error });
+    if (popup) popup.location.replace(fallback);
+    else window.location.assign(fallback);
+  }
 }
 function dateTime(value) {
   if (!value) return '—';
@@ -2449,6 +2523,14 @@ function clock() {
     dateStyle: 'short', timeStyle: 'medium', hour12: false,
   }).format(new Date());
 }
+
+document.addEventListener('click', (event) => {
+  if (!(event.target instanceof Element)) return;
+  const link = event.target.closest('a[data-explorer-transaction-identifier]');
+  if (!link) return;
+  event.preventDefault();
+  void openExplorerIdentifierLink(link);
+});
 
 languageSelect.addEventListener('change', () => {
   selectedLanguage = languageSelect.value;

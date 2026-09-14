@@ -440,6 +440,12 @@ describe('Midnight Wallet shell', () => {
 
   it('links public chain evidence to the network-specific Midnight Explorer', () => {
     expect(script).toContain("return 'https://preprod.midnightexplorer.com'");
+    expect(script).toContain("return 'https://indexer.preprod.midnight.network/api/v4/graphql'");
+    expect(script).toContain('function transactionIdentifier(value)');
+    expect(script).toContain('transactions(offset: $offset) { hash }');
+    expect(script).toContain('offset: { identifier: normalizedIdentifier }');
+    expect(script).toContain('data-explorer-transaction-identifier');
+    expect(script).toContain('function openExplorerIdentifierLink(link)');
     expect(script).toContain("if (kind === 'transaction') return `${base}/transactions/${encoded}`");
     expect(script).toContain("if (kind === 'contract') return `${base}/contracts/${encoded}`");
     expect(script).toContain("if (kind === 'block' && /^\\d+$/u.test(String(value))) return `${base}/blocks/${encoded}`");
