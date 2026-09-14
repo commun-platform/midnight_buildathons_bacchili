@@ -1,5 +1,7 @@
 # 審査員向けQ&A
 
+最新版の成果物一覧・9月11日の検証結果・未完了項目は[最終成果物まとめ](final_delivery.md)を参照してください。`af90ad8`と496件の記載は9月5日までの基準記録です。
+
 [English](../../submission/judge_qa.md)
 
 ![審査で確認する、証明内容・非公開情報・非証明事項・現在確認できることの4論点](../assets/guides/judge-qa-map-ja.png)

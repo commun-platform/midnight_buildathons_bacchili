@@ -1,3 +1,6 @@
+import { demo, mountDemoBanner } from '../demo-mode.js';
+mountDemoBanner(demo);
+
 const state = { bootstrap: null, sources: [], runs: [], selectedRun: null, polling: null };
 const notice = document.querySelector('#notice');
 const projectSelect = document.querySelector('#project-select');
@@ -17,10 +20,11 @@ function short(value, length = 24) {
 
 function showNotice(message, kind = '') {
   notice.className = `notice ${kind}`.trim();
-  notice.querySelector('span:last-child').textContent = message;
+  notice.querySelector('span:last-child').textContent = `${demo ? 'DEMO · ' : ''}${message}`;
 }
 
 async function api(path, options = {}) {
+  if (demo) return demo.api(path, options);
   const method = String(options.method || 'GET').toUpperCase();
   const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
   if (mutation && !state.bootstrap?.csrfToken) {
@@ -100,7 +104,7 @@ function renderSources() {
 }
 
 function resultLabel(run) {
-  if (run.status === 'confirmed') return 'Recorded';
+  if (run.status === 'confirmed') return demo ? 'Simulated confirmation' : 'Recorded';
   if (run.status === 'action_required' || run.status === 'dead_lettered') return 'Action required';
   if (run.stage === 'sponsor_wallet_waiting') return 'Automatic retry scheduled';
   if (run.status === 'proof_queued' || run.status === 'proving' || run.status === 'proof_retry') return 'Proof pending';
@@ -154,7 +158,7 @@ function renderDetail(data) {
   section.classList.remove('hidden');
   document.querySelector('#detail-title').textContent = `${data.run.periodDate} · Daily proof evidence`;
   const badge = document.querySelector('#detail-status');
-  badge.textContent = stateLabel(data.run.status).toUpperCase();
+  badge.textContent = `${demo ? 'SIMULATED · ' : ''}${stateLabel(data.run.status).toUpperCase()}`;
   const currentIndex = Math.max(0, pipelineStages.findIndex(([, values]) => values.includes(data.run.status)));
   document.querySelector('#pipeline').innerHTML = pipelineStages.map(([label], index) => `<div class="${index < currentIndex || data.run.status === 'confirmed' ? 'done' : index === currentIndex ? 'current' : ''}">${index < currentIndex || data.run.status === 'confirmed' ? '✓ ' : index === currentIndex ? '● ' : '○ '}${escapeHtml(label)}</div>`).join('');
   const error = document.querySelector('#error-card');
@@ -172,11 +176,11 @@ function renderDetail(data) {
     <td><span class="state ${hour.thresholdResult === 'outside-threshold' ? 'failed' : hour.thresholdResult === 'within-threshold' ? 'confirmed' : ''}">${escapeHtml(stateLabel(hour.thresholdResult || 'pending'))}</span></td>
   </tr>`).join('');
   const proof = data.proof;
-  const explorer = proof?.transactionHash ? `https://preprod.midnightexplorer.com/transactions/${encodeURIComponent(proof.transactionHash)}` : '';
+  const explorer = !demo && proof?.transactionHash ? `https://preprod.midnightexplorer.com/transactions/${encodeURIComponent(proof.transactionHash)}` : '';
   document.querySelector('#proof-evidence').innerHTML = `
     <div class="evidence-item"><span>PROOF JOB</span><code>${escapeHtml(data.run.proofJobId)}</code></div>
     <div class="evidence-item"><span>ZKP GENERATED</span><code>${escapeHtml(proof?.proofGeneratedAt || 'Pending')}</code></div>
-    <div class="evidence-item"><span>TX HASH</span><code>${explorer ? `<a class="external" target="_blank" rel="noopener noreferrer" href="${escapeHtml(explorer)}">${escapeHtml(short(proof.transactionHash))} ↗</a>` : 'Pending'}</code></div>
+    <div class="evidence-item"><span>TX HASH</span><code>${explorer ? `<a class="external" target="_blank" rel="noopener noreferrer" href="${escapeHtml(explorer)}">${escapeHtml(short(proof.transactionHash))} ↗</a>` : demo && proof?.transactionHash ? `SIMULATED · ${escapeHtml(short(proof.transactionHash))}` : 'Pending'}</code></div>
     <div class="evidence-item"><span>PUBLIC VERIFICATION</span>${data.run.verificationUrl && data.run.status === 'confirmed' ? `<a class="external" href="${escapeHtml(data.run.verificationUrl)}">Open third-party verification →</a>` : '<code>Available after confirmation</code>'}</div>`;
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -196,7 +200,7 @@ function startPolling(sourceId, runId) {
   state.polling = window.setInterval(async () => {
     await loadSources(sourceId).catch(() => undefined);
     await loadDetail(sourceId, runId, true);
-  }, 5000);
+  }, demo ? 700 : 5000);
 }
 function stopPolling() { if (state.polling) window.clearInterval(state.polling); state.polling = null; }
 
@@ -220,7 +224,7 @@ document.querySelector('#source-form').addEventListener('submit', async (event) 
     const data = await api('/api/v1/managed-sources', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
-    event.currentTarget.elements.bearerToken.value = '';
+    document.querySelector('#source-form').elements.bearerToken.value = demo ? 'DEMO-NO-CREDENTIAL' : '';
     await loadSources(data.source.sourceId);
     showNotice('Source accepted. Track its on-chain registration under Processing history.', 'success');
   } catch (error) { showNotice(error.message, 'error'); } finally { button.disabled = false; }
@@ -249,6 +253,16 @@ document.querySelector('#refresh').addEventListener('click', async () => {
 });
 
 async function initialize() {
+  if (demo) {
+    document.querySelector('.network').textContent = 'LOCAL DEMO / 撮影用シミュレーション';
+    document.querySelector('.trust-label').textContent = 'Service Wallet authorization';
+    const explanation = document.createElement('p');
+    explanation.className = 'demo-explanation';
+    explanation.textContent = '撮影用データ / 計測元を登録し、日次取得・証明・送信の進行を確認します。';
+    document.querySelector('#source-form').before(explanation);
+    const endpoint = document.querySelector('[name="endpointUrl"]'); endpoint.value = 'https://demo.invalid/measurements'; endpoint.readOnly = true;
+    const credential = document.querySelector('[name="bearerToken"]'); credential.value = 'DEMO-NO-CREDENTIAL'; credential.readOnly = true;
+  }
   document.querySelector('#first-period-date').value = localDate(3);
   document.querySelector('#run-period-date').value = localDate(2);
   state.bootstrap = await api('/api/v1/managed-sources/bootstrap');

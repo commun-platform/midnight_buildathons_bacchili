@@ -2,8 +2,10 @@
 
 [English](../../submission/current_release_addendum.md)
 
-状態：2026-09-05 JSTまで確認済み
-実装基準Commit：`af90ad8`
+状態：2026-09-11に資料を更新。Live証拠は各項目の確認日を参照。
+旧実装基準Commit：`af90ad8`。現行作業ツリーは`fb28ade`＋未コミット差分。
+
+[最終成果物まとめ](final_delivery.md)に最新の525テスト、GUI修正、Container検査の環境制約を記載しています。
 
 完成済みの英語2分18秒動画と9枚Pitchは、Wave 1の製品価値を簡潔に伝える正本として維持します。本書は、
 撮影後に追加された技術・運用Evidenceをまとめ、動画のFlowと現行Repository／Preprodシステムを区別する
@@ -43,7 +45,20 @@ TX状態が一致することを再確認しました。Raw Sample、時間別Ex
   Read-only Toolだけを持ちます。公開Verification MCPはD1、R2、Queue、Container、Secret、Service
   Bindingを持たない別Workerで、`verify_attestation_transaction`だけを公開します。
 
-## 現行Sourceの検証
+## 9月7〜9日の実機運用追加記録
+
+日次自動送信は実装・実機導入済みです。Collectorとは別の5分タイマーが完了日を処理し、保存した同じ証明入力で再試行し、確定後はレシートで重複送信を防ぎます。次は[当時の実行記録](../../implementation/continuous_device_daily_attestation_execplan.md)に記録された公開証拠です。
+
+| 運用日（JST） | 実測件数 | 観測時間枠 | Block | 確定TX |
+| --- | ---: | ---: | ---: | --- |
+| 2026-09-05 | 1,439 | 24 | 2,446,724 | `832152cf417a9d6228720822144c006e7a2db2a17f7b3fbf9152a3a1c2bbfc93` |
+| 2026-09-06 | 1,439 | 24 | 2,446,764 | `26b7872adbecd1cf811fbb61b48f3177295c80bfddd3d8a5e51d95bd3ac97bb5` |
+
+当時の検証では両方がWITHIN／verified=trueで、Deviceレシートと公開Ledgerの識別子・日付境界・件数が一致し、再実行時の二重送信もありませんでした。1,439件を1,440件へ補完した主張ではありません。9月9日には[停止防止を追加](../../implementation/collector_stop_protection_execplan.md)し、直接停止の拒否中も同じCollectorプロセスで測定が進むことを確認しています。午前2時のSponsor処理開始は確定時刻の保証ではありません。
+
+これらは当時の確認記録です。9月11日にLive再検証や再配備を行ったものではなく、パートナー運用期間の信頼性や無停止を保証しません。
+
+## 9月5日までの基準Source検証
 
 - Compact Toolchain `0.31.1`で運用8回路すべてのCompileに成功。
 - 12 Workspaceと決定的な疑似対向Sourceにまたがる496 Testがすべて成功。
@@ -58,5 +73,5 @@ Local TestやWorker配備を、確定済みMidnight TXの代わりには扱い�
 
 Browser疑似計測元は審査員が最短で理解できるFlowであり、既存動画は引き続き有効です。Managed API、現場
 Device、System Operations、MCPは、同じOn-chain Proof Claimを再利用する追加のComposable Pathです。
-本番完成には、Partner運用期間の信頼性Evidence、組織／Role分離、現場の自律運用、Roadmapに示すWave 2
+本番完成には、Partner運用期間の信頼性Evidence、組織／Role分離、自動化済みの現場運用の長期検証、Roadmapに示すWave 2
 Controlが引き続き必要です。

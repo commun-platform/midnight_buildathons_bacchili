@@ -132,6 +132,7 @@ const allowedScripts = new Set([
   'device:benchmark',
   'device:wallet',
   'device:submit',
+  'device:daily-submit',
   'device:status',
   'edge:demo-seed',
   'edge:serve',

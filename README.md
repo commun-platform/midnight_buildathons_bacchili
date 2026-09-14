@@ -10,13 +10,18 @@
 
 ## Judge review
 
-The implementation baseline `af90ad8` compiles all 8 operational proof circuits and passes 496 automated tests, every configured type check and build, the API SCT, the 22-checkpoint GUI SCT, and the Cloudflare pre-deployment check. The current eight-circuit Contract was deployed to Midnight Preprod on 2026-09-03. A walletless Managed API day and an authenticated field-Device day each reached confirmed state through the consolidated Server Wallet, and the public Verification MCP independently resolved both transaction hashes without D1 or private inputs. Earlier dated transactions remain historical evidence for prior schemas and are not mixed with the current Contract claim.
+Start with the [September 11 final delivery summary](docs/submission/final_delivery.md) for the current source validation, available files, and remaining recording/publication work. The working tree based on `fb28ade` includes automatic completed-day Device submission, durable retries and receipts, collector recovery and stop protection, and a verification-page link in Sponsor receipts. The source and local packages are distinct from the dated deployment evidence.
+
+The eight-circuit Contract was deployed to Midnight Preprod on 2026-09-03. Managed API and authenticated Device records reached confirmation, and the September 7–8 field-operation record adds two automatically submitted days with 1,439 real measurements each. The [release addendum](docs/submission/current_release_addendum.md) preserves their evidence dates and the earlier `af90ad8` validation baseline.
 
 | Review artifact | Link |
 | --- | --- |
+| Final delivery and validation | [Current implementation, edition inventory, and review package](docs/submission/final_delivery.md) |
 | Submission copy | [Wave 1 submission](docs/submission/submission_copy.md) |
 | Editable slide deck | [English PPTX](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) — 9 slides synchronized with the 2:18 pitch |
 | Review slide deck | [English PDF](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) — 9 pages synchronized with the 2:18 pitch |
+| Cloudflare operations edition | [Added diagrams, decks, and narrated videos](docs/submission/cloudflare_operations_media.md) — September 10 field integration and scheduled Wallet operation, in English and Japanese |
+| Next GUI recording | [Prepared bilingual pitch, preview videos, and five-shot guide](docs/submission/new_gui_recording_handoff.md) — new GUI footage pending |
 | Claim-to-evidence map | [Evidence matrix](docs/submission/evidence_matrix.md) |
 | Current release supplement | [Post-capture implementation and Preprod evidence](docs/submission/current_release_addendum.md) |
 | Wave progress | [Wave 1 progress](docs/submission/wave1_progress.md) |
@@ -118,13 +123,13 @@ not require D1, a Wallet, or private proof input.
 ![Wave 1 architecture across Edge Device, Frontend, Backend, and Midnight](docs/assets/review/wave1-system-overview-en.png)
 
 This figure includes the supporting field-runtime boundary. The primary Wave 1 review path uses the
-Frontend as a simulated measurement source, then the trusted Backend and Midnight. Autonomous field
-operation and production separation of operator, verifier, and system-operator applications remain
-Wave 2 outcomes.
+Frontend as a simulated measurement source, then the trusted Backend and Midnight. Field reliability
+over a partner operating period and production separation of operator, verifier, and system-operator
+applications remain Wave 2 outcomes; daily Device submission and recovery timers are implemented.
 
 | Zone | Primary responsibility | Explicit boundary |
 | --- | --- | --- |
-| Edge Device | Sensor collection, local raw retention, private 24-hour aggregation, Device authentication, proof authorization, and transaction signing | Raw readings, hourly minimum / maximum values, proof input, and Device keys stay at the edge |
+| Edge Device | Sensor collection, local raw retention, private 24-hour aggregation, Device authentication, proof authorization, and transaction signing | Raw readings and Device keys stay local. Authorized hourly summaries and private proof inputs are sent to the trusted Backend; public viewers do not receive them. |
 | Frontend | User-authorized simulated measurement workflow and public third-party view | Keeps the simulated capture in browser-private state and exposes only redacted public evidence to the third-party view |
 | Backend | Authentication, API validation, D1 workflow state, bounded admission, proof generation, administration, managed attestation, and fee sponsorship | Trusted for proving requests in transit. Separate logical authorities constrain administration, Managed API authorization, and DUST-only sponsorship; the Sponsor role cannot alter or authorize a bound Device call. |
 | Midnight | Public threshold, target Device, commitment, and confirmed result | Holds the public record a third party checks; does not store raw sensor readings |
@@ -135,7 +140,7 @@ The detailed trust and data-flow model is in [System Architecture](docs/architec
 
 The operational Compact contract is `sensor-registry`. Its current daily entry point is `submitDailyAttestation`, not the retired selected-leaf `verifySensorValue` path. The contract loads the immutable public policy and Device-bound assignment registered before operation, checks the fixed private 24-slot input, and records the 24 verified hourly results plus a daily summary on Midnight. A user-controlled account or field transaction agent can authorize and bind the call without fees; Managed API mode derives a separate managed-attestor authority. The consolidated Server Wallet serializes those roles, adds DUST only to an eligible call, and submits it. The sponsorship role cannot produce a Device Contract Authority proof or alter the bound call.
 
-The browser includes a guided, user-authorized simulated measurement workflow, operator evidence, and the third-party public view. After a transaction hash is pasted, the public view locates the confirmed record and compares the UTC date, 24 hourly results, applied policy/validity, Device Commitment, transaction, block, and Contract Ledger state directly with the public Midnight Indexer. It does not rerun the Compact proof verifier locally; Midnight performed that verification when accepting the transaction.
+The browser includes a guided, user-authorized simulated measurement workflow, operator evidence, and the third-party public view. After a transaction hash is pasted, the public view locates the confirmed record and compares the operational date and its registered day boundary, 24 hourly results, applied policy/validity, Device Commitment, transaction, block, and Contract Ledger state directly with the public Midnight Indexer. It does not rerun the Compact proof verifier locally; Midnight performed that verification when accepting the transaction.
 
 ## Monorepo boundaries
 
@@ -149,7 +154,7 @@ backend/
     proof-gateway-worker/             Worker API, Queue consumers, storage adapters
     support-mcp-worker/               Access-protected customer-support MCP
     verification-mcp-worker/          public Midnight TX-verification MCP
-    sponsor-wallet-container/         dedicated fee-only Midnight Wallet runtime
+    sponsor-wallet-container/         consolidated Server Wallet; fee-only sponsorship role
     d1-schema/migrations/             persistent Backend schema history
     deployment/wrangler.jsonc         Worker, D1, R2, Queues, Containers, and assets
 edge-device/
@@ -199,7 +204,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-The expected review result is 8 compiled operational proof circuits, 496 passing automated tests, all configured type checks and builds, and a successful Cloudflare pre-deployment check. This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The expected review result is 8 compiled operational proof circuits, 525 passing automated tests (September 11 working tree), all configured type checks and builds, and a successful Cloudflare pre-deployment check. The current environment passed the source tests and type checks; the full Container image dry-run remains unverified because Docker Desktop WSL integration is unavailable. See the [validation record](docs/submission/final_delivery.md#validation). This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
 
 ## Current integration status
 
@@ -207,7 +212,7 @@ The expected review result is 8 compiled operational proof circuits, 496 passing
 - The walletless Managed API mode fetches a fixed completed operational day, validates and reduces it to 24 private slots, then reuses the same proof and public-verification model. It does not claim that the upstream API values are physically authentic.
 - The Access-protected operations console, redacted customer-operation audit trail, daily metrics, Japanese Discord incidents/receipts, and private Support MCP are implemented foundations. Wave 2 still owns partner-period validation, production role/tenant isolation, audited recovery controls, and long-running operational maturity.
 - The public Verification MCP has no operational database or runtime binding and exposes one TX-hash verification tool. Its decoded result comes from the public Midnight Indexer, not D1.
-- Operator action remains explicit: `device:submit` requests and polls its Proof Job, but the Wallet Agent is not a continuously running submission daemon.
+- The firmware's separate daily timer invokes the finite `device:daily-submit` operation for completed real-data days, retries queued or failed work, and stores a receipt after Midnight confirmation. The collector continues independently. Manual `device:submit` remains available for explicit input; see [continuous operation](docs/operations/device_firmware.md#continuous-operation-and-automatic-daily-records).
 - Implemented as development-only experiments: fixed 24/96/1,440-sample daily circuits, signed hourly evidence, and append-only outlier-reason hashes.
 - The third-party view and public MCP compare confirmed Midnight transaction and Contract state without D1 or private inputs. They do not independently execute the zero-knowledge-proof verifier; Midnight performed proof verification when it accepted the transaction.
 

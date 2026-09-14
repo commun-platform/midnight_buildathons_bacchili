@@ -1,5 +1,7 @@
 # BACCHIRI!━━Verifiable Measurement Layer
 
+For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+
 ## Customer value
 
 **Prove whether sensor values are within a registered threshold without showing those values to a third party.**
@@ -14,7 +16,7 @@ BACCHIRI!━━Verifiable Measurement Layer adds a verification layer that lets 
 
 | Not public | Public |
 | --- | --- |
-| Raw sensor values | UTC measurement date and `deviceCommitment` |
+| Raw sensor values | Operational date / registered day boundary and `deviceCommitment` |
 | Hourly minimum / maximum values | Threshold: bounds, unit, scale, version, and validity |
 | Proof nonce | 24 hourly WITHIN / OUTSIDE / NO DATA results and counts |
 | Device signing key and wallet information | Midnight transaction and block record |

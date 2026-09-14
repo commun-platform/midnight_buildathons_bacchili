@@ -1,5 +1,7 @@
 # Wave 1 提出文
 
+最新版の成果物一覧・9月11日の検証結果・未完了項目は[最終成果物まとめ](final_delivery.md)を参照してください。`af90ad8`と496件の記載は9月5日までの基準記録です。
+
 [English](../../submission/submission_copy.md)
 
 ## プロジェクト名

@@ -41,7 +41,7 @@ function writeSecretJson(file: string, value: unknown): void {
   fs.renameSync(temporary, file);
 }
 
-export function getOrCreateWalletCredentials(network: NetworkId): WalletCredentials {
+export function getOrCreateWalletCredentials(network: NetworkId, allowCreate = true): WalletCredentials {
   const existing = readJson<WalletFile>(walletPath(network));
   if (existing?.version === 1 && seedPattern.test(existing.seed)) {
     if (existing.mnemonic) {
@@ -51,6 +51,10 @@ export function getOrCreateWalletCredentials(network: NetworkId): WalletCredenti
       }
     }
     return { seed: existing.seed, created: false };
+  }
+
+  if (existing || !allowCreate) {
+    throw new Error('Device transaction credentials are missing or invalid; initialize and back up the identity explicitly');
   }
 
   const mnemonic = generateMnemonic(wordlist, 256);

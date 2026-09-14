@@ -1,0 +1,25 @@
+{
+  "id": "closing",
+  "kind": "cards",
+  "layout": "closing",
+  "voice": "ja-JP-NanamiNeural",
+  "enVoice": "en-US-EmmaMultilingualNeural",
+  "en": {
+    "kicker": "BACCHIRI!",
+    "title": "BACCHIRI!",
+    "reading": "VERIFIABLE MEASUREMENT",
+    "slogan": "Trust in data.\nProof for everyone.",
+    "thanks": "Thank you.",
+    "takeaway": "Trust in data. Proof for everyone.",
+    "narration": "Bacchiri. Trust in data. Proof for everyone. Thank you."
+  },
+  "ja": {
+    "kicker": "BACCHIRI!",
+    "title": "BACCHIRI!",
+    "reading": "バッチリ",
+    "slogan": "データに信頼を。\n検証を、誰にでも。",
+    "thanks": "ありがとう。",
+    "takeaway": "データに信頼を。検証を、誰にでも。",
+    "narration": "バッチリ。データに信頼を。検証を、誰にでも。ありがとう。"
+  }
+}

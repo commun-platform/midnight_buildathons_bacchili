@@ -1,10 +1,14 @@
 # 最終GUI Demo Script
 
+次回の撮影には、[新GUI向けの日英ピッチと5場面の撮影手順](new_gui_recording_handoff.md)を使用してください。現行のボタン名、約3分の仮編集、時刻指定運用での受付と確定の別撮りに対応しています。以下は8月の録画記録です。
+
 [English](../../submission/demo_script.md)
 
 状態: 最終GUIを使った英語デモ動画を作成済み
 実時間: 2分18秒
 出力: `bacchiri-demo-pitch-en.mp4`。必要な場合だけ日本語版を別途制作
+
+9月10日追加：[Cloudflare運用説明追加版](cloudflare_operations_media.md)では、毎時の集計送信、午前2時の処理開始、Walletの間欠運転を説明するimagegen図とナレーションを、最後の証明範囲の説明前へ挿入しました。以下の2分18秒の構成は元の録画記録として保持します。
 
 ## 録画時の不変条件
 

@@ -146,7 +146,7 @@ Event、Health Snapshot、配送完了済み通知のオンライン保持期間
 
 Discord通知は日本語で配信し、冒頭に管理者判断として`対応不要`、`要監視`、`対応必要`のいずれかを表示します。各通知には原因、推奨対応、該当するCloudflare Containers、Queues、Observability画面への直接リンクを含めます。復旧通知は`対応不要`です。
 
-Proof Jobが初めて`submitted`または`confirmed`になった時は、Sponsor Wallet利用Receiptを1件だけ発行します。Discord Embedには、取得可能な場合の仮名Wallet Fingerprint、Project、Device、対象日、Proof Job、Transaction HashとBlock、実DUST手数料、配送時点のWallet Phase、同期Lag、実DUST残高、推定残り送信回数を含めます。有効なPreprod Transaction HashはMidnight Explorerへ直接リンクします。Wallet Address、Authorization、署名済みTransaction Byte、Private測定値、秘密値は含めません。
+Proof Jobが初めて`submitted`または`confirmed`になった時は、Sponsor Wallet利用Receiptを1件だけ発行します。Discord Embedには、取得可能な場合の仮名Wallet Fingerprint、Project、Device、対象日、Proof Job、Transaction HashとBlock、実DUST手数料、配送時点のWallet Phase、同期Lag、実DUST残高、推定残り送信回数を含めます。すべてのReceiptに、公開検証ポータルの`/#/verify/<proof-job-id>`へ移動する`Verify URL`を添付します。Transaction Hashが未確定でもリンクを利用できます。ポータルの公開OriginはWorkerデプロイManifestの`PUBLIC_VERIFICATION_PORTAL_URL`で設定します。有効なPreprod Transaction HashはMidnight Explorerへも直接リンクします。Wallet Address、Authorization、署名済みTransaction Byte、Private測定値、秘密値は含めません。
 
 `DISCORD_WEBHOOK_URL`は、設定CommandだけがGit管理外のRoot `.env`から読み、Cloudflare Worker Secretとして登録します。
 

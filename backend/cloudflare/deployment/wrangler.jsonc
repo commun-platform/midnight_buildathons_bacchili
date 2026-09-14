@@ -5,6 +5,7 @@
   "compatibility_date": "2026-08-29",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
+    "PUBLIC_VERIFICATION_PORTAL_URL": "https://midnight-proof-gateway.commun-official.workers.dev",
     "CLOUDFLARE_ACCESS_TEAM_DOMAIN": "https://morning-unit-c72e.cloudflareaccess.com",
     "CLOUDFLARE_ACCESS_AUDIENCE": "1e64d80f43ed648a2e7c0bfb059c737f76f27ab311cb786d84ab793d296460f9",
     "OPERATIONS_ALERT_LOW_DUST_TRANSACTIONS": "1",

@@ -8,7 +8,7 @@ This package contains only the Edge Device device runtime. It is produced on a d
 
 - temperature collector and loopback health endpoint;
 - device-only ECDSA P-256 identity and short-lived Cloudflare API sessions;
-- operator-invoked transaction-identity CLI for an already-deployed `sensor-registry` contract;
+- operational transaction-identity CLI and a timer for daily records on an already-deployed `sensor-registry` contract;
 - development-built Compact runtime artifacts with integrity manifests;
 - `installer.sh`, the systemd installer, and persistent diagnostic logging.
 
@@ -43,7 +43,7 @@ only packages that provide commands that are actually missing, then repeats the 
 Optional diagnostic inputs such as `iw`, `vcgencmd`, and Docker do not block installation. A failed
 preflight reports all missing commands before project state is changed.
 
-The installer verifies the release and contract-artifact manifests, copies the release to `releases/<version>-<manifest-hash>/`, and installs only production dependencies for the device-auth, collector, and device-wallet workspaces. It changes `current` only after those checks and device tests pass; the former target becomes `previous`. It creates a P-256 Device Identity only when all identity files are absent, preserves and validates a complete existing identity, and fails closed on a partial identity. It creates a systemd service only for the collector; wallet use remains an explicit CLI. It does not compile Compact, generate proving keys, run Docker, deploy a contract, initialize a wallet, or install development tooling.
+The installer verifies the release and contract-artifact manifests, copies the release to `releases/<version>-<manifest-hash>/`, and installs only production dependencies for the device-auth, collector, and device-wallet workspaces. It changes `current` only after those checks and device tests pass; the former target becomes `previous`. It creates a P-256 Device Identity only when all identity files are absent, preserves and validates a complete existing identity, and fails closed on a partial identity. It installs separate systemd services for collection and finite daily submission, with recovery and retry timers. It does not compile Compact, generate proving keys, run Docker, deploy a contract, initialize a wallet, or install development tooling.
 
 Transaction-state commands use an owner-only process lock below `device-wallet/`. A second
 transaction, submission, or benchmark command fails before opening state. A stale lock left by an
@@ -92,6 +92,72 @@ sudo systemctl status measurement-edge-agent
 curl http://127.0.0.1:8788/health
 sudo journalctl -u measurement-edge-agent -f
 ```
+
+## Continuous operation and automatic daily records
+
+Normal installation enables `measurement-edge-agent.timer`, which checks every minute that the
+collector service is running. An active collector is left running. The service also restarts after
+an unexpected exit. The collector and recovery timer reject direct `systemctl stop` and `restart`
+requests through `RefuseManualStop=yes`; use the maintenance target below for an intentional stop.
+`--no-start` enables units without starting new processes and preserves an existing
+collector. On an enrolled Device, start normal operation with:
+
+```bash
+sudo systemctl start measurement-edge-agent.service measurement-edge-agent.timer measurement-edge-agent-daily.timer
+```
+
+`measurement-edge-agent-daily.timer` runs a separate finite `device:daily-submit` command every
+five minutes. After an operational day has ended and a five-minute final-write grace period has
+passed, it reads the real local NDJSON measurements across UTC file boundaries and prepares the
+registered 24-hour minimum/maximum attestation. The authenticated Assignment determines the local
+day boundary and valid dates. Missing hours remain STOPPED. No synthetic readings fill an outage.
+The command requires hardware mode and the already enrolled Device transaction identity.
+
+The exact private preparation is durably retained with mode `0600` in
+`device-wallet/daily-attestations/<scope>/<date>.prepared.json` before requesting a Proof Job.
+Raw values and private extrema are not printed or sent to the public API. Each retry checks that
+its source still matches, retains the random nonce, and resumes the existing Proof Job and pending
+transaction. A queued job returns promptly; later timer runs follow the Sponsor's existing admission
+schedule. A receipt `<date>.receipt.json` is saved only after Midnight indexer confirmation, and
+subsequent runs skip confirmed dates. Up to seven unconfirmed days are processed per invocation.
+Collection continues independently during remote failures or proving. A partial first day is
+eligible only if its whole period lies inside the authenticated Assignment validity interval.
+
+```bash
+sudo systemctl list-timers 'measurement-edge-agent*'
+sudo journalctl -u measurement-edge-agent-daily.service -n 30 --no-pager
+cd ~/.midnight/midnight-cloudflare-demo/current
+npm run device:daily-submit -- --max-days 7
+```
+
+An intentional maintenance stop uses the dedicated target, which waits for both timers and both
+services to stop. It is not enabled at boot. Normal starts automatically leave this target:
+
+```bash
+sudo systemctl start measurement-edge-agent-maintenance.target
+# After maintenance:
+sudo systemctl start measurement-edge-agent.service measurement-edge-agent.timer measurement-edge-agent-daily.timer
+```
+
+For maintenance that must survive a reboot, disable both timers and the collector service with
+`systemctl disable` after stopping them, then enable them again before resuming. Upgrades install
+and test dependencies before briefly pausing services to activate the verified release. Rollback
+also pauses daily work before switching the release; an older release without daily-submission
+support is skipped by the daily service's file-existence condition. Use the updated installer for
+upgrades and rollback of guarded units. Older installers issue `restart`, which is refused even
+when the protected service is already inactive; entering maintenance alone does not make them
+compatible. A Device receiving only the systemd protection update still has its previous installer
+inside the immutable runtime archive. Use a newly packaged firmware installer with stop-guard
+support for its next upgrade or rollback.
+
+Completed proofs, demonstrations, and monitoring tasks must leave continuous collection running.
+Before starting continuous operation, remove or update obsolete one-day test automations that
+include collector shutdown. The September 8, 2026 outage was caused by the old
+`edge-24h-zkp-tx` test heartbeat explicitly stopping both the collector and its recovery timer;
+that heartbeat has been deleted. The stop guard rejects that obsolete command without stopping
+measurements. It does not prevent a privileged operator from intentionally entering maintenance
+or changing unit configuration. Check `lastMeasurementAt` advances and the hourly count grows;
+HTTP 200 and `ok: true` alone do not establish fresh measurements.
 
 Initialize the separate Device transaction identity explicitly as the same non-root service user
 selected by the installer when attestation is required. Recovery material is written to an owner-only

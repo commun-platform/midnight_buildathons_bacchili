@@ -31,6 +31,8 @@ RELEASES_DIR=""
 INSTALLED_RELEASE=""
 CURRENT_LINK=""
 PREVIOUS_LINK=""
+RESUME_COLLECTOR=0
+RESUME_TIMERS=()
 
 log() {
   printf '[device-installer] %s\n' "$*"
@@ -114,6 +116,12 @@ run_user() {
 }
 
 cleanup() {
+  if (( RESUME_COLLECTOR )); then
+    run_root systemctl start "${SERVICE_NAME}.service" || true
+  fi
+  for timer in "${RESUME_TIMERS[@]}"; do
+    run_root systemctl start "${timer}" || true
+  done
   if [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]]; then
     rm -rf -- "${TMP_DIR}"
   fi
@@ -678,13 +686,14 @@ rollback_release() {
   fi
 
   run_user "${NODE_BIN}" "${previous_release}/scripts/verify-device-release.mjs" "${previous_release}"
+  stop_existing_service
   current_tmp="${CURRENT_LINK}.tmp-$$"
   previous_tmp="${PREVIOUS_LINK}.tmp-$$"
   run_user ln -s "${previous_release}" "${current_tmp}"
   run_user ln -s "${current_release}" "${previous_tmp}"
   run_user mv -Tf "${previous_tmp}" "${PREVIOUS_LINK}"
   run_user mv -Tf "${current_tmp}" "${CURRENT_LINK}"
-  run_root systemctl restart "${SERVICE_NAME}.service"
+  run_root systemctl start "${SERVICE_NAME}.service"
   verify_service
   log "Rolled back to ${previous_release}"
 }
@@ -701,12 +710,44 @@ stop_existing_service() {
     fi
     return
   fi
+  if systemctl cat "${SERVICE_NAME}-maintenance.target" >/dev/null 2>&1; then
+    # Remember running units before the target stops them indirectly. Direct stop
+    # and restart requests are refused by the continuous-collection drop-ins.
+    for timer in "${SERVICE_NAME}.timer" "${SERVICE_NAME}-daily.timer"; do
+      if systemctl is-active --quiet "${timer}"; then
+        RESUME_TIMERS+=("${timer}")
+      fi
+    done
+    if run_root systemctl is-active --quiet "${SERVICE_NAME}.service"; then
+      RESUME_COLLECTOR=1
+    fi
+    if [[ "${SERVICE_NAME}" == "${DEFAULT_SERVICE_NAME}" ]] \
+      && systemctl cat "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1; then
+      log "Disabling legacy ${LEGACY_SERVICE_NAME}.service"
+      run_root systemctl disable --now "${LEGACY_SERVICE_NAME}.service"
+    fi
+    log "Pausing device collection and daily work through the maintenance target"
+    run_root systemctl start "${SERVICE_NAME}-maintenance.target"
+    return
+  fi
+  # An inactive collector is normally reactivated by its timer. Pause automation
+  # before switching a release so no process starts against a changing symlink.
+  for timer in "${SERVICE_NAME}.timer" "${SERVICE_NAME}-daily.timer"; do
+    if systemctl is-active --quiet "${timer}"; then
+      RESUME_TIMERS+=("${timer}")
+      run_root systemctl stop "${timer}"
+    fi
+  done
+  if systemctl is-active --quiet "${SERVICE_NAME}-daily.service"; then
+    run_root systemctl stop "${SERVICE_NAME}-daily.service"
+  fi
   if [[ "${SERVICE_NAME}" == "${DEFAULT_SERVICE_NAME}" ]] \
     && systemctl cat "${LEGACY_SERVICE_NAME}.service" >/dev/null 2>&1; then
     log "Disabling legacy ${LEGACY_SERVICE_NAME}.service"
     run_root systemctl disable --now "${LEGACY_SERVICE_NAME}.service"
   fi
   if run_root systemctl is-active --quiet "${SERVICE_NAME}.service"; then
+    RESUME_COLLECTOR=1
     log "Stopping the existing device service before replacing dependencies"
     run_root systemctl stop "${SERVICE_NAME}.service"
   fi
@@ -774,7 +815,7 @@ Environment=PATH=${path_value}
 Environment=MIDNIGHT_HOST_ROLE=device
 EnvironmentFile=${env_path}
 ExecStart=${exec_path} --import=tsx ${cli_path}
-Restart=on-failure
+Restart=always
 RestartSec=10s
 TimeoutStopSec=30s
 StandardOutput=journal
@@ -816,8 +857,123 @@ EOF
   run_root systemctl daemon-reload
   run_root systemctl enable "${SERVICE_NAME}.service"
   if (( START_SERVICE )); then
-    run_root systemctl restart "${SERVICE_NAME}.service"
+    run_root systemctl start "${SERVICE_NAME}.service"
   fi
+}
+
+install_systemd_automation() {
+  local repo_path env_path home_path path_value exec_path device_home_path
+  repo_path="$(systemd_escape_value "${CURRENT_LINK}")"
+  env_path="$(systemd_escape_value "${ENV_FILE}")"
+  home_path="$(systemd_escape_value "${USER_HOME}")"
+  path_value="$(systemd_escape_value "${RUNTIME_PATH}")"
+  exec_path="$(systemd_escape_value "${NODE_BIN}")"
+  device_home_path="$(systemd_escape_value "${DEVICE_HOME}")"
+  cat > "${TMP_DIR}/${SERVICE_NAME}.timer" <<EOF
+[Unit]
+Description=Keep the temperature collector running outside maintenance
+
+[Timer]
+OnBootSec=30s
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+Unit=${SERVICE_NAME}.service
+
+[Install]
+WantedBy=timers.target
+EOF
+  cat > "${TMP_DIR}/${SERVICE_NAME}-daily.service" <<EOF
+[Unit]
+Description=Record completed sensor days on Midnight
+Wants=network-online.target
+After=network-online.target time-sync.target
+ConditionPathExists=${repo_path}/edge-device/midnight-transaction-agent/src/daily-submission.ts
+
+[Service]
+Type=oneshot
+User=${SERVICE_USER}
+Group=${USER_GROUP}
+WorkingDirectory=${repo_path}
+Environment=HOME=${home_path}
+Environment=PATH=${path_value}
+Environment=MIDNIGHT_HOST_ROLE=device
+EnvironmentFile=${env_path}
+ExecStart=${exec_path} --import=tsx ${repo_path}/edge-device/midnight-transaction-agent/src/cli.ts daily-submit
+TimeoutStartSec=45min
+TimeoutStopSec=30s
+MemoryHigh=768M
+MemoryMax=1G
+CPUQuota=100%
+TasksMax=128
+Nice=10
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=measurement-daily-attestation
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=full
+ReadWritePaths=${device_home_path}
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+EOF
+  cat > "${TMP_DIR}/${SERVICE_NAME}-daily.timer" <<EOF
+[Unit]
+Description=Retry completed daily sensor records every five minutes
+
+[Timer]
+OnBootSec=2min
+OnCalendar=*-*-* *:0/5:00
+Persistent=true
+AccuracySec=5s
+Unit=${SERVICE_NAME}-daily.service
+
+[Install]
+WantedBy=timers.target
+EOF
+  if (( ! DRY_RUN )); then
+    systemd-analyze verify "${TMP_DIR}/${SERVICE_NAME}.timer" \
+      "${TMP_DIR}/${SERVICE_NAME}-daily.service" "${TMP_DIR}/${SERVICE_NAME}-daily.timer"
+  fi
+  for unit in "${SERVICE_NAME}.timer" "${SERVICE_NAME}-daily.service" "${SERVICE_NAME}-daily.timer"; do
+    run_root install -m 0644 "${TMP_DIR}/${unit}" "/etc/systemd/system/${unit}"
+  done
+  run_root systemctl daemon-reload
+  run_root systemctl enable "${SERVICE_NAME}.timer" "${SERVICE_NAME}-daily.timer"
+  if (( START_SERVICE )); then
+    run_root systemctl start "${SERVICE_NAME}.timer" "${SERVICE_NAME}-daily.timer"
+  fi
+}
+
+install_collector_stop_guard() {
+  local unit
+  for unit in service timer; do
+    cat > "${TMP_DIR}/${SERVICE_NAME}.${unit}-stop-guard.conf" <<EOF
+[Unit]
+RefuseManualStop=yes
+EOF
+  done
+  cat > "${TMP_DIR}/${SERVICE_NAME}-maintenance.target" <<EOF
+[Unit]
+Description=Pause device collection and daily work for explicit maintenance
+Conflicts=${SERVICE_NAME}.service ${SERVICE_NAME}.timer ${SERVICE_NAME}-daily.service ${SERVICE_NAME}-daily.timer
+After=${SERVICE_NAME}.service ${SERVICE_NAME}.timer ${SERVICE_NAME}-daily.service ${SERVICE_NAME}-daily.timer
+EOF
+  if (( ! DRY_RUN )); then
+    systemd-analyze verify "${TMP_DIR}/${SERVICE_NAME}-maintenance.target"
+  fi
+  for unit in service timer; do
+    run_root install -d -m 0755 "/etc/systemd/system/${SERVICE_NAME}.${unit}.d"
+    run_root install -m 0644 "${TMP_DIR}/${SERVICE_NAME}.${unit}-stop-guard.conf" \
+      "/etc/systemd/system/${SERVICE_NAME}.${unit}.d/20-continuous-collection.conf"
+  done
+  run_root install -m 0644 "${TMP_DIR}/${SERVICE_NAME}-maintenance.target" \
+    "/etc/systemd/system/${SERVICE_NAME}-maintenance.target"
+  run_root systemctl daemon-reload
 }
 
 install_persistent_forensics() {
@@ -886,8 +1042,12 @@ main() {
   activate_release "${INSTALLED_RELEASE}"
   ensure_device_identity
   install_systemd_service
+  install_systemd_automation
+  install_collector_stop_guard
   install_persistent_forensics
   verify_service
+  RESUME_COLLECTOR=0
+  RESUME_TIMERS=()
 
   log "Device runtime installation complete"
   log "Runtime: ${CURRENT_LINK}"

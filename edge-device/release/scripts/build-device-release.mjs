@@ -161,6 +161,7 @@ function writeRuntimePackageFiles() {
       'device:benchmark': 'npm run benchmark -w @midnight-demo/device-wallet-agent --',
       'device:wallet': 'npm run wallet -w @midnight-demo/device-wallet-agent --',
       'device:submit': 'npm run submit -w @midnight-demo/device-wallet-agent --',
+      'device:daily-submit': 'npm run daily-submit -w @midnight-demo/device-wallet-agent --',
       'device:status': 'npm run status -w @midnight-demo/device-wallet-agent --',
       'edge:demo-seed': 'npm run demo-seed -w @midnight-demo/edge-agent --',
       'edge:serve': 'npm run serve -w @midnight-demo/edge-agent --',
@@ -188,7 +189,7 @@ function writeRuntimePackageFiles() {
       'edge-device/midnight-transaction-agent/package.json',
       [
         'authority:generate', 'authority:show', 'benchmark', 'configure',
-        'wallet', 'submit', 'status', 'test',
+        'wallet', 'submit', 'daily-submit', 'status', 'test',
       ],
     ),
   );

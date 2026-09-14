@@ -1,3 +1,6 @@
+import { demo, mountDemoBanner } from '../demo-mode.js';
+mountDemoBanner(demo);
+
 const state = {
   overview: null,
   metrics: null,
@@ -67,6 +70,7 @@ function apiHeaders() {
 }
 
 async function api(path) {
+  if (demo) return demo.api(path);
   const response = await fetch(path, {
     headers: apiHeaders(),
     credentials: 'same-origin',
@@ -215,7 +219,7 @@ function renderWallet(data) {
   const wallet = component.state;
   const operatingWindow = component.operatingWindow;
   const panel = $('#wallet-panel');
-  const source = component.source === 'live-probe'
+  const source = demo ? 'SIMULATED' : component.source === 'live-probe'
     ? 'LIVE'
     : component.source === 'last-known-state'
       ? 'LAST KNOWN'

@@ -1,5 +1,9 @@
 # BACCHIRI!━━Verifiable Measurement Layer — Wave 1 Submission Package
 
+See [the current GUI local demo and pitch](local_demo.md) for the completed English (5:07) and Japanese (5:25) Wallet use-case presentations, including GUI close-ups, progressive diagrams, and the narrated brand/slogan/thanks closing. It is separate from historical real-chain evidence.
+
+For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+
 [日本語版](../ja/submission/README.md)
 
 This directory contains the judging package. The final English demo pitch was produced from the
@@ -18,6 +22,8 @@ story, current source, and current Preprod deployment are not conflated.
 | One-page brief | Ready | [one_page_brief.md](one_page_brief.md) |
 | Editable English deck | Ready; slide 7 includes current Sponsor Wallet architecture and bounded cost evidence | [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) |
 | Review English deck | Ready; independent nine-page review export | [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) |
+| Cloudflare operations edition | Two imagegen figures, added slides, and narrated scenes in English and Japanese | [Deliverables and production notes](cloudflare_operations_media.md) |
+| New GUI recording handoff | Bilingual 11-slide pitch, approximately three-minute narrated previews, and five-shot recording guide; new footage pending | [Preview files and capture instructions](new_gui_recording_handoff.md) |
 | Japanese Technical Reference | Reference only; slide 8 includes the localized current architecture and bounded cost evidence | [PPTX](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) · [PDF](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
 | Final GUI demo script | Used for the English pitch | [demo_script.md](demo_script.md) |
 | Final GUI capture pack | Ready; six reviewed stills plus submission thumbnail | [captures/](captures/) |
@@ -38,7 +44,7 @@ current-system architecture to show the on-demand server-side Sponsor Wallet as 
 it pays DUST only, does not receive Device Authority or private raw values, checkpoints before
 stopping, and avoids idle Container time. The cost callout is an explicitly bounded planning estimate.
 
-The deck intentionally does not add operations-console or MCP detail after the video was frozen.
+The baseline deck does not add operations-console or MCP detail after the video was frozen. The separate September 10 [Cloudflare operations edition](cloudflare_operations_media.md) adds the field collection schedule and Wallet lifecycle to sibling deck and video files.
 Those implemented extensions and their current eight-circuit Preprod records are documented in the
 [current release evidence addendum](current_release_addendum.md) and [evidence matrix](evidence_matrix.md).
 
@@ -56,4 +62,4 @@ as the final submission pitch.
 3. Publish the completed English video, deck, PDF, and thumbnail.
 4. Fill every placeholder URL in the submission copy and top README.
 5. Confirm public visibility, Apache 2.0, the midnightntwrk topic, and the logged-in AKINDO form.
-6. Produce a Japanese nine-slide pitch synchronized with the video only if the review audience requires it; the localized Technical Reference slide is already available.
+6. If replacing the historical pitch with the new GUI edition, complete and review G01–G05 before using final filenames. The bilingual preview already exists; the Japanese Technical Reference is a different edition.

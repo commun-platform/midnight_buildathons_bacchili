@@ -1,0 +1,9 @@
+#demo-banner { position: sticky; top: 0; z-index: 10000; background: #102a43; color: #fff; border-bottom: 3px solid #43e3b0; padding: 10px 22px; font: 13px/1.5 system-ui, sans-serif; box-shadow: 0 3px 12px #102a4326; }
+#demo-banner > div { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+#demo-banner strong { color: #43e3b0; letter-spacing: .08em; font-size: 14px; }
+#demo-banner nav { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 5px; }
+#demo-banner a { color: #fff; font-size: 12px; text-decoration: underline; }
+#demo-banner button { margin-left: auto; padding: 2px 10px; min-height: 25px; border: 1px solid #7892a6; background: transparent; color: #fff; box-shadow: none; font: inherit; cursor: pointer; }
+html[data-demo] { scroll-padding-top: 100px; }
+html[data-demo] .network-label, html[data-demo] .network { color: #0b6256; }
+.demo-explanation { border: 1px solid #007f73; padding: 12px; background: #ecfffa; color: #124f49; }

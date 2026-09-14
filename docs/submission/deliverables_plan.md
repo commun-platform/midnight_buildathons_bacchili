@@ -1,5 +1,7 @@
 # Wave 1 Judging Deliverables Plan
 
+For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+
 [日本語版](../ja/submission/deliverables_plan.md)
 
 This is the production brief for the Wave 1 submission. The central message is:

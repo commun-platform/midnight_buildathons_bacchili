@@ -1,3 +1,8 @@
+import { demo, demoPreferences, mountDemoBanner } from './demo-mode.js';
+
+const localStorage = demo ? demoPreferences(window.localStorage) : window.localStorage;
+mountDemoBanner(demo);
+
 const main = document.querySelector('#main-content');
 const breadcrumb = document.querySelector('#breadcrumb');
 const headerStatus = document.querySelector('#header-status');
@@ -366,6 +371,38 @@ const copy = {
   },
 };
 
+if (demo) {
+  Object.assign(copy.en, {
+    subtitle: 'USE-CASE DEMO / FILMING SIMULATION',
+    deviceIntro: 'Authenticate with your Wallet, approve registration, and follow the daily proof workflow.',
+    deviceId: 'Device ID (demo account)', wallet: 'Wallet',
+    online: 'LOCAL DEMO', checked: 'SIMULATED', confirmed: 'Simulated confirmation complete',
+    statusConfirmed: 'Simulated confirmation', thresholdPublic: 'PUBLIC OUTPUT / SIMULATION',
+    chainCheckInProgress: 'Checking public evidence', chainCheckInProgressDetail: 'Matching the transaction, operational day and registered Policy.',
+    chainCheckComplete: 'Public verification complete (simulation)', chainCheckCompleteDetail: 'The public result matches the selected day and registered Policy.',
+    progressComplete: 'Device registration and Policy assignment complete (simulation)',
+    proofProgressConfirmed: 'Transaction confirmed (simulation)', processingAlwaysOn: 'Processing the selected day',
+    submissionQueued: 'PROOF AND TRANSACTION QUEUED', submissionQueuedDetail: 'Track the proof job here. The use case proceeds to Wallet approval when the Device transaction is ready.',
+    policyCreating: 'Registering the immutable threshold Policy.', policyCreated: 'Policy registered — refresh Policies',
+    syncCompleteDetail: 'The latest workflow records are displayed.', source: 'Measurement source',
+    privacy: 'FILMING SIMULATION / Public conditions and results; private measurement values',
+  });
+  Object.assign(copy.ja, {
+    subtitle: 'Wallet連携ユースケース / 撮影用シミュレーション',
+    deviceIntro: 'Walletで認証し、登録内容を承認して、日次証明の処理へ進みます。',
+    deviceId: 'デバイスID（撮影用アカウント）', wallet: 'ウォレット',
+    online: 'LOCAL DEMO', checked: 'デモ確認', confirmed: '記録完了（撮影用）', statusConfirmed: '記録済み（撮影用）', thresholdPublic: '公開条件と判定',
+    chainCheckInProgress: '公開証拠を照合中', chainCheckInProgressDetail: '取引、運用日、登録済みPolicyを照合します。',
+    chainCheckComplete: '公開検証が完了（撮影用）', chainCheckCompleteDetail: '対象日と登録済みPolicyに対する公開判定が一致しました。',
+    progressComplete: 'Device登録とPolicy割当が完了（撮影用）', proofProgressConfirmed: '取引を記録済み（撮影用）',
+    processingAlwaysOn: '選択した運用日の処理を実行', submissionQueued: 'ZKP生成・TX発行処理待ち',
+    submissionQueuedDetail: 'このページでJobの進行を確認します。デバイスTXの準備後は、Walletで内容を確認して承認する流れです。',
+    policyCreating: '変更不能なしきい値Policyを登録しています。', policyCreated: 'Policy登録完了 — しきい値を再読み込み',
+    syncCompleteDetail: '最新の処理記録を表示しています。', source: '計測データの取得元',
+    privacy: '撮影用シミュレーション / 条件と判定を公開し、元の測定値を保護',
+  });
+}
+
 let selectedLanguage = localStorage.getItem('vsp-language') || 'auto';
 let deviceModule;
 let deviceLoadPromise;
@@ -486,6 +523,7 @@ function midnightExplorerUrl(kind, value, network) {
   return '';
 }
 function explorerLink(kind, value, network, display = value) {
+  if (demo) return `<span class="hash" title="SIMULATED — no chain record">${escapeHtml(display || "—")}</span>`;
   const url = midnightExplorerUrl(kind, value, network);
   if (!url) return escapeHtml(display || '—');
   return `<a class="explorer-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${t('openExplorer')}: ${value}`)}">${escapeHtml(display)} <span aria-hidden="true">↗</span></a>`;
@@ -669,6 +707,7 @@ function refreshDeviceDynamicComponents({ includeHistory = true } = {}) {
     '#device-policy-operation-state',
     '#device-policy-list',
     '#device-policy-add',
+    '#device-policy-refresh',
     '#device-stepper-content',
     '#device-policy',
     '#device-threshold-display',
@@ -697,6 +736,7 @@ function refreshDeviceDynamicComponents({ includeHistory = true } = {}) {
 }
 
 async function fetchJson(url) {
+  if (demo) return demo.api(url);
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
@@ -1194,7 +1234,7 @@ function deviceView() {
             <input id="device-period-date" type="date" min="${escapeHtml(generationBounds.minimum)}" max="${escapeHtml(generationBounds.maximum)}" value="${escapeHtml(deviceState.generationDate)}">
             <button type="button" class="compact-button" id="device-date-next" ${deviceState.generationDate >= generationBounds.maximum ? 'disabled' : ''}>${escapeHtml(t('nextSensorDay'))}</button>
           </div><small>${escapeHtml(t('generationRange'))}: ${escapeHtml(generationBounds.minimum)} – ${escapeHtml(generationBounds.maximum)}</small></div>
-          <label>${escapeHtml(t('generationMode'))}<select id="device-generation-mode"><option value="with-outliers" ${deviceState.generationMode === 'with-outliers' ? 'selected' : ''}>${escapeHtml(t('withOutliers'))}</option><option value="within-threshold" ${deviceState.generationMode === 'within-threshold' ? 'selected' : ''}>${escapeHtml(t('withinThreshold'))}</option></select></label>
+          <label>${escapeHtml(t('generationMode'))}<select id="device-generation-mode"><option value="with-outliers" ${deviceState.generationMode === 'with-outliers' ? 'selected' : ''}>${escapeHtml(t('withOutliers'))}</option><option value="within-threshold" ${deviceState.generationMode === 'within-threshold' ? 'selected' : ''}>${escapeHtml(t('withinThreshold'))}</option>${demo ? `<option value="missing-hours" ${deviceState.generationMode === 'missing-hours' ? 'selected' : ''}>18 hours + 6 NO DATA / 6時間欠測</option><option value="no-data" ${deviceState.generationMode === 'no-data' ? 'selected' : ''}>24 hours NO DATA / 全時間欠測</option>` : ''}</select></label>
         </div>
         ${workflowButton('device-capture', t('autoGenerate'), Boolean(deviceState.measurement), deviceState.busy || !registrationAccepted)}
         <dl class="device-summary" id="device-sensor-summary"><dt>${escapeHtml(t('period'))}</dt><dd>${escapeHtml(deviceState.measurement?.periodDate || '—')}</dd>
@@ -1311,6 +1351,11 @@ async function refreshProjectPolicies(flow, { showProgress = false } = {}) {
 }
 
 async function loadDeviceModule() {
+  if (demo) {
+    deviceModule = { browserDeviceFlow: demo.flow };
+    deviceState.configuration ||= await demo.flow.loadConfiguration();
+    return demo.flow;
+  }
   if (!deviceLoadPromise) {
     deviceLoadPromise = (async () => {
       deviceModule ||= await import('/device-flow.js?v=20260904-1');
@@ -1329,11 +1374,13 @@ async function loadDeviceModule() {
 }
 
 async function verifyPublicProofOnMidnight(data) {
+  if (demo) return demo.verifyPublicAttestation(data);
   deviceModule ||= await import('/device-flow.js?v=20260904-1');
   return deviceModule.verifyPublicAttestation(data);
 }
 
 async function loadPublicProofFromMidnight(transactionHash) {
+  if (demo) return demo.loadPublicAttestationByTransactionHash(transactionHash);
   deviceModule ||= await import('/device-flow.js?v=20260904-1');
   return deviceModule.loadPublicAttestationByTransactionHash(transactionHash);
 }
@@ -1503,6 +1550,7 @@ async function requestProofAndRecord(flow, periodDate) {
   flow.queueDeferredSubmission(periodDate);
   deviceState.submissionQueued = true;
   deviceState.message = `${t('submissionQueued')} — ${processingStartText()}`;
+  if (demo) setTimeout(() => void refreshQueuedProofWorkflow(), 600);
 }
 
 async function refreshQueuedProofWorkflow() {
@@ -2312,6 +2360,15 @@ reloadButton.addEventListener('click', () => {
 window.addEventListener('hashchange', () => {
   if (normalizeRuntimeRoute()) void render();
 });
+if (demo) {
+  const flow = await loadDeviceModule();
+  deviceState.wallet = await flow.connectWallet();
+  deviceState.projects = deviceState.wallet.projects;
+  deviceState.projectId = deviceState.wallet.selectedProjectId;
+  deviceState.deviceId = deviceState.wallet.deviceId;
+  deviceState.configuration = deviceState.wallet.configuration;
+  await restoreActiveProject(flow);
+}
 const routeReady = normalizeRuntimeRoute();
 applyLanguage();
 clock();

@@ -13,6 +13,7 @@ import type { DeviceOperationConfiguration } from '@midnight-demo/device-auth';
 
 import {
   deviceContractAddress,
+  deviceHome,
   deviceWalletHome,
   isLocalProofServer,
   repoRoot,
@@ -29,6 +30,7 @@ import {
 import { getOrCreateWalletCredentials } from './state.js';
 import { prepareSyntheticBenchmarkDataset } from './synthetic.js';
 import {
+  canResumeProofJob,
   canResumePendingDeviceTransaction,
   pendingDeviceTransactionRequired,
   reportProofTransaction,
@@ -36,10 +38,12 @@ import {
   sponsorProofTransaction,
   waitForProofJob,
 } from './proof-job.js';
+import { submitCompletedDays } from './daily-submission.js';
 import { loadPendingDeviceTransaction } from './pending-transaction.js';
 import {
   contractAuthorityEnrollmentFile,
   generateContractAuthority,
+  loadContractAuthority,
   loadContractAuthorityEnrollment,
 } from './authority.js';
 import {
@@ -54,6 +58,7 @@ type Command =
   | 'authority-show'
   | 'benchmark'
   | 'configure'
+  | 'daily-submit'
   | 'wallet'
   | 'submit'
   | 'status';
@@ -149,7 +154,19 @@ async function runSubmit(
   network: NetworkConfig,
   dataset: PreparedDailyExtremaAttestation,
   configuration?: DeviceOperationConfiguration,
-): Promise<SubmissionResult> {
+): Promise<SubmissionResult>;
+async function runSubmit(
+  network: NetworkConfig,
+  dataset: PreparedDailyExtremaAttestation,
+  configuration: DeviceOperationConfiguration,
+  deferIfQueued: true,
+): Promise<SubmissionResult | null>;
+async function runSubmit(
+  network: NetworkConfig,
+  dataset: PreparedDailyExtremaAttestation,
+  configuration?: DeviceOperationConfiguration,
+  deferIfQueued = false,
+): Promise<SubmissionResult | null> {
   const policy: ThresholdPolicyDescriptor = configuration ? {
     policyId: configuration.policy.id,
     mode: configuration.policy.mode,
@@ -182,6 +199,8 @@ async function runSubmit(
       `Proof Job ${requested.proofJobId}: ${requested.job.status}; available after ${requested.job.availableAfter}\n`,
     );
   }
+  if (deferIfQueued && requested.job && !canResumeProofJob(requested.job)
+    && !['dead_lettered', 'reproof_required'].includes(requested.job.status)) return null;
   const admission = await waitForProofJob(network, requested);
   if (admission.proofJobId) {
     process.stdout.write(`Proof Job ${admission.proofJobId} admitted for private input.\n`);
@@ -396,7 +415,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command && ['benchmark', 'submit', 'status'].includes(command)) {
+  if (command === 'daily-submit' && flag('contract')) {
+    throw new Error('Daily submission requires authenticated Device operation configuration');
+  }
+  if (command && ['benchmark', 'submit', 'daily-submit', 'status'].includes(command)) {
     if (flag('contract') && !isLocalProofServer(bootstrapNetwork.proofServer)) {
       throw new Error('--contract is allowed only with a loopback Proof Server');
     }
@@ -454,13 +476,33 @@ async function main(): Promise<void> {
       process.stdout.write(`${JSON.stringify(transactions, null, 2)}\n`);
     });
   }
+  if (command === 'daily-submit') {
+    const configuration = operationConfiguration;
+    if (!configuration) throw new Error('Daily submission requires authenticated configuration');
+    if ((process.env.SENSOR_MODE?.trim() || 'hardware') !== 'hardware') {
+      throw new Error('Automatic daily submission requires hardware sensor mode');
+    }
+    return withWalletExecutionLock(command, async () => {
+      getOrCreateWalletCredentials(network.networkId, false);
+      loadContractAuthority(network.networkId);
+      const report = await submitCompletedDays({
+        configuration,
+        dataDirectory: path.resolve(process.env.EDGE_DATA_DIRECTORY?.trim() || path.join(deviceHome, 'data')),
+        stateDirectory: path.join(deviceWalletHome, 'daily-attestations'),
+        maxDays: numericFlag('max-days', 7),
+        submit: (dataset) => runSubmit(network, dataset, configuration, true),
+      });
+      process.stdout.write(`${JSON.stringify({ event: 'daily_submission_completed', ...report })}\n`);
+      if (report.failed.length > 0) process.exitCode = 1;
+    });
+  }
   if (command === 'status') {
     const address = deviceContractAddress(flag('contract'));
     process.stdout.write(`${JSON.stringify(await queryRegistry(network, address), null, 2)}\n`);
     return;
   }
   process.stdout.write(
-    'Usage: cli.ts <authority-generate|authority-show|benchmark|configure|wallet|submit|status> [options]\n',
+    'Usage: cli.ts <authority-generate|authority-show|benchmark|configure|daily-submit|wallet|submit|status> [options]\n',
   );
 }
 

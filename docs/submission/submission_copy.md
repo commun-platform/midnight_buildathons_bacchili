@@ -1,5 +1,7 @@
 # Wave 1 Submission Copy
 
+For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+
 [日本語版](../ja/submission/submission_copy.md)
 
 ## Project title
@@ -60,7 +62,7 @@ An authenticated field Device independently produced a WITHIN record in [block 2
 
 ## Exact proof claim
 
-A confirmed daily proof establishes the public result for each UTC hour from its private minimum/maximum values and registered threshold. It also binds the day, counts, Device Commitment, policy/validity, and proof-input commitment.
+A confirmed daily proof establishes the public result for each of the 24 hours in the registered operational day from its private minimum/maximum values and registered threshold. It also binds the day, counts, Device Commitment, policy/validity, and proof-input commitment.
 
 It does not prove physical sensor integrity, continuous sampling, that no readings were withheld, or correct source-side aggregation. The managed backend and proof service are trusted in the current architecture. The browser queries the public Midnight Indexer directly and compares the confirmed Contract state, but it does not rerun the ZK verifier locally or expose the witness.
 

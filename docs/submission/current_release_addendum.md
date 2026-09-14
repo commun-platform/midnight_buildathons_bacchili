@@ -2,8 +2,10 @@
 
 [日本語版](../ja/submission/current_release_addendum.md)
 
-Status: verified through 2026-09-05 JST
-Implementation baseline: `af90ad8`
+Status: documentation reconciled on 2026-09-11; live evidence retains the dates below.
+Historical implementation baseline: `af90ad8`. Current working tree: `fb28ade` plus uncommitted changes.
+
+The [final delivery summary](final_delivery.md) records 525 current source tests, the GUI correction, and the environment limitation affecting Container validation.
 
 The final 2:18 English video and nine-slide pitch remain the concise Wave 1 product story. This
 addendum records engineering and operational evidence completed after that capture so reviewers can
@@ -47,7 +49,20 @@ transaction state. Raw samples, hourly extrema, and proof nonces were not return
   with no D1, R2, Queue, Container, Secret, or Service Binding and exposes only
   `verify_attestation_transaction`.
 
-## Current source validation
+## September 7–9 field-operation evidence
+
+Automatic daily submission is implemented and was installed on the field Device. A separate five-minute timer processes completed days, retries the same persisted private preparation, and skips days with confirmed receipts. The [dated execution record](../implementation/continuous_device_daily_attestation_execplan.md) contains this public evidence:
+
+| Operational day (JST) | Real measurements | Observed slots | Block | Confirmed transaction |
+| --- | ---: | ---: | ---: | --- |
+| 2026-09-05 | 1,439 | 24 | 2,446,724 | `832152cf417a9d6228720822144c006e7a2db2a17f7b3fbf9152a3a1c2bbfc93` |
+| 2026-09-06 | 1,439 | 24 | 2,446,764 | `26b7872adbecd1cf811fbb61b48f3177295c80bfddd3d8a5e51d95bd3ac97bb5` |
+
+The recorded checks found WITHIN / verified=true, matched receipt identity, day boundary and counts to the ledger, and observed a repeat with no duplicate submission. The actual 1,439 measurements were not filled to 1,440. The September 9 [stop-protection record](../implementation/collector_stop_protection_execplan.md) confirms that direct stops were rejected while the same collector process continued measuring. The Sponsor's 02:00 JST schedule is processing start, not a confirmation deadline.
+
+These are earlier observations. No live recheck or redeployment was performed on September 11, and these records do not establish partner-period reliability or uninterrupted operation.
+
+## Source validation recorded through September 5
 
 - Compact toolchain `0.31.1` compiled all 8 operational circuits.
 - 496 automated tests passed across 12 workspaces and the deterministic mock source.
@@ -65,5 +80,5 @@ substitute for a confirmed Midnight transaction.
 The browser-based simulated source remains the shortest judge walkthrough and the video therefore
 remains valid. Managed API intake, field Device intake, system operations, and MCP access are
 additional composable paths around the same on-chain proof claim. Production completion still
-requires partner-period reliability evidence, organization/role isolation, autonomous field
+requires partner-period reliability evidence, organization/role isolation, long-term validation of the automated field
 operation, and the Wave 2 controls listed in the roadmap.

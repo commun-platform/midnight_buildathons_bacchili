@@ -1,0 +1,57 @@
+{
+  "edition": "cloudflare-operations-20260910",
+  "en": {
+    "title": "BACCHIRI — Cloudflare operations",
+    "voice": "en-US-EmmaMultilingualNeural",
+    "sourceDeck": "docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en",
+    "insertAfterSlide": 7,
+    "expectedSlides": 9,
+    "sourceVideo": ".demo-output/submission-en-20260831/bacchiri-demo-pitch-en.mp4",
+    "insertAtSeconds": 118.666667,
+    "historicalLabel": "Recorded GUI demo · August 2026",
+    "currentLabel": "Field integration · September 2026 · Architecture illustration",
+    "scenes": [
+      {
+        "id": "cloudflare-architecture",
+        "image": "docs/assets/review/cloudflare-operations-architecture-en.png",
+        "title": "Continuous measurement. Scheduled proof.",
+        "narration": "The field device measures every minute and uploads hourly summaries. Cloudflare Workers handles authentication and the portal. D1 stores workflow state; Queues and Cron coordinate retries. Separate containers generate proofs and sponsor transactions. R2 saves encrypted wallet state. At two A.M. Japan time, processing starts for the previous day. Midnight records the public results. Private proof inputs reach the trusted backend; public viewers cannot see sensor values.",
+        "notes": "Deployed field integration on Midnight Preprod, checked September 10, 2026. Raw readings and Device authority keys stay on the Device. Hourly summaries and anomaly transitions reach the trusted backend; private proof inputs reach the Proof Server. Device authorization occurs locally before sponsorship. The Sponsor role adds DUST fees and submits the authorized transaction. A 02:00 JST cutoff is a processing start, not guaranteed completion. Missing measurements remain NO DATA. The original GUI footage is historical review evidence, not a live capture of this field workflow."
+      },
+      {
+        "id": "wallet-lifecycle",
+        "image": "docs/assets/review/cloudflare-wallet-lifecycle-en.png",
+        "title": "The Wallet runs only when work is due",
+        "narration": "The Worker checks the time and eligible jobs every minute, while the wallet can stay stopped. When work is due, it starts the wallet, restores its encrypted checkpoint, and waits for synchronization. Ready jobs run one at a time. The Sponsor adds DUST to the device-authorized transaction. After eligible work finishes, the wallet saves its state and stops. Sensor collection continues throughout. Jobs arriving after the daily cutoff wait for the next run.",
+        "notes": "Current operating mode: scheduled, daily start 02:00 JST. Worker Cron reads D1 before calling the Container, so a one-minute JOB check does not imply one-minute Wallet restarts. Synchronization and spendable fee state gate Wallet work. D1 leases serialize operations and protect overlapping Cron calls. Eligible work follows dependency state and oldest runnable acceptance time. Graceful shutdown persists an encrypted R2 checkpoint; restart cooldown is 60 seconds. The Device daily-submit service independently retries completed days every five minutes. Proof generation runs in the separate Proof Server Container."
+      }
+    ]
+  },
+  "ja": {
+    "title": "BACCHIRI — Cloudflareでの運用",
+    "voice": "ja-JP-NanamiNeural",
+    "sourceDeck": "docs/ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja",
+    "insertAfterSlide": 8,
+    "expectedSlides": 12,
+    "sourceVideo": ".demo-output/submission-ja-20260830/bacchiri-demo-ja.mp4",
+    "insertAtSeconds": null,
+    "historicalLabel": "録画済みデモ・2026年8月",
+    "currentLabel": "実機連携・2026年9月・構成説明図",
+    "scenes": [
+      {
+        "id": "cloudflare-architecture",
+        "image": "docs/ja/assets/review/cloudflare-operations-architecture-ja.png",
+        "title": "測定は連続。証明は日次。",
+        "narration": "実機は1分ごとに測定し、1時間ごとの集計を送信します。クラウドフレアのワーカーズが認証と画面を担当。ディーワンでジョブを管理し、キューとクロンで処理を調整します。証明生成とウォレットは別々のコンテナで動き、アールツーにウォレットの状態を暗号化保存します。毎日午前2時に前日分の処理を開始。非公開の証明入力は信頼するバックエンドへ渡りますが、公開されるのは判定結果です。",
+        "notes": "2026年9月10日に確認したMidnight Preprodの実機連携。生の測定列とDeviceの認可鍵は実機に残る。時間集計と異常の状態変化は信頼するBackendへ送信し、非公開の証明入力はProof Serverへ渡す。Deviceが取引内容を認可し、Server WalletのSponsor RoleがDUST手数料を追加して送信する。午前2時は処理開始時刻であり、確定時刻を保証しない。欠測を補完したように見せない。既存のGUI録画は過去の審査用デモであり、この実機運用のライブ映像ではない。"
+      },
+      {
+        "id": "wallet-lifecycle",
+        "image": "docs/ja/assets/review/cloudflare-wallet-lifecycle-ja.png",
+        "title": "ウォレットは、処理が必要な時間だけ起動",
+        "narration": "毎分動くワーカーが、時刻と対象ジョブを先に確認します。対象があればウォレットを起動し、暗号化した保存状態を復元して同期を待ちます。準備が整ったら、実行できるジョブを1件ずつ処理。実機が認可した取引にダストの手数料を加え、ミッドナイトへ送信します。対象の処理が終われば、状態を保存して停止。その間もセンサーの収集は続きます。締切後の新しいジョブは、次回の処理を待ちます。",
+        "notes": "現在はscheduledモード、日本時間02:00の開始。毎分のJOB確認だけではWallet Containerを起動しない。同期と手数料を使える状態を確認してからWallet処理を進める。D1のLeaseで重複起動時も状態変更を直列化し、依存関係と受付時刻を基準に処理する。安全停止時に最新状態を暗号化してR2へ保存し、停止後60秒は再起動を待つ。実機側のdaily-submitは独立した5分タイマーで完了日の処理を再試行する。証明生成は別のProof Server Containerが担当する。"
+      }
+    ]
+  }
+}

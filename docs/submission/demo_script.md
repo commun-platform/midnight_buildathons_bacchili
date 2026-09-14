@@ -1,10 +1,14 @@
 # Final GUI Demo Script
 
+For the next GUI recording, use the [new bilingual pitch and five-shot handoff](new_gui_recording_handoff.md). It has current button labels, a prepared approximately three-minute edit, and separate request/confirmation captures for scheduled processing. The historical storyboard below describes the August recording.
+
 [日本語版](../ja/submission/demo_script.md)
 
 Status: English demo pitch produced from the final GUI
 Actual duration: 2:18
 Output: `bacchiri-demo-pitch-en.mp4`; produce a separate Japanese version only if needed
+
+September 10 addition: the separate [Cloudflare operations edition](cloudflare_operations_media.md) inserts two narrated imagegen scenes before the closing claim boundary, explaining hourly uploads, 02:00 JST processing, and the Wallet lifecycle. The original 2:18 recording and storyboard below remain the historical baseline.
 
 ## Recording invariants
 

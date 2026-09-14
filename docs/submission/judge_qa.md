@@ -1,5 +1,7 @@
 # Judge Q&A
 
+For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+
 [日本語版](../ja/submission/judge_qa.md)
 
 ![Four questions that organize the judge review: proof, privacy, non-claims, and current verification](../assets/guides/judge-qa-map-en.png)
@@ -45,7 +47,7 @@ It keeps the proof input format unchanged whether readings arrive hourly, every 
 
 ## How are hours without readings shown?
 
-Each UTC hour is published as WITHIN, OUTSIDE, or NO DATA. The hourly extrema remain private.
+Each hour of the registered operational day is published as WITHIN, OUTSIDE, or NO DATA. The hourly extrema remain private.
 
 ## What has been verified so far?
 

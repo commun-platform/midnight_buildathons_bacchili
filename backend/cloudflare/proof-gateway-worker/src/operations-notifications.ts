@@ -739,6 +739,7 @@ export async function notificationEmbed(
   database: SqlDatabase,
   notification: NotificationRow,
   health: SponsorWalletHealth | null,
+  verificationPortalUrl: string,
 ): Promise<DiscordEmbed> {
   const timestamp = new Date().toISOString();
   if (notification.kind === 'sponsor-receipt') {
@@ -763,6 +764,10 @@ export async function notificationEmbed(
         }
       : null);
     const transactionUrl = explorerUrl(receipt.attest_tx_hash);
+    const verificationUrl = new URL(
+      `/#/verify/${encodeURIComponent(receipt.id)}`,
+      verificationPortalUrl,
+    ).href;
     return {
       title: 'Sponsor Wallet 利用レシート',
       description: '認可済みのデバイス取引にDUST手数料を付与し、Midnightへ送信しました。',
@@ -771,7 +776,8 @@ export async function notificationEmbed(
       timestamp: receipt.sponsorship_completed_at ?? timestamp,
       fields: [
         discordField('判断', '対応不要'),
-        discordField('推奨対応', '通常の送信完了通知です。必要な場合のみExplorerでTransactionを照合してください。', false),
+        discordField('推奨対応', '通常の送信完了通知です。Verify URLから検証結果を確認できます。', false),
+        discordField('Verify URL', `[検証ページを開く](${verificationUrl})`, false),
         discordField('プロジェクト', short(receipt.project_id, 28)),
         discordField('デバイス', short(receipt.device_id, 28)),
         discordField('Wallet識別子', short(receipt.wallet_key_sha256, 20)),
@@ -893,7 +899,12 @@ export async function dispatchOperationsNotifications(
     );
     if (claimed < 1) continue;
     try {
-      await sendDiscord(env, await notificationEmbed(database, notification, health));
+      await sendDiscord(env, await notificationEmbed(
+        database,
+        notification,
+        health,
+        env.PUBLIC_VERIFICATION_PORTAL_URL,
+      ));
       const sentAt = new Date().toISOString();
       const statements = [{
         sql: `UPDATE operations_notification_outbox

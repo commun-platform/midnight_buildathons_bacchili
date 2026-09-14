@@ -10,6 +10,7 @@
     "benchmark": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts benchmark",
     "build": "tsc -p tsconfig.json",
     "configure": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts configure",
+    "daily-submit": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts daily-submit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "wallet": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts wallet",
     "submit": "node ../release/scripts/require-device-host.mjs && tsx src/cli.ts submit",

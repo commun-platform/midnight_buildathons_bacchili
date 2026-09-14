@@ -10,13 +10,18 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-実装基準Commit `af90ad8`は、8つの運用回路のCompile、496件の自動Test、全構成領域のType Check／Build、API SCT、22 CheckpointのGUI SCT、Cloudflare配備前検査に成功しています。現行8回路Contractは2026-09-03にMidnight Preprodへ配備済みです。Wallet不要のManaged API経路と認証済み現場Device経路の両方が、統合Server Walletを通じて確定済みTXへ到達し、公開Verification MCPからD1やPrivate Inputを使わず再検証できました。以前の日付付きTXは旧Schemaの履歴Evidenceとして分離します。
+[9月11日の最終成果物まとめ](submission/final_delivery.md)に、現行実装の検証結果、成果物の一覧、録画・公開待ちの項目をまとめています。`fb28ade`を基点とする作業ツリーには、実機の完了日自動送信、再試行と確定レシートの永続保存、収集の復旧タイマーと停止防止、Sponsor通知から検証画面へのリンクが含まれます。ローカルのソース・配布物と、日付付きの配備証拠は区別しています。
+
+8回路のContractは2026-09-03にMidnight Preprodへ配備され、Managed API・実機の両経路で確定済み取引が記録されています。9月7〜8日の実機運用記録には、実測1,439件ずつの日次自動送信2件もあります。[現行リリース補足](submission/current_release_addendum.md)に、それぞれの確認日と旧基準`af90ad8`の検証記録を残しています。
 
 | 審査成果物 | 文書 |
 | --- | --- |
+| 最終成果物と検証結果 | [現行実装・版別一覧・レビュー用パッケージ](submission/final_delivery.md) |
 | 提出文 | [Wave 1提出文](submission/submission_copy.md) |
 | 日本語Technical Reference | [PPTX](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) — 提出対象は最終英語9枚 |
 | Cloudflare UC別技術補足 | [説明](architecture/cloudflare_use_cases.md)・[PPTX](submission/deck/cloudflare-use-cases-ja.pptx)・[PDF](submission/deck/cloudflare-use-cases-ja.pdf) |
+| Cloudflare運用説明追加版 | [図・デック・ナレーション付き動画](submission/cloudflare_operations_media.md) — 9月10日の実機連携とWallet間欠運転を日英で説明 |
+| 新GUIの録画準備 | [日英のピッチ・仮編集動画・5場面の撮影手順](submission/new_gui_recording_handoff.md) — 新しい操作映像を受け取る段階 |
 | 主張と検証証拠 | [証拠対応表](submission/evidence_matrix.md) |
 | 現行リリース補足 | [撮影後の実装・Preprod Evidence](submission/current_release_addendum.md) |
 | Wave進捗 | [Wave 1進捗](submission/wave1_progress.md) |
@@ -113,12 +118,11 @@ TX hashを貼り付けると、Browserは成功したMidnight TX、そのBlock�
 ![エッジデバイス、画面、バックエンド、Midnightの責任分担](assets/review/wave1-system-overview-ja.png)
 
 この図には補助的な現場Runtime境界も含みます。Wave 1の主要審査経路は、Frontendを疑似計測元として使い、
-Trusted Backend、Midnightへ進みます。現場の自律運用と、運用者・第三者・System Operator Applicationの本番分離は
-Wave 2の到達点です。
+Trusted Backend、Midnightへ進みます。日次自動送信と復旧タイマーは実装済みです。パートナーの運用期間を通じた信頼性と、運用者・第三者・System Operator Applicationの本番分離はWave 2の到達点です。
 
 | 領域 | 主な責任 | 明確な境界 |
 | --- | --- | --- |
-| エッジデバイス | センサー収集、生の測定値の保持、24時間分の集計、API認証、Midnight取引への署名 | 生の測定値、時間別の最小値・最大値、証明用入力、署名鍵を内部に保持 |
+| エッジデバイス | センサー収集、生の測定値の保持、24時間分の集計、API認証、Midnight取引への署名 | 生の測定列とDevice鍵は内部に保持。認可済み時間集計と非公開の証明入力はtrusted Backendへ送信し、第三者には公開しない。 |
 | 画面 | User認可済み疑似計測Workflowと第三者Public View | 疑似CaptureをBrowser Private Stateに保持し、第三者ViewへはRedacted Public Evidenceだけを表示 |
 | バックエンド | 認証、API入力検査、処理状態保存、同時実行数制限、証明生成、管理、Managed Attestation、Fee Sponsorship | 証明生成中は非公開入力を扱う信頼対象。管理、Managed API認可、DUSTだけを付与するSponsorは別の論理Authorityで拘束し、Sponsor RoleはDevice Callを変更・代理認可できない。 |
 | Midnight | しきい値、対象デバイス、コミットメント、確定済み判定の記録 | 第三者が確認する公開記録を保持し、生のセンサー値は保存しない |
@@ -143,7 +147,7 @@ backend/
     proof-gateway-worker/             Worker API・Queue Consumer・Storage Adapter
     support-mcp-worker/               Access保護されたカスタマーサポートMCP
     verification-mcp-worker/          公開Midnight TX検証MCP
-    sponsor-wallet-container/         Fee専用Midnight Wallet Runtime
+    sponsor-wallet-container/         統合Server Wallet。Sponsor RoleはFee付与専用
     d1-schema/migrations/             Backend永続Schemaの履歴
     deployment/wrangler.jsonc         Worker・D1・R2・Queue・Container・Assets
 edge-device/
@@ -193,7 +197,7 @@ npm run contract:compile
 TMPDIR=/tmp npm run verify
 ```
 
-期待結果は、運用する8つの証明回路のコンパイル、496件の自動テスト、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用する8つの証明回路のコンパイル、525件の自動テスト（9月11日の作業ツリー）、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。今回の環境ではテストと型検査が成功し、Worker部分のdry-runも通過しました。Docker DesktopのWSL連携が利用できないため、Containerイメージを含む完全なdry-runは未検証です。[検証記録](submission/final_delivery.md#検証結果)を参照してください。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
 
 ## 現在の連携状況
 

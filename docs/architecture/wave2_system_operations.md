@@ -209,8 +209,11 @@ the relevant Cloudflare Containers, Queues, or Observability page. Recovery noti
 The first transition of a Proof Job to `submitted` or `confirmed` also creates one idempotent Sponsor
 receipt. Its Discord embed contains the pseudonymous Wallet fingerprint when available, Project,
 Device, measurement day, Proof Job, transaction hash and block, actual DUST fee, current Sponsor
-Wallet phase and synchronization lag, remaining DUST, and estimated transaction capacity. A valid
-Preprod transaction hash links directly to Midnight Explorer. It does not contain a Wallet address,
+Wallet phase and synchronization lag, remaining DUST, and estimated transaction capacity. Every
+receipt includes a `Verify URL` linking to `/#/verify/<proof-job-id>` on the public verification portal,
+including when the transaction hash is still pending. Set `PUBLIC_VERIFICATION_PORTAL_URL` in the
+Worker deployment manifest to the portal's public origin. A valid Preprod transaction hash also
+links directly to Midnight Explorer. It does not contain a Wallet address,
 authorization value, signed transaction bytes, private measurement, or secret.
 
 `DISCORD_WEBHOOK_URL` is read only by the configuration command from the ignored root `.env`, then

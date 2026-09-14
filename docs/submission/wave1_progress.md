@@ -1,5 +1,7 @@
 # Wave 1 Progress Record
 
+For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+
 [日本語版](../ja/submission/wave1_progress.md)
 
 Period covered: 2026-08-27 to 2026-09-05 JST
@@ -58,9 +60,9 @@ Indexer on 2026-09-05 without D1 or private inputs.
 
 - The Backend and Proof Server are trusted while handling private proof input.
 - The third-party view directly queries the public Midnight Indexer and compares transaction and Contract state; it does not rerun the ZK verifier locally.
-- The primary review flow uses a browser-based simulated measurement source; a field measurement system does not yet run the complete daily lifecycle autonomously.
+- The primary review flow uses a browser-based simulated measurement source; the field Device now implements automatic completed-day submission, but partner-period reliability remains unproven.
 - Operator and third-party views are combined for judging rather than separated by production roles and applications.
-- Daily submission requires explicit user action.
+- The browser demonstration uses explicit submission; the field Device now submits completed days with its own timer.
 - This proof alone does not guarantee physical sensor accuracy, continuous sampling, that no readings were withheld, or correct measurement-source aggregation.
 - The English demo video is complete; publishing its submission URL and producing an optional Japanese adaptation remain external tasks.
 

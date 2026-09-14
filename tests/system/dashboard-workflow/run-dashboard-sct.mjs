@@ -283,6 +283,7 @@ export const browserDeviceFlow = {
     return { project, projectCount: projectList.length, maximumProjects: 10, ...selected };
   },
   async loadProjectPolicies() {
+    window.__sctPolicyReloads = (window.__sctPolicyReloads || 0) + 1;
     await new Promise((resolve) => setTimeout(resolve, 800));
     if (state.policyOperation) {
       state.policyPolls += 1;
@@ -415,12 +416,28 @@ export const browserDeviceFlow = {
     return selectedDate === historicalPeriodDate ? historicalCapture : state.capture;
   },
   async loadDeviceHistory() { return history(); },
+  queueDeferredSubmission(selectedDate) {
+    if (selectedDate !== state.capture?.periodDate) throw new Error('Fixture day mismatch');
+    localStorage.setItem('sct-deferred-submission', selectedDate);
+    return { periodDate: selectedDate, submissionRequested: true };
+  },
+  async loadDeferredWorkflow() {
+    const date = localStorage.getItem('sct-deferred-submission');
+    if (!date || !state.capture || localStorage.getItem('sct-job-confirmed') === 'true') return null;
+    return { workflow: { periodDate: date, submissionRequested: true },
+      capture: state.capture, job: state.job || proofJob('ready_for_input') };
+  },
+  async refreshProofJob(id) {
+    if (id !== state.job?.proofJobId) throw new Error('Unknown fixture Proof Job');
+    return state.job;
+  },
   async loadSponsorQuota() {
     return { quotaDate: periodDate, dailyLimit: 20, used: state.job ? 1 : 0,
       remaining: state.job ? 19 : 20, resetAt: '2026-08-29T15:00:00.000Z',
       reservedProofJobIds: state.job ? [state.job.proofJobId] : [] };
   },
   async requestProof() {
+    window.__sctProofRequests = (window.__sctProofRequests || 0) + 1;
     state.job = proofJob('ready_for_input');
     localStorage.setItem('sct-job-requested', 'true');
     return state.job;
@@ -430,6 +447,7 @@ export const browserDeviceFlow = {
       'wallet-approval', 'requesting-sponsorship', 'transaction-sponsored',
       'submitting-transaction', 'confirmed']) onProgress?.(step);
     state.job = proofJob('confirmed');
+    localStorage.removeItem('sct-deferred-submission');
     localStorage.setItem('sct-job-confirmed', 'true');
     return {
       transactionId: 'gui-sct-attest-tx', transactionHash: '${'88'.repeat(32)}',
@@ -672,23 +690,29 @@ try {
   await waitFor(`document.querySelector('#device-policy-create-form')`);
   await evaluate(`
     window.__sctPolicyFormNode = document.querySelector('#device-policy-create-form');
-    document.querySelector('#device-policy-name').value = 'Draft must survive polling';
+    document.querySelector('#device-policy-name').value = 'Draft must survive reload';
     document.querySelector('#device-policy-minimum').value = '17.25';
     document.querySelector('#device-policy-maximum').value = '29.75';
     document.querySelector('#device-policy-minimum').focus();
   `);
+  const policyReloads = await evaluate('window.__sctPolicyReloads');
+  await sleep(5_500);
+  assert.equal(await evaluate('window.__sctPolicyReloads'), policyReloads);
+  await click('#device-policy-refresh');
+  await waitFor(`!document.querySelector('#device-policy-refresh').disabled`);
+  await click('#device-policy-refresh');
   await waitFor(`document.querySelector('.policy-management-window .data-state-loading')`, 12_000);
   assert.equal(await evaluate(`document.querySelector('.policy-management-window .data-state-loading')?.textContent.includes('LOADING')`), true);
   await pass('03-policy-loading-draft', 'Policy synchronization is visibly loading while the second Policy draft remains unchanged');
   await waitFor(`document.querySelector('.policy-management-window')?.textContent.includes('gui-sct-policy-create-tx')`);
-  assert.equal(await evaluate(`document.querySelector('#device-policy-name').value`), 'Draft must survive polling');
+  assert.equal(await evaluate(`document.querySelector('#device-policy-name').value`), 'Draft must survive reload');
   assert.equal(await evaluate(`document.querySelector('#device-policy-minimum').value`), '17.25');
   assert.equal(await evaluate(`document.querySelector('#device-policy-maximum').value`), '29.75');
   assert.equal(await evaluate(`window.__sctPolicyFormNode === document.querySelector('#device-policy-create-form')`), true);
   assert.equal(await evaluate(`document.activeElement === document.querySelector('#device-policy-minimum')`), true);
   await click('#device-policy-cancel');
   assert.equal(await evaluate(`document.querySelector('#device-policy').value`), 'policy-gui-sct-002');
-  await pass('03-policy-create-restore', 'Loading and empty states are distinct; Policy polling patches only status/list components and keeps the exact draft form DOM node');
+  await pass('03-policy-create-restore', 'Policy state changes only after explicit reload; loading and empty states are distinct and the exact draft form DOM node and focus survive');
 
   await click('#device-identity-create');
   await waitFor(`document.querySelector('#device-identity-create.completed-action')`);
@@ -699,8 +723,9 @@ try {
   assert.equal(await evaluate(`document.querySelector('#device-register').classList.contains('active-action')`), false);
   assert.equal(await evaluate(`document.querySelector('#device-register').textContent.includes('IN PROGRESS')`), false);
   assert.equal(await evaluate(`document.querySelector('#device-register').disabled`), true);
-  assert.equal(await evaluate(`document.querySelector('.device-stepper li.current .step-state')?.textContent === 'WAIT'`), true);
-  assert.equal(await evaluate(`document.querySelector('.device-stepper li.current .step-state')?.textContent.includes('NEXT ACTION')`), false);
+  assert.equal(await evaluate(`document.querySelectorAll('.device-stepper li.queued').length`), 2);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.device-stepper li.queued .step-state')].every((node) => node.textContent === 'QUEUED')`), true);
+  assert.equal(await evaluate(`document.querySelector('.device-stepper li.current strong')?.textContent.includes('Sensor')`), true);
   await pass('04-registration-job-accepted', 'Job ID is shown and the browser is released after acceptance');
 
   await waitFor(`document.querySelector('#device-register.completed-action')`, 10_000);
@@ -723,12 +748,12 @@ try {
   await click(`.device-day-select[data-period-date="2026-08-28"]`);
   await waitFor(`document.querySelector('.device-hourly-summary .daily-heading')?.textContent.includes('2026-08-28')`);
 
-  await click('#device-proof-request');
   await waitFor(`document.querySelector('#device-submit') && !document.querySelector('#device-submit').disabled`);
-  await pass('08-proof-job-ready', 'The admitted Proof Job enables the ZKP/TX action');
+  await pass('08-proof-action-ready', 'The completed day enables the unified ZKP/TX action, which requests its Proof Job when clicked');
 
   await click('#device-submit');
   await waitFor(`document.querySelector('.transaction-id')?.textContent.includes('gui-sct-attest-tx') && document.querySelector('.sponsor-transaction')?.textContent.includes('gui-sct-sponsor-tx')`);
+  assert.equal(await evaluate('window.__sctProofRequests'), 1);
   assert.match(await evaluate(`document.querySelector('.sponsor-transaction').textContent`), /gui-sct-sponsor-tx/u);
   await pass('09-sponsored-transaction', 'Sponsored Midnight transaction evidence is visible');
 

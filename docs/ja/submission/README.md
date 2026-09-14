@@ -1,5 +1,9 @@
 # BACCHIRI!━━Verifiable Measurement Layer — Wave 1 審査提出物
 
+Walletによる認証・承認を含む実際のUCを、操作の拡大・段階的な図解で紹介する日英の最終版（英語5分7秒・日本語5分25秒）は[ローカルデモとピッチ](local_demo.md)を参照してください。サービス名・スローガン・お礼の締めも追加済みです。模擬動作の版として、過去の実証拠と区別しています。
+
+最新版の成果物一覧・9月11日の検証結果・未完了項目は[最終成果物まとめ](final_delivery.md)を参照してください。`af90ad8`と496件の記載は9月5日までの基準記録です。
+
 [English](../../submission/README.md)
 
 このディレクトリに審査成果物を集約します。完成した画面を使った英語デモ動画は作成済みです。撮影後の
@@ -19,6 +23,8 @@ Engineering Evidenceは別の現行リリース補足へまとめ、動画のSto
 | 最終英語Pitch Deck | Slide 7へServer側Sponsor Walletの現行構成と限定付きCost Evidenceを追加済み | [PPTX](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx)・[PDF](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) |
 | 日本語Technical Reference | 参考資料。Slide 8へ日本語の現行Sponsor Wallet構成と限定付きCost Evidenceを追加済み。提出対象は最終英語9枚 | [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
 | Cloudflare UC別技術補足 | 作成済み | [説明](../architecture/cloudflare_use_cases.md)・[PPTX](deck/cloudflare-use-cases-ja.pptx)・[PDF](deck/cloudflare-use-cases-ja.pdf) |
+| Cloudflare運用説明追加版 | imagegen図2枚・追加スライド・ナレーション付き説明を日英で作成 | [成果物と制作記録](cloudflare_operations_media.md) |
+| 新GUIの録画準備 | 日英11枚のデック、約3分の音声・字幕付き仮編集、5場面の撮影手順を用意。新映像待ち | [確認用ファイルと撮影手順](new_gui_recording_handoff.md) |
 | 最終画面の録画台本 | 英語動画で使用済み | [demo_script.md](demo_script.md) |
 | 最終画面の画像素材 | 審査済み英語Still 6枚とSubmission Thumbnailを作成済み | [captures/](captures/) |
 | 英語紹介動画 | 作成済み（2分18秒）、公開URL待ち | `bacchiri-demo-pitch-en.mp4`の公開リンクを[submission_copy.md](submission_copy.md)へ追加 |
@@ -35,7 +41,7 @@ Sponsor Wallet、D1／R2、独立したProof Server、限定付きCost Evidence�
 `include-on-demand-architecture-in-pitch.cjs`が最終9枚PPTX／PDFのSlide／Page 7だけを検査付きで
 差し替えます。
 
-動画確定後に、運用ConsoleやMCPの詳細をDeckへ追加していません。これらの実装済み拡張と現行8回路
+元のDeckには、動画確定後の運用ConsoleやMCPの詳細を追加していません。9月10日の[Cloudflare運用説明追加版](cloudflare_operations_media.md)では、実機の収集時刻とWalletの間欠運転を別名のデック・動画へ追加しました。これらの実装済み拡張と現行8回路
 Preprod証跡は、[現行リリース証拠補足](current_release_addendum.md)と
 [証拠対応表](evidence_matrix.md)で確認できます。
 
@@ -54,4 +60,4 @@ Cloudflare UC別技術補足は、次のコマンドで5枚のSVG／PNG、PPTX�
 2. 完成した英語動画、最終英語9枚Deck／PDF、Thumbnailを公開する。
 3. リポジトリとスライドを公開して仮URLを置き換える。
 4. 公開設定、Apache 2.0、`midnightntwrk`トピック、AKINDO提出フォームを確認する。
-5. 審査Audienceから求められた場合だけ、動画と同期する日本語9枚Pitchを最終英語9枚から別制作する。日本語Technical Referenceの構成図Slideは作成済み。
+5. 新GUI版を採用する場合はG01〜G05を撮影・照合してから最終版として書き出す。日英プレビューは作成済みで、日本語Technical Referenceとは別の版です。

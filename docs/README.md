@@ -2,6 +2,8 @@
 
 ## Submission
 
+- [Final delivery summary](submission/final_delivery.md): current implementation, completed editions, GUI recording preview, local review package, firmware, and September 11 validation.
+
 - [Wave 1 judging deliverables plan](submission/deliverables_plan.md): rubric mapping, artifact specifications, deck and demo structure, evidence, and completion gates.
 - [Submission copy](submission/submission_copy.md): project pitch, problem, solution, Midnight fit, progress, exact claim, and final link placeholders.
 - [Evidence matrix](submission/evidence_matrix.md): claim-by-claim source, local, Preprod, and validation-boundary evidence.

@@ -1,0 +1,921 @@
+{
+  "schemaVersion": 1,
+  "edition": "local-demo-focus-20260912",
+  "sourceVideoSha256": "3a77444e9841afdd72c65fc1485e275a16216a6a974dca0384dae93553097fe2",
+  "sourceEditSha256": "5fef7f929d3dce0c343b2e12a7245cfc7c0dcf8a60a7447a0ad912f7b2afc839",
+  "coordinateNotes": "canvas uses final 1920x1080 movie coordinates; viewport uses the recorded 1920x1080 browser viewport before fitting into the existing GUI video box. Timings are relative to the named narrative scene.",
+  "scenes": {
+    "value": [
+      {
+        "start": 0.4,
+        "end": 4.4,
+        "rect": [
+          72,
+          208,
+          1100,
+          376
+        ],
+        "space": "canvas",
+        "label": "測定値を渡さずに証明",
+        "phrase": "測定値を渡さずに",
+        "color": "cyan"
+      },
+      {
+        "start": 4.6,
+        "end": 9.2,
+        "rect": [
+          1304,
+          205,
+          540,
+          495
+        ],
+        "space": "canvas",
+        "label": "24時間の判定を共有",
+        "phrase": "確認できる証拠",
+        "color": "cyan"
+      },
+      {
+        "start": 9.4,
+        "end": 13.5,
+        "rect": [
+          1268,
+          770,
+          573,
+          145
+        ],
+        "space": "canvas",
+        "label": "確認できる根拠を届ける",
+        "phrase": "確認できる証拠",
+        "color": "green"
+      }
+    ],
+    "problem": [
+      {
+        "start": 0.4,
+        "end": 3.8,
+        "rect": [
+          72,
+          310,
+          568,
+          421
+        ],
+        "space": "canvas",
+        "label": "測定する側の課題",
+        "phrase": "測定する側",
+        "color": "cyan"
+      },
+      {
+        "start": 4,
+        "end": 8.3,
+        "rect": [
+          676,
+          310,
+          568,
+          421
+        ],
+        "space": "canvas",
+        "label": "確認する側に必要な情報",
+        "phrase": "確認する側",
+        "color": "purple"
+      },
+      {
+        "start": 8.5,
+        "end": 12.7,
+        "rect": [
+          1280,
+          310,
+          568,
+          421
+        ],
+        "space": "canvas",
+        "label": "既存の機器・クラウドを活用",
+        "phrase": "既存の機器",
+        "color": "green"
+      },
+      {
+        "start": 12.9,
+        "end": 16.6,
+        "rect": [
+          72,
+          808,
+          1776,
+          91
+        ],
+        "space": "canvas",
+        "label": "建設現場からパートナー実証へ",
+        "phrase": "パートナー実証",
+        "color": "orange"
+      }
+    ],
+    "scope": [
+      {
+        "start": 0.4,
+        "end": 7.8,
+        "rect": [
+          72,
+          320,
+          330,
+          325
+        ],
+        "space": "canvas",
+        "label": "認証・登録を承認",
+        "phrase": "ウォレットを接続",
+        "color": "cyan"
+      },
+      {
+        "start": 7.8,
+        "end": 9.25,
+        "rect": [
+          430,
+          320,
+          330,
+          325
+        ],
+        "space": "canvas",
+        "label": "1日を時間ごとに集計",
+        "phrase": "日次の集計",
+        "color": "cyan"
+      },
+      {
+        "start": 9.25,
+        "end": 11.4,
+        "rect": [
+          788,
+          320,
+          330,
+          325
+        ],
+        "space": "canvas",
+        "label": "ZK証明を依頼",
+        "phrase": "ゼロ知識証明",
+        "color": "purple"
+      },
+      {
+        "start": 11.4,
+        "end": 13.7,
+        "rect": [
+          1146,
+          320,
+          330,
+          325
+        ],
+        "space": "canvas",
+        "label": "取引を承認して送信",
+        "phrase": "取引の承認と送信",
+        "color": "purple"
+      },
+      {
+        "start": 13.7,
+        "end": 16.0,
+        "rect": [
+          1504,
+          320,
+          330,
+          325
+        ],
+        "space": "canvas",
+        "label": "第三者が結果を検証",
+        "phrase": "第三者による検証",
+        "color": "green"
+      },
+      {
+        "start": 16.2,
+        "end": 21.9,
+        "rect": [
+          72,
+          320,
+          1762,
+          325
+        ],
+        "space": "canvas",
+        "label": "5つのUCをひと続きに",
+        "phrase": "五つのユースケース",
+        "color": "cyan"
+      }
+    ],
+    "device": [
+      {
+        "start": 0.5,
+        "end": 4.8,
+        "rect": [
+          1413,
+          126,
+          423,
+          69
+        ],
+        "space": "viewport",
+        "label": "Walletで認証",
+        "phrase": "接続したウォレットで認証",
+        "color": "cyan"
+      },
+      {
+        "start": 7.0,
+        "end": 10.1,
+        "rect": [
+          90,
+          675,
+          1737,
+          255
+        ],
+        "space": "viewport",
+        "label": "登録する条件を確認",
+        "phrase": "登録内容を確認",
+        "color": "purple"
+      },
+      {
+        "start": 15.1,
+        "end": 16.6,
+        "rect": [
+          90,
+          93,
+          1737,
+          564
+        ],
+        "space": "viewport",
+        "label": "Deviceと条件を結び付ける",
+        "phrase": "どのデバイスに",
+        "color": "cyan"
+      },
+      {
+        "start": 18.3,
+        "end": 21.4,
+        "rect": [
+          966,
+          291,
+          864,
+          522
+        ],
+        "space": "viewport",
+        "label": "登録・条件割当を確認",
+        "phrase": "測定前に結び付け",
+        "color": "green"
+      }
+    ],
+    "day": [
+      {
+        "start": 3.1,
+        "end": 6.7,
+        "rect": [
+          90,
+          111,
+          1737,
+          414
+        ],
+        "space": "viewport",
+        "label": "1日分の記録を集計",
+        "phrase": "二十四の時間枠",
+        "color": "cyan"
+      },
+      {
+        "start": 10.0,
+        "end": 12.7,
+        "rect": [
+          90,
+          135,
+          1737,
+          909
+        ],
+        "space": "viewport",
+        "label": "対象日・件数・時間別入力",
+        "phrase": "対象日と件数",
+        "color": "cyan"
+      },
+      {
+        "start": 15.4,
+        "end": 21.1,
+        "rect": [
+          90,
+          798,
+          1737,
+          261
+        ],
+        "space": "viewport",
+        "label": "実値と公開判定を分離",
+        "phrase": "公開結果から分け",
+        "color": "purple"
+      }
+    ],
+    "request": [
+      {
+        "start": 1.4,
+        "end": 3.7,
+        "rect": [
+          90,
+          192,
+          1734,
+          96
+        ],
+        "space": "viewport",
+        "label": "日次証明を依頼",
+        "phrase": "証明を依頼",
+        "color": "cyan"
+      },
+      {
+        "start": 3.9,
+        "end": 7.3,
+        "rect": [
+          93,
+          297,
+          861,
+          90
+        ],
+        "space": "viewport",
+        "label": "Job IDで進行を追跡",
+        "phrase": "ジョブの識別子",
+        "color": "cyan"
+      },
+      {
+        "start": 7.5,
+        "end": 10.7,
+        "rect": [
+          963,
+          294,
+          864,
+          39
+        ],
+        "space": "viewport",
+        "label": "取引の進行状態を確認",
+        "phrase": "取引準備の進行",
+        "color": "purple"
+      },
+      {
+        "start": 11,
+        "end": 14.1,
+        "rect": [
+          96,
+          297,
+          858,
+          84
+        ],
+        "space": "viewport",
+        "label": "受付と完了を区別",
+        "phrase": "受付だけでは完了",
+        "color": "orange"
+      },
+      {
+        "start": 14.3,
+        "end": 21.2,
+        "rect": [
+          960,
+          330,
+          864,
+          105
+        ],
+        "space": "viewport",
+        "label": "準備後に取引を承認",
+        "phrase": "ウォレットの承認",
+        "color": "purple"
+      }
+    ],
+    "confirmed": [
+      {
+        "start": 1.1,
+        "end": 5.8,
+        "rect": [
+          960,
+          252,
+          864,
+          108
+        ],
+        "space": "viewport",
+        "label": "Deviceが取引を承認",
+        "phrase": "デバイスの取引を承認",
+        "color": "purple"
+      },
+      {
+        "start": 6,
+        "end": 13.9,
+        "rect": [
+          960,
+          252,
+          864,
+          108
+        ],
+        "space": "viewport",
+        "label": "SponsorがDUSTを負担",
+        "phrase": "ダスト手数料",
+        "color": "orange"
+      },
+      {
+        "start": 14.2,
+        "end": 17.5,
+        "rect": [
+          93,
+          204,
+          861,
+          90
+        ],
+        "space": "viewport",
+        "label": "Job IDと記録状態を確認",
+        "phrase": "ミッドナイトへの記録を確認",
+        "color": "green"
+      },
+      {
+        "start": 17.6,
+        "end": 21.1,
+        "rect": [
+          963,
+          204,
+          861,
+          48
+        ],
+        "space": "viewport",
+        "label": "取引識別子を追跡",
+        "phrase": "取引識別子を追跡",
+        "color": "green"
+      }
+    ],
+    "verify": [
+      {
+        "start": 2.3,
+        "end": 3.8,
+        "rect": [
+          90,
+          423,
+          1737,
+          84
+        ],
+        "space": "viewport",
+        "label": "取引識別子で照合",
+        "phrase": "取引識別子",
+        "color": "cyan"
+      },
+      {
+        "start": 5.8,
+        "end": 7.0,
+        "rect": [
+          90,
+          423,
+          1737,
+          84
+        ],
+        "space": "viewport",
+        "label": "取引識別子で照合",
+        "phrase": "取引識別子",
+        "color": "cyan"
+      },
+      {
+        "start": 9.3,
+        "end": 11.9,
+        "rect": [
+          1260,
+          627,
+          570,
+          387
+        ],
+        "space": "viewport",
+        "label": "公開証拠の整合性を確認",
+        "phrase": "ミッドナイト上の記録",
+        "color": "green"
+      },
+      {
+        "start": 14.5,
+        "end": 20.8,
+        "rect": [
+          963,
+          183,
+          855,
+          867
+        ],
+        "space": "viewport",
+        "label": "公開するのは時間ごとの判定",
+        "phrase": "元の測定値を受け取らず",
+        "color": "green"
+      }
+    ],
+    "scenarios": [
+      {
+        "start": 6.1,
+        "end": 8.4,
+        "rect": [
+          651,
+          336,
+          1167,
+          138
+        ],
+        "space": "viewport",
+        "label": "範囲外をそのまま表示",
+        "phrase": "範囲外を成功へ変えず",
+        "color": "orange"
+      },
+      {
+        "start": 10.1,
+        "end": 12.6,
+        "rect": [
+          651,
+          297,
+          1167,
+          204
+        ],
+        "space": "viewport",
+        "label": "欠測を補完しない",
+        "phrase": "欠測を補完したように",
+        "color": "purple"
+      },
+      {
+        "start": 18.4,
+        "end": 22.5,
+        "rect": [
+          960,
+          627,
+          858,
+          282
+        ],
+        "space": "viewport",
+        "label": "6時間の欠測を区別",
+        "phrase": "異常と情報の不足",
+        "color": "orange"
+      }
+    ],
+    "managed": [
+      {
+        "start": 2.3,
+        "end": 6.0,
+        "rect": [
+          249,
+          186,
+          1422,
+          417
+        ],
+        "space": "viewport",
+        "label": "計測元と条件を登録",
+        "phrase": "計測元と適用する条件",
+        "color": "cyan"
+      },
+      {
+        "start": 10.6,
+        "end": 13.25,
+        "rect": [
+          264,
+          171,
+          1404,
+          171
+        ],
+        "space": "viewport",
+        "label": "取得→証明→送信を追跡",
+        "phrase": "一日分の取得から証明、送信までを追跡",
+        "color": "purple"
+      },
+      {
+        "start": 13.4,
+        "end": 17,
+        "rect": [
+          963,
+          255,
+          339,
+          72
+        ],
+        "space": "viewport",
+        "label": "サービス側Walletが処理",
+        "phrase": "サービス側のウォレット",
+        "color": "orange"
+      },
+      {
+        "start": 17.2,
+        "end": 21.4,
+        "rect": [
+          1275,
+          453,
+          384,
+          588
+        ],
+        "space": "viewport",
+        "label": "検証できる結果を共有",
+        "phrase": "公開検証を追加",
+        "color": "green"
+      }
+    ],
+    "operations": [
+      {
+        "start": 2.3,
+        "end": 4.3,
+        "rect": [
+          33,
+          399,
+          1848,
+          297
+        ],
+        "space": "viewport",
+        "label": "サービスとWalletの状態",
+        "phrase": "サービスの状態",
+        "color": "cyan"
+      },
+      {
+        "start": 7.2,
+        "end": 8.4,
+        "rect": [
+          39,
+          105,
+          1839,
+          621
+        ],
+        "space": "viewport",
+        "label": "日次処理の指標を確認",
+        "phrase": "日次の指標",
+        "color": "cyan"
+      },
+      {
+        "start": 11.6,
+        "end": 12.4,
+        "rect": [
+          39,
+          717,
+          1836,
+          318
+        ],
+        "space": "viewport",
+        "label": "対象Jobのイベントを絞り込み",
+        "phrase": "対応が必要なジョブ",
+        "color": "purple"
+      },
+      {
+        "start": 13.0,
+        "end": 17.6,
+        "rect": [
+          501,
+          234,
+          915,
+          330
+        ],
+        "space": "viewport",
+        "label": "処理内容と結果を確認",
+        "phrase": "ジョブを調べ",
+        "color": "purple"
+      },
+      {
+        "start": 17.8,
+        "end": 21.5,
+        "rect": [
+          501,
+          540,
+          915,
+          336
+        ],
+        "space": "viewport",
+        "label": "秘密値を分離して運用",
+        "phrase": "秘密値を運用画面から分け",
+        "color": "green"
+      }
+    ],
+    "architecture": [
+      {
+        "start": 3.5,
+        "end": 6.7,
+        "rect": [
+          679,
+          385,
+          401,
+          205
+        ],
+        "space": "canvas",
+        "label": "Workers・D1・Queueで管理",
+        "phrase": "受付とジョブを管理",
+        "color": "cyan"
+      },
+      {
+        "start": 6.9,
+        "end": 8.9,
+        "rect": [
+          1117,
+          420,
+          211,
+          100
+        ],
+        "space": "canvas",
+        "label": "Proof Serverで証明を生成",
+        "phrase": "証明生成",
+        "color": "purple"
+      },
+      {
+        "start": 9.0,
+        "end": 11.0,
+        "rect": [
+          1115,
+          550,
+          214,
+          111
+        ],
+        "space": "canvas",
+        "label": "Walletは別Containerで稼働",
+        "phrase": "ウォレットは別のコンテナ",
+        "color": "orange"
+      },
+      {
+        "start": 11.2,
+        "end": 14.4,
+        "rect": [
+          308,
+          307,
+          205,
+          503
+        ],
+        "space": "canvas",
+        "label": "生の測定列は計測元に保持",
+        "phrase": "生の測定列は計測元に残り",
+        "color": "cyan"
+      },
+      {
+        "start": 14.6,
+        "end": 19.3,
+        "rect": [
+          648,
+          305,
+          705,
+          505
+        ],
+        "space": "canvas",
+        "label": "信頼するBackendで処理",
+        "phrase": "信頼するバックエンド",
+        "color": "purple"
+      }
+    ],
+    "wallet": [
+      {
+        "start": 0.5,
+        "end": 4.5,
+        "rect": [
+          328,
+          543,
+          236,
+          162
+        ],
+        "space": "canvas",
+        "label": "起動して暗号化状態を復元",
+        "phrase": "暗号化した状態を復元",
+        "color": "orange"
+      },
+      {
+        "start": 4.7,
+        "end": 7.0,
+        "rect": [
+          590,
+          543,
+          237,
+          162
+        ],
+        "space": "canvas",
+        "label": "同期完了を待つ",
+        "phrase": "同期します",
+        "color": "cyan"
+      },
+      {
+        "start": 7.1,
+        "end": 9.5,
+        "rect": [
+          852,
+          543,
+          238,
+          162
+        ],
+        "space": "canvas",
+        "label": "Jobを1件ずつ処理",
+        "phrase": "一件ずつ処理",
+        "color": "purple"
+      },
+      {
+        "start": 9.6,
+        "end": 11,
+        "rect": [
+          1114,
+          543,
+          226,
+          162
+        ],
+        "space": "canvas",
+        "label": "状態を暗号化して保存",
+        "phrase": "保存して",
+        "color": "orange"
+      },
+      {
+        "start": 11.1,
+        "end": 13.0,
+        "rect": [
+          1364,
+          543,
+          229,
+          162
+        ],
+        "space": "canvas",
+        "label": "処理後に停止",
+        "phrase": "停止します",
+        "color": "green"
+      },
+      {
+        "start": 13.1,
+        "end": 16.8,
+        "rect": [
+          572,
+          253,
+          781,
+          47
+        ],
+        "space": "canvas",
+        "label": "日次02:00に処理開始",
+        "phrase": "午前二時に始める",
+        "color": "cyan"
+      },
+      {
+        "start": 17,
+        "end": 20.3,
+        "rect": [
+          570,
+          900,
+          821,
+          41
+        ],
+        "space": "canvas",
+        "label": "開始時刻と確定時刻を区別",
+        "phrase": "確定時刻を保証",
+        "color": "orange"
+      }
+    ],
+    "boundary": [
+      {
+        "start": 0.4,
+        "end": 7.7,
+        "rect": [
+          72,
+          310,
+          568,
+          440
+        ],
+        "space": "canvas",
+        "label": "証明する関係",
+        "phrase": "提出した非公開の時間別入力",
+        "color": "cyan"
+      },
+      {
+        "start": 8,
+        "end": 16.1,
+        "rect": [
+          1280,
+          310,
+          568,
+          440
+        ],
+        "space": "canvas",
+        "label": "物理的な保証は別途必要",
+        "phrase": "センサーの物理的な正しさ",
+        "color": "orange"
+      },
+      {
+        "start": 16.4,
+        "end": 22.0,
+        "rect": [
+          72,
+          794,
+          1776,
+          137
+        ],
+        "space": "canvas",
+        "label": "現在のBackendの信頼境界",
+        "phrase": "バックエンドと証明サービス",
+        "color": "purple"
+      }
+    ],
+    "roadmap": [
+      {
+        "start": 0.4,
+        "end": 9.1,
+        "rect": [
+          676,
+          319,
+          568,
+          421
+        ],
+        "space": "canvas",
+        "label": "パートナーの実業務で評価",
+        "phrase": "パートナーの実業務",
+        "color": "purple"
+      },
+      {
+        "start": 9.3,
+        "end": 14.0,
+        "rect": [
+          72,
+          808,
+          1776,
+          85
+        ],
+        "space": "canvas",
+        "label": "対象業務・期間・指標を合意",
+        "phrase": "評価期間、検証指標",
+        "color": "cyan"
+      },
+      {
+        "start": 14.2,
+        "end": 19.8,
+        "rect": [
+          1280,
+          319,
+          568,
+          421
+        ],
+        "space": "canvas",
+        "label": "継続利用と商用条件を検証",
+        "phrase": "継続利用と商用提供",
+        "color": "green"
+      }
+    ]
+  }
+}

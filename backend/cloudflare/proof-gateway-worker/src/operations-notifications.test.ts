@@ -314,8 +314,10 @@ describe('operations notifications', () => {
     });
   });
 
-  it('builds a Japanese sponsor receipt with a direct Midnight Explorer link', async () => {
-    const transactionHash = 'a'.repeat(64);
+  it.each([
+    { status: 'confirmed', transactionHash: 'a'.repeat(64) },
+    { status: 'submitted', transactionHash: null },
+  ])('includes the Verify URL in a $status sponsor receipt', async ({ status, transactionHash }) => {
     const database = {
       kind: 'd1',
       first: async () => ({
@@ -323,7 +325,7 @@ describe('operations notifications', () => {
         project_id: 'project-1',
         device_id: 'device-1',
         period_date: '2026-09-01',
-        status: 'confirmed',
+        status,
         sponsor_fee_specks: '632920000000001',
         sponsor_transaction_id: 'sponsor-tx-1',
         attest_tx_id: 'contract-tx-1',
@@ -344,13 +346,23 @@ describe('operations notifications', () => {
       resource_type: 'proof-job',
       resource_id: 'proof-job-1',
       attempt_count: 0,
-    }, null);
+    }, null, 'https://portal.example/');
     const serialized = JSON.stringify(embed);
     const explorerUrl = `https://preprod.midnightexplorer.com/transactions/${transactionHash}`;
     expect(embed.title).toBe('Sponsor Wallet 利用レシート');
-    expect(embed.url).toBe(explorerUrl);
+    expect(embed.fields).toContainEqual({
+      name: 'Verify URL',
+      value: '[検証ページを開く](https://portal.example/#/verify/proof-job-1)',
+      inline: false,
+    });
     expect(embed.fields).toContainEqual(expect.objectContaining({ name: '判断', value: '対応不要' }));
-    expect(serialized).toContain(explorerUrl);
+    if (transactionHash) {
+      expect(embed.url).toBe(explorerUrl);
+      expect(serialized).toContain(explorerUrl);
+    } else {
+      expect(embed.url).toBeUndefined();
+      expect(serialized).not.toContain('https://preprod.midnightexplorer.com/transactions/');
+    }
     expect(serialized).not.toContain('Sponsored transaction receipt');
     expect(serialized).not.toContain('unavailable');
   });
@@ -381,7 +393,7 @@ describe('operations notifications', () => {
       resource_type: 'alert',
       resource_id: 'proof-backlog-high',
       attempt_count: 0,
-    }, null);
+    }, null, 'https://portal.example/');
     expect(embed.title).toBe('運用アラート');
     expect(embed.description).toContain('ZKP生成待ち');
     expect(embed.fields).toContainEqual(expect.objectContaining({ name: '判断', value: '要監視' }));
