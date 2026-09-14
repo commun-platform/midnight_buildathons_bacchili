@@ -329,6 +329,13 @@ describe('Midnight Wallet shell', () => {
     expect(styles).toContain('.workflow-action-row');
   });
 
+  it('shows the attestation transaction hash in the Device proof record step', () => {
+    expect(script).toContain("t('txHash')");
+    expect(script).toContain("explorerLink('transaction', result?.transactionHash");
+    expect(script).toContain('transactionHash: day.proofJob.attestTxHash || day.proofJob.transactionHash || null');
+    expect(deviceFlow).toContain('attestTxHash: string | null;');
+  });
+
   it('shows the actual Device and Threshold transaction stages', () => {
     expect(script).toContain("progressDeviceProof: 'デバイス登録TX用のZKPを生成中'");
     expect(script).toContain("progressDeviceSending: 'デバイス登録TXを送信中'");
@@ -382,7 +389,7 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("recovered?.status === 'dead_lettered'");
     expect(script).toContain("recovered.errorCode === 'measurement_group_already_attested'");
     expect(script).toContain("['sponsored', 'submitted', 'confirmed'].includes(recovered.status)");
-    expect(script).toContain('deviceState.transaction ??= { transactionId: recovered.attestTxId }');
+    expect(script).toContain('transactionHash: recovered.attestTxHash || recovered.transactionHash || null');
     expect(script).toContain('submitDeviceDay(currentFlow, deviceState.selectedDate)');
     expect(script).toContain('if (!deviceState.proofJob) {');
     expect(deviceFlow).toContain("phase: 'failed'");

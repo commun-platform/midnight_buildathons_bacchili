@@ -153,7 +153,7 @@ export function createDemoRuntime({ storage, location, delay = (ms) => new Promi
         }
         confirm(job);
       }
-      return { transactionId: job.attestTxId, simulated: true };
+      return { transactionId: job.attestTxId, transactionHash: job.transactionHash, simulated: true };
     },
     loadAdministratorDashboard: async () => {
       const history = await flow.loadDeviceHistory();

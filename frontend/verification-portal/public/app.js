@@ -1265,6 +1265,7 @@ function deviceView() {
         <div class="transaction-progress"><strong>${escapeHtml(t('progress'))}:</strong> <span id="device-progress">${escapeHtml(deviceState.message || '—')}</span></div>
         ${deviceState.submissionQueued ? `<div class="notice queued-submission-notice"><strong>${escapeHtml(t('submissionQueued'))}</strong><span>${escapeHtml(t('submissionQueuedDetail'))}</span><small>${escapeHtml(t('nextProcessingStart'))}: ${escapeHtml(processingStartText())}</small></div>` : ''}
         <div class="hash transaction-id">TX: ${escapeHtml(result?.transactionId || '—')}</div>
+        <div class="hash transaction-hash">${escapeHtml(t('txHash'))}: ${explorerLink('transaction', result?.transactionHash, config?.network, result?.transactionHash || '—')}</div>
         ${result?.sponsorTransactionId ? `<div class="hash sponsor-transaction">Sponsor TX: ${escapeHtml(result.sponsorTransactionId)} / ${escapeHtml(result.feeDust)} tDUST</div>` : ''}
         <div class="notice transaction-fee-notice"><strong>${escapeHtml(t('feeSponsoredLabel'))}</strong><span>${escapeHtml(t('feeSponsored'))}</span></div>
         ${sponsorQuotaView()}</div>
@@ -1280,7 +1281,10 @@ async function applySelectedDeviceDay(flow, periodDate) {
   deviceState.measurement = day?.capture ? await flow.selectDailyCapture(periodDate) : null;
   deviceState.proofJob = day?.proofJob || null;
   deviceState.transaction = day?.proofJob?.attestTxId
-    ? { transactionId: day.proofJob.attestTxId }
+    ? {
+      transactionId: day.proofJob.attestTxId,
+      transactionHash: day.proofJob.attestTxHash || day.proofJob.transactionHash || null,
+    }
     : null;
 }
 
@@ -1540,7 +1544,10 @@ async function submitDeviceDay(flow, periodDate) {
       !recovered?.attestTxId
       || !['sponsored', 'submitted', 'confirmed'].includes(recovered.status)
     ) throw error;
-    deviceState.transaction ??= { transactionId: recovered.attestTxId };
+    deviceState.transaction ??= {
+      transactionId: recovered.attestTxId,
+      transactionHash: recovered.attestTxHash || recovered.transactionHash || null,
+    };
     deviceState.message = `${statusText(recovered.status)}: ${recovered.attestTxId}`;
     return;
   }

@@ -263,6 +263,7 @@ export interface ProofJob {
   thresholdSatisfied: boolean;
   availableAfter: string;
   attestTxId: string | null;
+  attestTxHash: string | null;
   errorCode: string | null;
 }
 
@@ -1285,6 +1286,7 @@ function deferredProofJob(
     thresholdSatisfied: measurement.thresholdSatisfied,
     availableAfter: schedule.nextProcessingStartsAt ?? new Date().toISOString(),
     attestTxId: null,
+    attestTxHash: null,
     errorCode: null,
   };
 }
