@@ -89,6 +89,8 @@ const copy = {
     walletConnecting: 'Connecting Wallet...', walletConnected: 'Wallet Connected',
     walletDisconnected: 'Wallet communication was closed. Unlock the Wallet and click Connect Midnight Wallet again. Reload this page if the connection does not reopen.',
     walletFailureStage: 'Failed stage',
+    devicePolicyAlreadyRegistered: 'This Device is already registered with another threshold rule. Create a new Project/Device to use a different rule.',
+    deviceIdentityAlreadyRegistered: 'This Device is already registered with a different local identity. Restore the original browser storage or create a new Project/Device.',
     walletRequiredTitle: 'Midnight Wallet required',
     walletRequiredBody: 'Connect your Midnight Wallet from the button in the upper-right corner. The Device Workflow appears after the connection is authorized.',
     adminWalletRequiredBody: 'Connect your Midnight Wallet to identify the Device whose sensor history you administer.',
@@ -266,6 +268,8 @@ const copy = {
     walletConnecting: 'ウォレット接続中...', walletConnected: 'ウォレット接続済み',
     walletDisconnected: 'Walletとの通信が切断されました。Walletのロックを解除して、もう一度「Midnight Walletを接続」を押してください。再接続できない場合はページを再読み込みしてください。',
     walletFailureStage: '失敗した段階',
+    devicePolicyAlreadyRegistered: 'このデバイスは別のしきい値ルールで登録済みです。別のルールを使う場合は新しいプロジェクト／デバイスを作成してください。',
+    deviceIdentityAlreadyRegistered: 'このデバイスは別のローカル認証鍵で登録済みです。元のブラウザ保存領域を復元するか、新しいプロジェクト／デバイスを作成してください。',
     walletRequiredTitle: 'Midnight Walletの接続が必要です',
     walletRequiredBody: '画面右上のボタンからMidnight Walletを接続してください。接続を承認するとデバイス操作画面が表示されます。',
     adminWalletRequiredBody: '管理対象のデバイスを識別するため、画面右上からMidnight Walletを接続してください。',
@@ -496,6 +500,12 @@ function locale() {
 }
 
 function t(key) { return copy[locale()][key] ?? key; }
+function localizedDeviceError(detail) {
+  const text = String(detail || '');
+  if (text.includes('another Threshold Policy')) return t('devicePolicyAlreadyRegistered');
+  if (text.includes('another identity')) return t('deviceIdentityAlreadyRegistered');
+  return text;
+}
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/gu, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
@@ -1062,6 +1072,7 @@ function registrationProgressView() {
   const queued = progress?.status === 'queued';
   const active = ['running', 'retrying'].includes(progress?.status);
   const failed = progress?.status === 'failed' || progress?.stage === 'failed';
+  const errorDetail = failed ? localizedDeviceError(progress?.error || deviceState.error) : '';
   const deviceTxId = progress?.deviceTxId || deviceState.provisioned?.registeredTxId || null;
   const assignmentTxId = progress?.assignmentTxId || deviceState.provisioned?.assignmentTxId || null;
   const progressIcon = active
@@ -1085,6 +1096,7 @@ function registrationProgressView() {
       ${queued ? `<dt>${escapeHtml(t(processingSchedule()?.processingEligibleNow ? 'progress' : 'nextProcessingStart'))}</dt><dd class="processing-start-time">${escapeHtml(processingStartText())}</dd>` : ''}
       <dt>${escapeHtml(t('deviceRegistrationTx'))}</dt><dd class="hash" id="registration-device-tx">${escapeHtml(deviceTxId || '—')}</dd>
       <dt>${escapeHtml(t('assignmentRegistrationTx'))}</dt><dd class="hash" id="registration-assignment-tx">${escapeHtml(assignmentTxId || '—')}</dd></dl>
+    ${errorDetail ? `<div class="registration-progress-error">${escapeHtml(errorDetail)}</div>` : ''}
     ${queued ? `<div class="queued-workflow-hint">${escapeHtml(t('queuedWorkflowHint'))}</div>` : ''}
   </div>`;
 }
@@ -1593,7 +1605,7 @@ async function deviceAction(actionId, message, operation, preparedFlow = null) {
       resetProjectDeviceState();
       deviceState.error = `${t('walletDisconnected')} ${t('walletFailureStage')}: ${failureStage}`;
     } else {
-      deviceState.error = error instanceof Error ? error.message : String(error);
+      deviceState.error = localizedDeviceError(error instanceof Error ? error.message : String(error));
     }
   } finally {
     deviceState.busy = false;
@@ -1659,7 +1671,7 @@ async function refreshPendingDeviceRegistration() {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (deviceState.provisioning?.status === 'failed') {
-      deviceState.error = detail;
+      deviceState.error = localizedDeviceError(detail);
     }
   } finally {
     provisioningStatusRequestActive = false;

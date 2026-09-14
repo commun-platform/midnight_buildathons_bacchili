@@ -2002,11 +2002,15 @@ async function registerDevice(request: Request, env: Env): Promise<Response> {
   const existing = await existingRegistration(database, enrollment.deviceId, enrollment.projectId);
   const existingView = existing ? registrationView(existing, contractAddress) : null;
   if (existingView) {
-    if (
-      existing?.midnight_device_authority !== deviceAuthority
-      || existing.key_id !== enrollment.keyId
-      || existingView.policyId !== policyId
-    ) throw new Error('Existing Device registration belongs to another identity');
+    if (existing?.midnight_device_authority !== deviceAuthority || existing.key_id !== enrollment.keyId) {
+      throw new Error('Existing Device registration belongs to another identity');
+    }
+    if (existingView.policyId !== policyId) {
+      throw new HttpError(
+        409,
+        'This Device is already registered with another Threshold Policy; create a new Project/Device to use a different Policy',
+      );
+    }
     if (!walletOwnsDeviceRegistration(walletDevice, walletKeySha256, enrollment.deviceId)) {
       return json(409, { error: 'Existing Device registration belongs to another Midnight Wallet' });
     }

@@ -1058,6 +1058,15 @@ a:visited { color: #551a8b; }
 }
 .registration-progress .device-summary { margin-bottom: 0; }
 .registration-progress-failed { background: #ffd6d6; }
+.registration-progress-error {
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-left: 5px solid #800000;
+  background: #ffd6d6;
+  color: #600000;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
 .registration-progress-queued { background: #fff4c2; }
 .registration-progress-active { background: #ffffe1; }
 .queued-clock {

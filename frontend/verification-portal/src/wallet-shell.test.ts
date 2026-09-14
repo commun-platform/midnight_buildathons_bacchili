@@ -366,6 +366,9 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("progress?.status === 'failed'");
     expect(script).toContain('class="action-error"');
     expect(styles).toContain('.registration-progress-failed');
+    expect(script).toContain('function localizedDeviceError(detail)');
+    expect(script).toContain('registration-progress-error');
+    expect(script).toContain("devicePolicyAlreadyRegistered: 'このデバイスは別のしきい値ルールで登録済みです。");
   });
 
   it('releases the browser after registration Job acceptance and only polls Job state', () => {
