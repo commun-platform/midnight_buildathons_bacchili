@@ -23,6 +23,6 @@ npm run sct
 | Public verification and privacy | Confirmed-and-complete-TX-only hash lookup, 24 truthful hourly results, and private-field rejection tests | TX-hash lookup, UTC date, 24 WITHIN/OUTSIDE/NO DATA rows, applied policy/validity, Device Commitment, visible Indexer progress, Explorer links, and no private extrema |
 
 The GUI SCT serves the production SPA assets and replaces only external Wallet/Preprod responses with
-deterministic test doubles. It uses a clean headless Chrome profile and stores ignored evidence in
-`.sct-output/dashboard/`. A passing SCT does not claim that a real Preprod transaction was submitted;
-that claim requires the deployed runbook with Lace and Midnight Explorer evidence.
+deterministic test doubles. It uses a clean headless Chrome profile and writes transient local output
+that is not part of repository evidence. A passing SCT does not claim that a real Preprod transaction was
+submitted; that claim requires the deployed runbook with Lace and Midnight Explorer evidence.

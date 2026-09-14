@@ -223,7 +223,7 @@ The current Sponsor-funded release gate replaces step 6 with:
 3. the Server Wallet's sponsorship role adds only DUST and submits it;
 4. duplicate, mismatched, oversized, wrong-state, or altered requests are rejected or return the
    same idempotent result; and
-5. the confirmed Preprod transaction and sponsorship timing/fee are recorded before GUI capture.
+5. the confirmed Preprod transaction and sponsorship timing/fee are recorded before the repository review is marked complete.
 
 This gate passed for the standard 1,440-reading path. The same-byte retry kept one Sponsor attempt,
 one quota reservation, and zero additional Proof Server requests.

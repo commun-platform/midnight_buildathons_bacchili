@@ -10,24 +10,18 @@
 
 ## Judge review
 
-Start with the [September 11 final delivery summary](docs/submission/final_delivery.md) for the current source validation, available files, and remaining recording/publication work. The working tree based on `fb28ade` includes automatic completed-day Device submission, durable retries and receipts, collector recovery and stop protection, and a verification-page link in Sponsor receipts. The source and local packages are distinct from the dated deployment evidence.
+Start with the [repository review guide](docs/submission/README.md). It describes only evidence tracked in this repository and the commands a clean checkout can run. The current review commit is `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`; it includes automatic completed-day Device submission, durable retries and receipts, collector recovery and stop protection, and a verification-page link in Sponsor receipts.
 
-The eight-circuit Contract was deployed to Midnight Preprod on 2026-09-03. Managed API and authenticated Device records reached confirmation, and the September 7–8 field-operation record adds two automatically submitted days with 1,439 real measurements each. The [release addendum](docs/submission/current_release_addendum.md) preserves their evidence dates and the earlier `af90ad8` validation baseline.
+The eight-circuit Contract was deployed to Midnight Preprod on 2026-09-03. Managed API and authenticated Device records reached confirmation, and the September 7–8 field-operation record adds two automatically submitted days with 1,439 real measurements each. The [release addendum](docs/submission/current_release_addendum.md) preserves their evidence dates and claim boundaries.
 
 | Review artifact | Link |
 | --- | --- |
-| Final delivery and validation | [Current implementation, edition inventory, and review package](docs/submission/final_delivery.md) |
+| Final delivery and validation | [Current implementation, validation, and review evidence](docs/submission/final_delivery.md) |
 | Submission copy | [Wave 1 submission](docs/submission/submission_copy.md) |
-| Editable slide deck | [English PPTX](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) — 9 slides synchronized with the 2:18 pitch |
-| Review slide deck | [English PDF](docs/submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) — 9 pages synchronized with the 2:18 pitch |
-| Cloudflare operations edition | [Added diagrams, decks, and narrated videos](docs/submission/cloudflare_operations_media.md) — September 10 field integration and scheduled Wallet operation, in English and Japanese |
-| Next GUI recording | [Prepared bilingual pitch, preview videos, and five-shot guide](docs/submission/new_gui_recording_handoff.md) — new GUI footage pending |
 | Claim-to-evidence map | [Evidence matrix](docs/submission/evidence_matrix.md) |
-| Current release supplement | [Post-capture implementation and Preprod evidence](docs/submission/current_release_addendum.md) |
+| Current release supplement | [Current implementation and Preprod evidence](docs/submission/current_release_addendum.md) |
 | Wave progress | [Wave 1 progress](docs/submission/wave1_progress.md) |
 | Judge questions | [Judge Q&A](docs/submission/judge_qa.md) |
-| English demo pitch | Produced as `bacchiri-demo-pitch-en.mp4` (2:18); public submission URL pending — [script and capture record](docs/submission/demo_script.md) |
-| Submission thumbnail / capture pack | [English reviewed stills](docs/submission/captures/) |
 
 ## Product and initial use case
 
@@ -45,9 +39,8 @@ The central idea is to prove whether submitted hourly minimum and maximum values
 
 For review, start with the [exact proof claim and non-claims](docs/architecture/wave1_spec.md#3-exact-proof-claim-and-non-claims), continue with the [system architecture](docs/architecture/system_architecture.md), and finish with the [deployment and review runbook](docs/operations/demo_runbook.md).
 
-The documentation is organized by purpose. Submission copy, English / Japanese decks, evidence, the
-current-release addendum, Wave 1 progress, pre-submission checks, Q&A, and the final-GUI recording
-script are collected under [`docs/submission/`](docs/submission/).
+The documentation is organized by purpose. Submission copy, evidence, the current-release addendum,
+Wave 1 progress, pre-submission checks, and Q&A are collected under [`docs/submission/`](docs/submission/).
 
 | Category | Contents |
 | --- | --- |
@@ -76,8 +69,9 @@ completeness, or correct Device-side aggregation.
 | Proof subject | `deviceCommitment`, the pseudonymous Device bound to the proof and policy assignment. |
 
 Pasting a transaction hash makes the browser obtain these fields from the successful Midnight
-transaction, its block, and the Contract state transition at that block. This verification path does
-not require D1, a Wallet, or private proof input.
+transaction, its block, and the Contract state transition at that block. This public verification path
+does not require D1 or private proof input; transaction authorization and fee handling remain in the
+Wallet-backed submission paths.
 
 ## Core terms
 
@@ -173,7 +167,7 @@ tools/
   midnight-operator/                  local development Wallet and Midnight administration
   cloudflare-admin/                   local provisioning and secret-management commands
   benchmarks/                         local compile and operating-cost measurements
-  submission-media/                   local deck, PDF, still, and demo-capture generators
+  submission-media/                   optional local submission tooling
   repository-checks/                  host-boundary and portability checks
 tests/
   system/dashboard-workflow/          cross-boundary browser SCT
@@ -200,16 +194,15 @@ The source-level gate requires no Device secrets or Midnight preproduction-netwo
 
 ```bash
 npm ci
-npm run contract:compile
-TMPDIR=/tmp npm run verify
+npm run verify:source
 ```
 
-The expected review result is 8 compiled operational proof circuits, 525 passing automated tests (September 11 working tree), all configured type checks and builds, and a successful Cloudflare pre-deployment check. The current environment passed the source tests and type checks; the full Container image dry-run remains unverified because Docker Desktop WSL integration is unavailable. See the [validation record](docs/submission/final_delivery.md#validation). This validates the current source tree; it does not redeploy or reproduce the separately dated Midnight transactions. Follow the [Deployment and Review Runbook](docs/operations/demo_runbook.md) for the supervised GUI, Device enrollment, proof request, signing, and transaction flow.
+The source gate compiles 8 operational proof circuits, runs the workspace tests, checks all configured TypeScript projects, and runs the portability check. It requires no Device secret, deployment wallet, Docker, or network transaction. The expected current result is 528 tests passing (524 operational workspace tests plus 4 deterministic mock-source tests). It validates the source tree; it does not redeploy or reproduce the separately dated Midnight transactions. The [repository review guide](docs/submission/README.md) lists the exact evidence boundary and the [Deployment and Review Runbook](docs/operations/demo_runbook.md) describes the supervised product workflow.
 
 ## Current integration status
 
 - The current eight-circuit Contract is live on Preprod. A registered cloud API and an authenticated field Device each submitted a 1,440-reading day through the consolidated Server Wallet; both transaction hashes were rechecked through the public Verification MCP on 2026-09-05. See the [current release evidence](docs/submission/current_release_addendum.md).
-- The walletless Managed API mode fetches a fixed completed operational day, validates and reduces it to 24 private slots, then reuses the same proof and public-verification model. It does not claim that the upstream API values are physically authentic.
+- The registered Managed API path fetches a fixed completed operational day, validates and reduces it to 24 private slots, then reuses the same proof and public-verification model through the consolidated Server Wallet. It does not claim that the upstream API values are physically authentic.
 - The Access-protected operations console, redacted customer-operation audit trail, daily metrics, Japanese Discord incidents/receipts, and private Support MCP are implemented foundations. Wave 2 still owns partner-period validation, production role/tenant isolation, audited recovery controls, and long-running operational maturity.
 - The public Verification MCP has no operational database or runtime binding and exposes one TX-hash verification tool. Its decoded result comes from the public Midnight Indexer, not D1.
 - The firmware's separate daily timer invokes the finite `device:daily-submit` operation for completed real-data days, retries queued or failed work, and stores a receipt after Midnight confirmation. The collector continues independently. Manual `device:submit` remains available for explicit input; see [continuous operation](docs/operations/device_firmware.md#continuous-operation-and-automatic-daily-records).

@@ -117,7 +117,7 @@ Prompt Set:
 
 ## cloudflare-uc01〜05-*-ja.svg／.png
 
-生成方法: `tools/submission-media/build-cloudflare-uc-materials.cjs`でSVGを作成し、1672×941 PNG、5ページPPTX、5ページPDFへ変換。画像生成モデルは不使用。
+生成方法: `tools/submission-media/build-cloudflare-uc-materials.cjs`でSVGと1672×941 PNGを決定的に生成。画像生成モデルは不使用。
 
 - 1枚に全経路を詰め込まず、認証、1時間Summary、日次ZKP、署名・送信、第三者確認の5 UCへ分割。
 - 各ページは同じ配置を保ち、UC順にリソースを追加。現在のUCで使うリソースと線だけを明るく表示。

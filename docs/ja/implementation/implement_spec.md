@@ -140,4 +140,4 @@ TX hash ViewerはPublic Midnight Indexerへ直接問い合わせ、成功TXか�
 
 Deploy済みセンサーデバイス管理者UIは24時間Device Sessionで`GET /api/v1/device/dashboard`を使用し、自身のDevice Recordだけを取得します。Project全体のLegacy EndpointはLoopback限定のままです。第三者Proof ViewはPublicかつRedactedです。
 
-各GUI操作と処理場所の対応は[`gui_action_reference.md`](gui_action_reference.md)にまとめています。Lifecycle、Trust Boundary、E2E Gate、Costの扱いは[`device_registry.md`](../security/device_registry.md)を正本とします。2026-08-28 JST、新Fleet Registryに対する自己負担Edge DeviceのWITHIN／OUTSIDE TXがPreprodでConfirmedとなり、Public Verifierから取得できることを確認しました。これは履歴Evidenceとして保持します。Sponsor負担経路は新しいPreprod E2E Gate通過後に誘導付き審査動画を作成します。
+各GUI操作と処理場所の対応は[`gui_action_reference.md`](gui_action_reference.md)にまとめています。Lifecycle、Trust Boundary、E2E Gate、Costの扱いは[`device_registry.md`](../security/device_registry.md)を正本とします。2026-08-28 JST、新Fleet Registryに対する自己負担Edge DeviceのWITHIN／OUTSIDE TXがPreprodでConfirmedとなり、Public Verifierから取得できることを確認しました。これは履歴Evidenceとして保持します。Sponsor負担経路は新しいPreprod E2E Gate通過後にSource Reviewへ追加します。

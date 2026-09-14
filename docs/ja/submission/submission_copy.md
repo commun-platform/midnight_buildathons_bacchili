@@ -1,98 +1,92 @@
-# Wave 1 提出文
-
-最新版の成果物一覧・9月11日の検証結果・未完了項目は[最終成果物まとめ](final_delivery.md)を参照してください。`af90ad8`と496件の記載は9月5日までの基準記録です。
+# Wave 1 Submission Copy
 
 [English](../../submission/submission_copy.md)
 
-## プロジェクト名
+## Project Title
 
 BACCHIRI!━━Verifiable Measurement Layer
 
-## 一言で言うと
+## One-line Pitch
 
-センサー値を第三者に見せず、登録済みしきい値の範囲内かどうかを証明します。
+センサー値を第三者へ見せず、登録済みThresholdの範囲内かを証明します。
 
-## 短い説明
+## Short Description
 
-BACCHIRI!━━Verifiable Measurement Layerは、疑似の運用日1日分を非公開の時間別最小値・最大値にまとめ、24時間それぞれの「しきい値以内／範囲外／計測なし」を公開します。Wave 1の審査経路では、ユーザーが認可したブラウザクライアントを疑似計測元とし、Midnight取引を認可します。同じProof Modelを、顧客Wallet不要の登録済みCloud APIにも適用できます。
+BACCHIRI!━━Verifiable Measurement Layerは、1日の運用Dataを24時間SlotごとのPrivateな最小値・最大値へ集約し、
+各SlotのWITHIN、OUTSIDE、NO DATAをProofとして公開します。認可済みClientがMeasurement Recordを作成して
+Midnight Transactionを認可し、Managed Sourceも同じProofとServer Walletの経路を使います。
 
-## 課題
+## Problem
 
-計測結果は管理画面、CSV、帳票、クラウドシステムを通じて共有されます。建設業界では、騒音、振動、温度などの帳票を、機器提供会社、レンタル会社、施工会社、発注者、監査者など複数組織が利用します。そのため、確認者は帳票を作った組織やシステムを信頼するしかない場合があります。本プロジェクトが暗号学的に確認する問いは、「対象日の時間別最小値・最大値が、運用前に登録したしきい値を満たしたか」です。
+Measurement ResultはDashboard、CSV、Report、Cloud Systemで共有されます。ConstructionのNoise、Vibration、
+TemperatureなどのReportは、Equipment Provider、Rental Company、Contractor、Project Owner、Auditorなど
+複数組織で利用されます。そのため、Review側はReportを作った組織やSystemを信頼しなければならない場合があります。
+本Projectが問うのは、運用前に登録したThreshold内に、その日のPrivate Hourly Minimum / Maximumが入っていたかという
+限定されたCryptographic Questionです。
 
-## 解決方法
+## Solution
 
-- 疑似計測元：疑似の日次計測データを作り、Raw値と非公開Proof Openingをユーザー認可済みBrowser内に保持し、上限付き時間別Summaryを認可済み運用者Workflowへ送ります。
-- 審査画面：運用操作と第三者確認を一つにまとめ、秘密値を見せずにPoC全体を確認できるようにします。
-- 管理されたバックエンド：認可済み時間別SummaryとWorkflow記録の保存、証明依頼、証明生成を担うWave 1の信頼対象です。
-- Midnight：運用日／登録済み境界、24個の時間帯判定、公開しきい値／有効期間、Device Commitment、取引記録を保持します。
+- **Measurement Source:** Daily Recordを作り、Raw ValueとPrivate Proof Openingを認可済みClientに保持し、上限付きHourly SummaryをOperator Workflowへ送ります。
+- **Review Interface:** Operator StepとThird-party Viewをまとめ、Private Valueを出さずにProof Flowを確認できます。
+- **Managed Backend:** 認可済みSummaryとWorkflow Recordを保存し、Proof Requestを受けてTrusted ComponentとしてProofを生成します。
+- **Midnight:** 運用期間と境界、24 Hourly Result、Public Threshold / Validity、Target Device Commitment、Count、Transaction Recordを記録します。
 
-![生データ開示から必要最小限の証拠へ](../../ja/assets/review/privacy-value-proposition-ja.png)
+![Raw Dataの公開から必要最小限のEvidenceへ](../assets/review/privacy-value-proposition-ja.png)
 
-## Midnightを使う理由
+## Wave 1 Progress
 
-「公開しない値」と「誰でも確認できる判定記録」を分けられるからです。時間別の最小値・最大値と証明用乱数は非公開です。公開するのは、運用日／登録済み境界、24個の時間帯Status、しきい値／有効期間、Device Commitment、件数、取引記録です。判定に使うしきい値と運用日境界は証明時に自由指定せず、運用開始前に登録した値を使います。
+Wave 1では、Project単位のProof Subject / Policy登録、Synthetic Daily Record、固定24 SlotのPrivate Proof Input、
+Proof Request管理、Managed Proof生成、User認可とService Fee処理を分離したMidnight Transaction、Operator / Third-party
+Review Interfaceを実装しました。
 
-## Wave 1の進捗
+現在は、Registered Managed Intake、Consolidated Server Wallet、Access保護Operations Console、Redacted Audit / Metrics、
+Discord Alert、Private Read-only Support MCP、Public Transaction Verification MCPも実装済みです。Partner期間のProduction
+MaturityはWave 2の成果です。
 
-Wave 1では、審査可能なCore Proof PoCとして、Project単位の証明対象・Policy登録、疑似の日次計測データ、固定24 Slotの非公開Proof Input、Proof Request管理、管理された証明生成、User認可・Service Fee負担のMidnight取引、運用者／第三者の統合審査画面を構築しました。
+Review Commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd` を2026-09-14 JSTに検証しました。
 
-撮影後のEngineeringとして、Wallet不要の登録済みCloud API経路、統合Server Wallet、Redact済み
-Audit／MetricとDiscord Alertを持つAccess保護済み運用Console、非公開Read-only Support MCP、別Workerの
-公開TX検証MCPを追加しました。これらは現行機能ですが、Partner運用期間での成熟はWave 2の成果です。
+- Proof Circuit 8回路をCompile。
+- 運用Workspace Test 524件とManaged Source Mock Test 4件（合計528件）がPass。
+- 全WorkspaceのType CheckとPortability CheckがPass。
+- `npm ci && npm run verify:source`でSource Gateを再現可能。
 
-リポジトリには、現場側Runtimeの認証、収集、取引、配布、Rollback実装も含まれます。これは次段階に向けたIntegration Evidenceであり、Wave 1では長期間の自律現場運用や本番Role分離まで完了したとは主張しません。
+現行8回路Contractは2026-09-03 JSTにDeploy済みです。Managed API OUTSIDE Transactionは
+[35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532](https://preprod.midnightexplorer.com/transactions/35b8a83050d910ae94862be565c718b09764eaff1ed3dee93bb532)
+(Block 2,385,826)です。認証済みField Deviceは独立したWITHIN Recordを
+[Block 2,385,898](https://preprod.midnightexplorer.com/transactions/7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40)に記録しました。
+Public Verification MCPはPublic Indexerから両Hashを解決しました。Source ValidationとLive Network Recordは別のEvidenceです。
+詳細は[Current Release Addendum](current_release_addendum.md)を参照してください。
 
-実装基準Commit `af90ad8`を2026-09-04 JSTに検証した結果:
+## Exact Proof Claim
 
-- 8つの証明回路がすべてコンパイル成功
-- 496件の自動テストがすべて成功
-- 全構成領域の型検査とビルドが成功
-- Cloudflare配備前検査が成功
+Confirmed Daily Proofは、登録済み運用日の24時間Slotについて、Private Minimum / Maximumと登録済みThresholdからPublic Resultを確定します。
+Day、Count、Device Commitment、Policy / Validity、Proof Input CommitmentもBindingします。
 
-現行8回路Contractは2026-09-03 JSTに配備済みです。Managed APIから1日1,440件を使った範囲外判定は次のとおりです。
+Physical SensorのIntegrity、Samplingの連続性、Readingを隠していないこと、Source側Aggregationの正しさは証明しません。現行構成では
+Managed BackendとProof ServiceをTrusted Boundaryとし、Public VerifierはZK VerifierをLocal再実行せずConfirmed Contract Stateを比較します。
 
-- Contract: 48636e2f7ae8b1705134b026ec0d5a910357cac990a60adce2c2672e1a78a732
-- Transaction: [35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532](https://preprod.midnightexplorer.com/transactions/35b8a83050d910ae94862be565c718b09764e51fd69979eaff1ed3dee93bb532)
-- Block: 2,385,826
-- Result: 公開10–35 °C Policyに対し、観測24時間中2時間が範囲外のOUTSIDE
+## Target Users and Adoption
 
-認証済み現場Deviceも、別に[Block 2,385,898](https://preprod.midnightexplorer.com/transactions/7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40)でWITHINを確定しました。2026-09-05に公開Verification MCPから両HashをPublic Midnight Indexerへ問い合わせ、D1／Private Inputなしで現行5 Ledger Checkすべてを再確認しました。Source検証とLive Network Recordは別Evidenceです。詳細は[現行リリース補足](current_release_addendum.md)を参照してください。
+最初のCommercial Use CaseはConstruction SiteのMeasurement Verificationです。Wave 1ではTemperature Measurement Pathを検証します。
+Noise、Vibration、その他のMeasurement Typeは専用のThreshold、Input Format、Validation Ruleが必要で、現行Featureとは主張しません。
 
-## 正確に何を証明するか
+チームは既存EquipmentとSales / Rental Channelを使うIndustry PartnerとのField Proof of Conceptを検討しています。これはCommercialization
+Progressであり、Technical Validationの完了ではありません。将来はCold Chain、Food / Pharmaceutical Storage、Research Equipment、Regulated Facilityにも展開します。
 
-確定済み日次証明は、運用日の各時間枠の非公開最小値・最大値から、その時間帯の「しきい値以内／範囲外／計測なし」を証明します。同時に、運用日／登録済み境界、件数、Device Commitment、登録済みしきい値／有効期間、証明入力のCommitmentを紐付けます。
+## Three-stage Delivery Plan
 
-物理センサーの真正性、連続測定、未提出データがないこと、計測元側の集計の正しさは証明しません。現行構成では、管理されたバックエンドと証明サービスを信頼対象とします。ブラウザはPublic Midnight Indexerへ直接問い合わせて確定Contract Stateを照合しますが、Browser内でZK Verifierを再実行したりWitnessを開示したりはしません。
+- **Wave 1 — Core Proof PoC:** Synthetic Measurement Source、Synthetic Daily Record、Review InterfaceでPrivacy Valueを検証。
+- **Wave 2 — Operational Partner Pilot:** Real Field System接続、日次自動化、Organization / Role分離、Partner Loadでの運用基盤検証、Paid Pilot。
+- **Wave 3 — Trust Minimization and PMF:** Hardware-protected Identity / Provenance、組織横断運用、Recurring RevenueとUnit Economicsの検証。
 
-## 対象利用者と導入
+完全なProduct / Business Planは[Three-wave Roadmap](../../architecture/three_wave_roadmap.md)にあります。Wave 2 / Wave 3は計画項目です。
 
-最初の事業ユースケースとして協議しているのは建設現場の計測結果検証です。Wave 1で検証済みなのは温度計測の経路です。騒音や振動などに展開するには、計測種別ごとのしきい値定義、入力形式、検査規則の追加が必要です。新しい機器や販売網を一から作るのではなく、既存の計測機器とクラウド運用へ検証機能を追加します。
+## Repository References
 
-既存の機器と販売・レンタル網を利用する現場実証に向け、業界事業者と協議を進めています。これは事業化の進捗であり、完了済みの技術検証ではありません。同じ証明の仕組みは将来、低温物流、食品・医薬品保管、研究設備、規制対象設備にも展開できます。
+- Repository: [GitHub](https://github.com/commun-platform/midnight_buildathons_private_sensor2026)
+- [Claim / Evidence Matrix](evidence_matrix.md)
+- [Current Release Evidence](current_release_addendum.md)
+- [Technical Gate Checklist](technical_gate_checklist.md)
+- [Judge Review Guide](README.md)
 
-## 3段階の展開計画
-
-- Wave 1 — Core Proof PoC：疑似計測元、疑似の日次計測データ、一つの審査用統合画面で非公開証明の中核価値を検証します。
-- Wave 2 — Operational Partner Pilot：実際の現場計測システムを接続し、日次運用の自律化、組織／Role分離を完成し、実装済み運用・Support基盤をPartner負荷で強化して、有償パートナー実証を行います。
-- Wave 3 — Trust Minimization and PMF：Hardware保護Identityと来歴を追加し、複数組織・複数現場で商用運用して、継続売上、契約更新、利用拡大、持続可能なUnit Economicsを検証します。
-
-現行Browserと公開MCPはPublic Midnight TX／Contract Stateを独立照合します。製品・事業計画の正本は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)です。一部運用基盤は先行実装済みですが、Wave 2とWave 3の成果目標は計画です。
-
-## 提出リンク
-
-- リポジトリ: [GitHub](https://github.com/commun-platform/midnight_buildathons_private_sensor2026)（公開設定は提出時の外部Gate）
-- 日本語スライド: [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) / [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf)
-- 英語スライド: [PPTX](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) / [PDF](../../submission/deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf)
-- 紹介動画: `bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、提出用公開URLを追加
-- 主張と証拠の対応表: [evidence_matrix.md](evidence_matrix.md)
-- 現行リリース証拠: [current_release_addendum.md](current_release_addendum.md)
-- 審査の入口: [README](../../../README.md)
-
-## 提出前に必ず確認すること
-
-- 仮リンクを公開URLへ置き換える。
-- 審査対象コミットを固定し、SHAを記録する。
-- リポジトリの公開設定と`midnightntwrk`トピックを確認する。
-- AKINDOの締切時刻、入力欄の制限、公式ルールを確認する。
-- 完成した英語動画を公開し、提出用URLを掲載する。
+RepositoryのPublic設定、`midnightntwrk` Topic、Submission Formの項目は提出時点で確認します。

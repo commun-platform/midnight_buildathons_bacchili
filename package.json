@@ -29,6 +29,7 @@
     "build": "npm run dev:guard && npm run build --workspaces --if-present",
     "typecheck": "npm run dev:guard && npm run typecheck --workspaces --if-present",
     "test": "npm run dev:guard && npm run contract:compile && npm run test:managed-source-mock && npm run test -w @midnight-demo/shared && npm run test -w @midnight-demo/public-attestation-verifier && npm run test -w @midnight-demo/sensor-registry-contract && npm run test -w @midnight-demo/dashboard && npm run test -w @midnight-demo/development-cli && npm run test -w @midnight-demo/device-auth && npm run test -w @midnight-demo/edge-agent && npm run test -w @midnight-demo/device-wallet-agent && npm run test -w @midnight-demo/proof-gateway && npm run test -w @midnight-demo/sponsor-wallet && npm run test -w @midnight-demo/support-mcp && npm run test -w @midnight-demo/verification-mcp",
+    "verify:source": "npm run verify:portability && npm test && npm run typecheck",
     "test:managed-source-mock": "node --test tests/system/mock-measurement-source/handler.test.mjs",
     "managed-source:mock": "node tests/system/mock-measurement-source/server.mjs",
     "sct:api": "npm run dev:guard && npm run test:sct -w @midnight-demo/proof-gateway && npm run test:sct -w @midnight-demo/sponsor-wallet",

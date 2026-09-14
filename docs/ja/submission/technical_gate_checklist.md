@@ -1,48 +1,44 @@
 # Wave 1 Technical Gate Checklist
 
-最新版の成果物一覧・9月11日の検証結果・未完了項目は[最終成果物まとめ](final_delivery.md)を参照してください。`af90ad8`と496件の記載は9月5日までの基準記録です。
-
 [English](../../submission/technical_gate_checklist.md)
 
-最終実装確認: 2026-09-04 JST
-公開検証Live再確認: 2026-09-05 JST
+Review Commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+最終Source Validation: 2026-09-14 JST
 
 | Gate | Status | Evidence / Action |
 | --- | --- | --- |
-| 運用Compact Contract | PASS | midnight/contracts/sensor-registry/src/sensor-registry.compact |
-| Compact Compile | PASS | 8 Circuit、submitDailyAttestation 28,699 rows、k=15 |
-| Repository Test | PASS | 12 Workspaceと疑似対向Serviceで496 / 496成功 |
-| Typecheck | PASS | 設定済み全Workspace |
-| Production Build | PASS | Dashboard、CLI、Device Workspace |
-| Cloudflare Package検証 | PASS | Proof Gateway、Support MCP、Verification MCPのWrangler dry-run成功。配備済み公開MCPから現行2 TXを確認 |
-| Source Portability | PASS | Machine固有Path / Deploy値なし |
-| Apache License 2.0本文 | PASS | 公式Apache 2.0本文からRoot LICENSEを追加 |
-| Midnight Attribution | PASS | README / 提出資料でCompact、Midnight、Proof境界を明示 |
-| 日英分離 | PASS | 文書、図版、Deck Outputを分離 |
-| Public Repository | PENDING EXTERNAL | 公開後に確認 |
-| GitHub Topic midnightntwrk | PASS | GitHub Repositoryで設定済みと確認 |
-| 実装基準Commit | PASS | `af90ad8`。文書追従Commitは別途記録 |
-| 現行Contract配備 | PASS | 8回路Contract配備と現行Managed API／Device TX EvidenceをRelease補足へ記録 |
-| MCP最小権限境界 | PASS | 非公開Support／公開Verificationを別Worker化し、3 + 11 + 5 Test成功 |
-| 最終GUI Screenshot | PASS（LOCAL） | 審査済み英語Still 6枚と1920×1080 Submission Thumbnailを`docs/submission/captures/`へ保存済み |
-| Demo / Video Pitch | PASS（LOCAL） | 英語H.264／AAC 1080p動画`bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、公開URL設定は外部作業 |
-| Slide Package | PASS（LOCAL） | 英語9枚PPTX／9 Page PDFは動画Storyを維持してSlide 7を更新。日本語Technical Referenceは12枚／12 Pageを維持し、Slide 8へ同じ境界のSponsor Wallet構成と限定付き`standard-4` Cost比較を追加 |
-| Slide Public Link | PENDING EXTERNAL | 生成Deck / PDFを公開後URL追加 |
-| AKINDO Form / Official Rules | PENDING EXTERNAL | 締切時刻、制限、Team、Link Fieldを再確認 |
+| Operational Compact Contract | PASS | [`sensor-registry.compact`](../../../midnight/contracts/sensor-registry/src/sensor-registry.compact) |
+| Compact Compile | PASS | 固定Toolchain `0.31.1`、8回路をCompile |
+| Repository Source Test | PASS | 運用Workspace合計524件 |
+| Managed Source Mock Test | PASS | 4件（`npm test`合計528件） |
+| Type Check | PASS | 設定済み全Workspace |
+| Source Portability | PASS | `npm run verify:portability` |
+| Whitespace / Link Check | PASS | `git diff --check`、追跡対象Document Link解決 |
+| Apache 2.0 License | PASS | Root [`LICENSE`](../../../LICENSE) |
+| Midnight Attribution | PASS | Top READMEとArchitecture DocumentにCompact、Midnight、Proof境界を記載 |
+| Current Deployment Record | PASS | [Release Addendum](current_release_addendum.md)の日付付きContract / Transaction Record |
+| Public Verification Boundary | PASS | [Public Verifier](../../../shared/public-attestation-verifier/src/index.ts)はPublic Stateだけを返す |
+| MCP Least Privilege | PASS | Private SupportとPublic VerificationのWorkerを分離。3 + 11 + 5 Test |
+| 再現可能なSource Command | PASS | `npm ci && npm run verify:source` |
+| GitHub Source Check | PASS | [Source Validation Workflow](../../../.github/workflows/source-validation.yml)がPush / Pull RequestでPortabilityとDeterministic Mock Source Checkを実行 |
+| Public Repository Visibility | PENDING EXTERNAL | 提出前にRepositoryをPublicへ変更 |
+| GitHub Topic `midnightntwrk` | PASS | Repository Metadataで確認済み |
 
-## 最終Release Command
+## Source Gate
 
-    git status --short
-    TMPDIR=/tmp npm run verify
-    git diff --check
+Node.js 22と固定Compact Toolchainを用意し、Repository Rootから実行します。
 
-Submission READMEに記載する文書Link監査、全図版のFull-size確認、Secret / Private Benchmark StateがTrackされていないことを確認し、次を記録します。
+```bash
+npm ci
+npm run verify:source
+git diff --check
+```
 
-- 実装基準と文書Commit SHA
-- Repository URL / Public設定
-- midnightntwrk Topic
-- Deck URL
-- Video URL
-- 検証日と実行者
+Source GateはOperational ContractのCompile、Workspace Test、TypeScript、Portabilityを確認します。
+Device Secret、Wallet Recovery Material、Deployment Credential、稼働中Networkは使用しません。
 
-AKINDO提出に必要なPENDING EXTERNALが残る間はReadyと判定しません。
+## 公開Recordの範囲
+
+Release AddendumのPublic Transaction Recordは日付付きのDeployment Evidenceです。Clean Checkoutの
+Source Gateの代わりにはなりません。新しいDeploymentやContainer Image BuildはこのChecklistで主張
+しません。Full Deployment Package GateにはDocker環境が必要です。

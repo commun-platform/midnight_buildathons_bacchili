@@ -1,13 +1,18 @@
-# Documentation Figure Generation Manifest
+# Documentation figure generation manifest
 
 [日本語版](../../ja/assets/guides/generation_manifest.md)
 
-Generation modes: Codex built-in image generation for the original raster figures; deterministic local SVG-to-PNG rendering for the English and pitch-localized Japanese on-demand architecture
-Reproducible sources: `tools/submission-media/build-on-demand-zkp-architecture.cjs`, `tools/submission-media/build-on-demand-zkp-architecture-ja.cjs`
-Use case: `infographic-diagram`
+The tracked review figures are generated either by the built-in image generator or by deterministic
+SVG-to-PNG renderers. This manifest records their source and insertion points; generated local output
+is not repository evidence.
+
+Reproducible sources: `tools/submission-media/build-on-demand-zkp-architecture.cjs` and
+`tools/submission-media/build-on-demand-zkp-architecture-ja.cjs`
 Output: 1672 × 941 PNG, 16:9
-Shared style: hard-edged dark-navy technical documentation, subtle grid, white type, cyan and purple accents, muted green/amber/red, flat line icons
-Shared exclusions: people, company logos, coin imagery, photographs, watermarks, Raspberry Pi, development-host architecture, decorative neon cyberpunk styling
+Style: dark-navy technical documentation, subtle grid, white type, cyan and purple accents, muted
+green/amber/red, flat line icons
+Exclusions: people, company logos, coin imagery, photographs, watermarks, Raspberry Pi, development-host
+architecture, decorative neon cyberpunk styling
 
 ## Insertion map
 
@@ -16,80 +21,54 @@ Shared exclusions: people, company logos, coin imagery, photographs, watermarks,
 | Judge review map | `submission/judge_qa.md` |
 | Specification-to-evidence traceability | `implementation/implement_spec.md` |
 | Fixed 24-slot scaling | `implementation/cost_benchmark.md` |
-| Judge review path | `operations/demo_runbook.md`, `submission/demo_script.md`, `submission/deliverables_plan.md` |
+| Review path | `operations/demo_runbook.md`, `submission/README.md`, `submission/deliverables_plan.md` |
 | Device and threshold lifecycle | `security/device_registry.md` |
 | Safe Edge release lifecycle | `operations/device_firmware.md` |
-| On-demand ZK proof and Midnight recording architecture (English / Japanese) | `operations/sponsor_wallet_operating_hours.md`, `ja/operations/sponsor_wallet_operating_hours.md`, final English pitch slide 7, Japanese Technical Reference slide 8 |
+| On-demand ZK proof and Midnight recording architecture | `operations/sponsor_wallet_operating_hours.md`, `ja/operations/sponsor_wallet_operating_hours.md` |
 
-The long `architecture/wave1_spec.md` additionally reuses four generated review figures at the exact-claim, runtime-boundary, key-separation, and daily-circuit sections. Indexes, short checklists, and the storage-migration document were not given decorative figures because tables or an existing text diagram already carry their structure.
+The long `architecture/wave1_spec.md` also reuses four review figures at the exact-claim,
+runtime-boundary, key-separation, and daily-circuit sections. Indexes and short checklists use tables
+or text diagrams where those are clearer.
 
-## Final prompt set
+## Tracked figure set
 
 ### `judge-qa-map-en.png`
 
-- Title: `JUDGE REVIEW MAP`.
-- Four questions: what is proven, what stays private, what is not proven, and what can be checked now.
-- Current browser limitation is separated as a Wave 2 plan.
+Four questions: what is proven, what stays private, what is not proven, and what can be checked now.
+The browser limitation is identified as a Wave 2 plan.
 
 ### `implementation-traceability-en.png`
 
-- Title: `FROM SPECIFICATION TO EVIDENCE`.
-- Four-stage chain: requirements, implementation, data boundary, evidence.
-- Evidence is limited to the validated eight-circuit source, the current 496-test suite, and separately dated transaction records.
+Requirements, implementation, data boundary, and evidence. The evidence boundary is the validated
+eight-circuit source, 524 operational tests plus 4 deterministic mock tests, and dated public records.
 
 ### `fixed-24-slot-scaling-en.png`
 
-- Title: `WHY 24 HOURLY SLOTS`.
-- Shows 24, 96, or 1,440+ local readings reduced into one fixed 24-slot input.
-- Separates fixed circuit shape from proof volume, which grows with active Devices × days.
+Shows 24, 96, or 1,440+ local readings reduced into one fixed 24-slot input. Circuit shape stays fixed
+while proof volume grows with active Devices × days.
 
 ### `judge-review-path-en.png`
 
-- Title: `JUDGE REVIEW PATH`.
-- Six steps: setup, enrollment, collection, proof generation, Device signature, public result.
-- Private and public data are separated in the bottom strip.
+Six review steps: setup, enrollment, collection, proof generation, Device signature, and public result.
+Private and public data are separated in the bottom strip.
 
 ### `device-policy-lifecycle-en.png`
 
-- Title: `DEVICE AND THRESHOLD LIFECYCLE`.
-- Five stages: Device registration, public-threshold registration, assignment, daily operation, rotation/disable.
-- Operator lifecycle control and Device transaction signing are shown as separate responsibilities.
+Device registration, public-threshold registration, assignment, daily operation, and rotation/disable.
+Operator lifecycle control and Device transaction signing are separate responsibilities.
 
 ### `edge-release-lifecycle-en.png`
 
-- Title: `SAFE EDGE RELEASE LIFECYCLE`.
-- Six stages: verified package, checksum/manifest, versioned install, activate current, health check, rollback.
-- Explicitly excludes the Compact compiler, deployment wallet, and secret seed from the Device package.
+Verified package, checksum/manifest, versioned install, current activation, health check, and rollback.
+The Device package excludes the Compact compiler, deployment credentials, and secret seed.
 
 ### `on-demand-zkp-midnight-architecture-en.svg` / `.png`
 
-- Title: `ON-DEMAND ZK PROOF & MIDNIGHT RECORDING` under the explicit
-  `OUR ENGINEERING INNOVATION · CURRENT PREPROD SYSTEM` label.
-- Shows independent Browser Wallet and external-cloud API intake, Worker/D1 coordination, private
-  R2 artifacts, the on-demand server-side Sponsor Wallet, the separate Proof Server, Midnight, and
-  public verification.
-- Makes the DUST-only fee boundary explicit: the Sponsor Wallet receives neither Device Authority
-  nor private raw values and cannot replace the already-authorized call.
-- Shows the `standard-4` planning comparison of USD 133.23 at 720 active hours versus USD 22.20 at
-  an illustrative 120-hour monthly drain (83.3% lower), with excluded services stated in the figure.
-- Generated locally with exact SVG text so technical terms, numbers, and claim boundaries remain
-  reproducible; inserted as slide 7 by `include-on-demand-architecture-in-pitch.cjs`.
-
-### `on-demand-zkp-midnight-architecture-ja-pitch.svg` / `.png`
-
-- Exact Japanese localization of the English pitch visual, including the current Preprod-system label,
-  server-side Sponsor Wallet, and bounded cost-evidence callout.
-- Preserves the same DUST-only boundary: the Sponsor Wallet receives neither Device Authority nor
-  private raw values and cannot replace the already-authorized call.
-- Preserves the `standard-4` planning comparison and its explicit service exclusions.
-- Generated by `build-on-demand-zkp-architecture-ja.cjs` without overwriting the original Japanese
-  guide image; inserted as slide 8 by `include-on-demand-architecture-in-ja-reference.cjs`.
+Shows Browser Wallet and managed-source intake, Worker/D1 coordination, private artifacts, the
+on-demand Server Wallet, Proof Server, Midnight, and public verification. The DUST-only boundary and
+the separation of Device Authority from private raw values are explicit.
 
 ### `on-demand-zkp-midnight-architecture-ja.png`
 
-- Title: `オンデマンドZK証明・Midnight記録アーキテクチャ`.
-- Shows independent browser and external-cloud API intake, D1 coordination, R2 private artifacts,
-  the on-demand Server Wallet, the separate Proof Server, Midnight recording, and public verification.
-- Makes the one-minute Job check, Wallet synchronization gate, graceful checkpoint shutdown, and
-  60-second restart cooldown visible.
-- Separates private RAW values from the public threshold-decision proof and verification metadata.
+Japanese localization of the same four-domain architecture, including the Wallet synchronization gate,
+safe checkpoint shutdown, restart cooldown, private raw values, and public verification metadata.

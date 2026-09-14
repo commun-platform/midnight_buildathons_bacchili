@@ -41,7 +41,7 @@ Wave 1で確認する内容：
 現場側Runtime、認証、配布、復旧に関する補助実装もリポジトリに含まれますが、長期間の自律的な現場運用はWave 1の
 主要審査経路ではなく、本番サービスとして完了したとは主張しません。
 
-Wave 1では、Wave 2の運用成熟Gateに先行して、Wallet不要のManaged Cloud受付、Access保護された運用Console、
+Wave 1では、Wave 2の運用成熟Gateに先行して、Server Walletを使うManaged Cloud受付、Access保護された運用Console、
 Redact済みAudit／日次Metric、障害／Receipt通知、非公開Read-only Support MCP、別Workerの公開TX検証MCPも
 実装しました。これらはTest済みの現行機能ですが、存在するだけでWave 2のPartner運用成果を満たすものではありません。
 

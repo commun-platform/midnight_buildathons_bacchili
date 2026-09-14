@@ -47,7 +47,7 @@ autonomous long-running field operation is not the primary Wave 1 review path an
 completed production service.
 
 Wave 1 also delivered several foundations ahead of their Wave 2 operational maturity gate: a
-walletless managed-cloud intake path, an Access-protected operations console, redacted audit and
+managed-cloud intake path, an Access-protected operations console, redacted audit and
 daily metrics, incident/receipt notifications, a private read-only Support MCP, and a separately
 deployed public transaction-verification MCP. These are implemented and tested capabilities, but
 their existence does not by itself satisfy the Wave 2 partner-operation outcome.

@@ -1,73 +1,59 @@
-# Wave 1 進捗記録
-
-最新版の成果物一覧・9月11日の検証結果・未完了項目は[最終成果物まとめ](final_delivery.md)を参照してください。`af90ad8`と496件の記載は9月5日までの基準記録です。
+# Wave 1 Progress Record
 
 [English](../../submission/wave1_progress.md)
 
-対象期間: 2026-08-27〜2026-09-05 JST
-状態: 最終英語デモ動画を作成済み。提出用公開URL待ち。
+対象期間: 2026-08-27〜2026-09-14 JST
+Review Commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
 
-## この記録の読み方
+## このRecordの読み方
 
-リポジトリの履歴はWave 1開始日に始まっているため、それ以前の公開版との差分は断定しません。ここでは、Wave 1期間中のコミットと、2026-09-05までに実装基準`af90ad8`で実行した検証結果だけを示します。
+Repository HistoryはWave 1開始日に始まるため、この文書はReview Commitに含まれる実装とValidationを記録します。
+過去のPublic Releaseとの差分を推測しません。日付付きNetwork RecordはSource Checkとは分けて記載します。
 
-2026-08-28の取引は旧Schemaの履歴Evidenceとして残します。現行Source検証、2026-09-03の8回路配備、
-現行Contractを使ったE2E TXは分けて記録し、Source検査をNetwork配備実績として扱いません。
+## Wave 1で実装した領域
 
-## Wave 1で構築した内容
-
-| 領域 | 構築した内容 | 確認したこと |
+| 領域 | 実装 | 検証 |
 | --- | --- | --- |
-| ゼロ知識証明 | 公開しきい値との照合、範囲内／範囲外の判定、24個の時間枠を使う固定形式 | 8つの証明回路がすべてコンパイル成功。コントラクトの自動テスト18件が成功 |
-| 現場連携の補助実装 | 将来の現場運用に向けた計測、1時間ごとの集約、API認証、取引認可、更新・復旧 | 収集16件、認証6件、取引Agent 32件の自動テストが成功。自律本番運用は未主張 |
-| バックエンド | Device／Managed Cloud認証、Proof受付、Workflow保存、証明生成、統合Server Wallet処理、Redact／Public API | Gateway 246件、Server Wallet 52件とCloudflare配備前検査が成功 |
-| 画面 | 運用操作と第三者公開確認をまとめた審査フロー、日本語・英語表示 | 画面の自動テスト78件と本番用ビルドが成功 |
-| Midnight連携 | 公開しきい値、証明対象、User認可／Managed Attestor日次取引 | Simulator Testと現行8回路PreprodのManaged API／Device TXを確認 |
-| 運用・Support | Access保護済みHealth／Metric／Audit Console、日本語Discord障害／Receipt、非公開Support MCP、公開Verification MCP | 共通Verifier 3件、Support MCP 11件、Verification MCP 5件が成功し、公開MCPで現行2 TXを再確認 |
-| 安全性 | 改ざん拒否、重複処理の防止、同時実行の排他、設定の巻き戻し拒否、破損状態の隔離 | これらの失敗ケースを含む合計496件の自動テストが成功 |
-| 審査資料 | 構成、非公開情報の境界、実演手順、費用実測、日英図版、提出物 | 文書を目的別に分類し、相互リンクを確認 |
+| Zero-knowledge Proof | Public Threshold Check、WITHIN / OUTSIDE、固定24時間Input、NO DATA | 8回路Compile、Contract Test 18件 |
+| Field Integration | Measurement Collection、Hourly Aggregation、API認証、Transaction認可、Update、Rollback | Collector、Authentication、Transaction Agent TestがPass。自律した長期Production運用は主張しません |
+| Backend | Device / Managed Cloud認証、Proof Request受付、Workflow保存、Proof生成、Consolidated Server Wallet、Redacted / Public API | Gateway 247件、Server Wallet 52件、Pre-deployment Check |
+| Frontend | Operator Workflow、Public Third-party View、日英表示 | Frontend TestとProduction Build |
+| Midnight Integration | Public Threshold、Proof Subject、User認可Transaction、Managed Attestation、Service Fee Sponsorship | Simulator Testと現行8回路Preprod Record |
+| Operations / Support | Access保護Health / Metrics / Audit Console、通知、Private Support MCP、Public Verification MCP | Shared Verifier、Support MCP、Verification MCP Test |
+| Safety | Tamper Rejection、Duplicate Prevention、Execution Lock、Config Downgrade Rejection、Corrupt State隔離 | 自動TestでFailure Caseを網羅 |
 
-詳細なコミットと検証箇所は[主張と証拠の対応表](evidence_matrix.md)に記録しています。
+Source Location、Test、Validation Limitは[Claim / Evidence Map](evidence_matrix.md)を参照してください。
 
-## Wave 1で改善した重要点
+## Wave 1で行った主な改善
 
-1. 個々の測定値の件数に応じて証明回路が大きくならないよう、1日分を24個の時間枠へまとめる固定形式にしました。
-2. 一つの証明対象・範囲内だけの経路から、Project単位の登録と、範囲内／範囲外の両結果を扱う経路へ広げました。
-3. API認証、コントラクト上の権限、Midnight取引認可の用途を分離しました。
-4. 証明を直接送る方式から、重複実行を防ぎ、同時処理数を制限できる証明依頼方式へ変更しました。
-5. 静的な確認画面から、運用操作と第三者Evidenceを一つにまとめた日本語・英語の審査フローへ広げました。
-6. 現場Runtime向け配布物に、内容検証、版管理、更新失敗時の復旧、認証情報の保護を追加しました。
-7. 登録済みCloud APIから、顧客Walletなしで同じ固定Proof Modelと統合Server Walletを使う日次Attestationを追加しました。
-8. 保護された運用Console／非公開Support MCPと、Storageを持たない別Workerの公開TX検証MCPを追加しました。
+1. 1運用日を固定24時間へ正規化し、個別Reading数でProof Costが増えないようにしました。
+2. RegistrationをProject単位にし、WITHIN / OUTSIDEを正しく扱えるようにしました。
+3. API認証、Contract Authority、Midnight Transaction認可を分離しました。
+4. Proof Request Workflowで重複実行を防ぎ、同時実行数を制限しました。
+5. Operator StepとThird-party Evidenceを明示的なState Transitionで確認できるようにしました。
+6. Field RuntimeでContent Validation、Version管理、失敗UpdateのRollback、Credential保護を行います。
+7. Registered Managed Sourceが固定Proof ModelとServer Walletで日次Attestationを完了します。
+8. Operations Evidenceを保護Console、Private Support MCP、Public Transaction Verificationへ分離しました。
 
-## 2026-09-05までに確認した結果
+## Review Commitで確認した結果
 
-- リポジトリが特定の開発環境に依存していないことを検査。
-- `sensor-registry`の8つの証明回路がすべてコンパイル成功。
-- 12のWorkspaceと疑似対向Serviceにまたがる496件の自動テストがすべて成功。
-- 全構成領域の型検査と、画面・TypeScriptのビルドが成功。
-- Cloudflareへの配備前検査が成功。
+- Repository Portability CheckがPass。
+- `sensor-registry`の8 Proof CircuitをCompile。
+- 運用Workspace Test 524件とManaged Source Mock Test 4件（合計528件）がPass。
+- 全WorkspaceのType CheckがPass。
+- 日付付きPreprod Contract / Transaction Recordは[Release Addendum](current_release_addendum.md)に記載。
 
-現行8回路Contractは2026-09-03に配備済みです。Managed APIの1,440件はBlock 2,385,826でOUTSIDE、
-別の認証済みDeviceの1,440件はBlock 2,385,898でWITHINとして確定しました。2026-09-05に公開Verification
-MCPから両HashをMidnight Indexerへ問い合わせ、D1／Private Inputなしで再確認しました。
+## 現在の限界
 
-## 現在の制約
+- Private Proof Inputを扱うBackendとProof ServerはTrusted Boundaryです。
+- Public VerifierはPublic Contract / Transaction Stateを読みますが、ZK VerifierをLocal再実行しません。
+- ProofはPhysical Sensorの正確性、連続Sampling、Readingを隠していないこと、Source Aggregationの正しさを保証しません。
+- Operator ViewとThird-party ViewはReview用に統合しており、ProductionのRole / Application分離は未完了です。
+- Field Deviceの自動処理は実装済みですが、Partner期間の信頼性と長期Production運用は未検証です。
 
-- バックエンドと証明生成サーバーは、証明生成中の非公開入力を信頼して処理します。
-- 第三者画面はPublic Midnight Indexerへ直接問い合わせてTX／Contract Stateを照合しますが、Browser内でZK Verifierを再実行しません。
-- 主要審査経路はブラウザ上の疑似計測元を使います。現場Deviceの完了日自動送信は実装済みですが、パートナーの運用期間を通じた信頼性は未検証です。
-- 運用者画面と第三者画面は、審査用に一つへまとめており、本番Role・Application単位には分離していません。
-- ブラウザの疑似計測経路は明示的な操作を使い、現場Deviceは独立したタイマーで日次送信を行います。
-- 物理センサーの正確さ、連続測定、未提出データがないこと、計測元側の集計の正しさは、この証明だけでは保証しません。
-- 英語デモ動画は完成済みです。提出用URLの公開と、必要な場合の日本語版制作だけが外部作業として残ります。
+## Next Waves
 
-## 次のWave
+- **Wave 2:** Real Field System接続、日次Lifecycle自動化、Organization / Role分離、Partner Loadでの運用基盤検証、Paid Partner Pilot。
+- **Wave 3:** Hardware-protected Identity / Provenance、組織横断運用、Recurring Revenue・Renewal・Expansion・Unit Economicsの検証。
 
-- Wave 2では、実際の現場計測システムを接続し、日次Lifecycle全体を自律化します。組織／Role分離を完成し、実装済み運用・Support基盤を検証・強化して監査付きRecovery Controlを追加し、有償パートナー実証を目指します。
-- Wave 3では、Hardware保護Identityと来歴、複数組織での商用運用を実現し、継続売上、契約更新、利用拡大、持続可能なUnit EconomicsでPMFを検証します。
-
-Wave 2とWave 3の成果目標は計画ですが、上記運用基盤は先行実装済みです。
-製品・事業計画の正本は[3 Waveロードマップ](../architecture/three_wave_roadmap.md)です。
-コントラクトを先に変更する項目を含む実装優先順位は、
-[将来機能バックログ](../implementation/future_features.md)で管理します。
+Wave 2 / Wave 3は計画です。Product / Business Planの正本は[Three-wave Roadmap](../../architecture/three_wave_roadmap.md)です。

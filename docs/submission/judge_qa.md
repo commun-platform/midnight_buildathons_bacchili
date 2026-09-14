@@ -1,6 +1,6 @@
 # Judge Q&A
 
-For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+The source-only review entry point is the [repository review guide](README.md). The review commit is `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`; `npm run verify:source` reproduces the source checks.
 
 [日本語版](../ja/submission/judge_qa.md)
 
@@ -51,11 +51,11 @@ Each hour of the registered operational day is published as WITHIN, OUTSIDE, or 
 
 ## What has been verified so far?
 
-Implementation baseline `af90ad8` compiled all 8 circuits, passed 496 automated tests, all type checks/builds, API SCT, the 22-checkpoint GUI SCT, Wrangler dry-runs, and portability checks. The current eight-circuit Contract was deployed on 2026-09-03. A 1,440-record Managed API day confirmed OUTSIDE in block 2,385,826 and an authenticated 1,440-reading Device day confirmed WITHIN in block 2,385,898. On 2026-09-05, the public Verification MCP resolved both hashes from the Midnight Indexer and completed all five current ledger checks without D1 or private input.
+The review commit compiled all 8 circuits, passed 524 operational workspace tests plus 4 managed-source mock tests, all type checks, and portability checks. The current eight-circuit Contract was deployed on 2026-09-03. A 1,440-record Managed API day confirmed OUTSIDE in block 2,385,826 and an authenticated 1,440-reading Device day confirmed WITHIN in block 2,385,898. On 2026-09-05, the public Verification MCP resolved both hashes from the Midnight Indexer and completed the current ledger checks without D1 or private input.
 
 ## Can the third-party view verify independently?
 
-Yes for the public chain evidence. Without a Wallet, private input, or D1 lookup, the browser queries the public Midnight Indexer by transaction hash, confirms the successful transaction and block, derives the called Contract, and compares its state at that block with the preceding block. It decodes the newly added Attestation, operational date/boundary, 24 hourly results, Policy/validity, presence/counts, Device Commitment, and Device-bound Assignment. The browser does not rerun the proof verifier locally or expose the witness; Midnight performed proof verification as part of accepting the transaction.
+Yes for the public chain evidence. After the authorized Wallet-backed submission is confirmed, the browser needs only the transaction hash and public Indexer state: it confirms the successful transaction and block, derives the called Contract, and compares its state at that block with the preceding block. It decodes the newly added Attestation, operational date/boundary, 24 hourly results, Policy/validity, presence/counts, Device Commitment, and Device-bound Assignment. The browser does not rerun the proof verifier locally or expose the witness; Midnight performed proof verification as part of accepting the transaction.
 
 ## Who holds which keys?
 

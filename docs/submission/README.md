@@ -1,65 +1,61 @@
-# BACCHIRI!━━Verifiable Measurement Layer — Wave 1 Submission Package
+# Repository review guide
 
-See [the current GUI local demo and pitch](local_demo.md) for the completed English (5:07) and Japanese (5:25) Wallet use-case presentations, including GUI close-ups, progressive diagrams, and the narrated brand/slogan/thanks closing. It is separate from historical real-chain evidence.
-
-For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+This guide is the source-only entry point for reviewing BACCHIRI!━━Verifiable Measurement Layer.
+It points to files, tests, commands, and public transaction records that are part of this repository's
+technical review. The review baseline is commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`.
 
 [日本語版](../ja/submission/README.md)
 
-This directory contains the judging package. The final English demo pitch was produced from the
-implemented GUI. Later engineering evidence is kept in a separate release addendum so the filmed
-story, current source, and current Preprod deployment are not conflated.
+## Start here
 
-| Artifact | Status | File |
-| --- | --- | --- |
-| Detailed production design | Ready | [deliverables_plan.md](deliverables_plan.md) |
-| Submission copy | Ready; public URLs pending | [submission_copy.md](submission_copy.md) |
-| Evidence matrix | Ready; implementation baseline `af90ad8` recorded | [evidence_matrix.md](evidence_matrix.md) |
-| Current release addendum | Ready; covers post-capture Managed API, Device, operations, MCP, and current-Contract evidence | [current_release_addendum.md](current_release_addendum.md) |
-| Wave 1 progress record | Ready | [wave1_progress.md](wave1_progress.md) |
-| Technical gate checklist | Ready; external gates pending | [technical_gate_checklist.md](technical_gate_checklist.md) |
-| Judge Q&A | Ready | [judge_qa.md](judge_qa.md) |
-| One-page brief | Ready | [one_page_brief.md](one_page_brief.md) |
-| Editable English deck | Ready; slide 7 includes current Sponsor Wallet architecture and bounded cost evidence | [PPTX](deck/bacchiri-verifiable-measurement-layer-wave1-en.pptx) |
-| Review English deck | Ready; independent nine-page review export | [PDF](deck/bacchiri-verifiable-measurement-layer-wave1-en.pdf) |
-| Cloudflare operations edition | Two imagegen figures, added slides, and narrated scenes in English and Japanese | [Deliverables and production notes](cloudflare_operations_media.md) |
-| New GUI recording handoff | Bilingual 11-slide pitch, approximately three-minute narrated previews, and five-shot recording guide; new footage pending | [Preview files and capture instructions](new_gui_recording_handoff.md) |
-| Japanese Technical Reference | Reference only; slide 8 includes the localized current architecture and bounded cost evidence | [PPTX](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx) · [PDF](../ja/submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) |
-| Final GUI demo script | Used for the English pitch | [demo_script.md](demo_script.md) |
-| Final GUI capture pack | Ready; six reviewed stills plus submission thumbnail | [captures/](captures/) |
-| English video pitch | Produced (2:18); public URL pending | `bacchiri-demo-pitch-en.mp4`; add the final public link to [submission_copy.md](submission_copy.md) |
+| Review question | Source of truth |
+| --- | --- |
+| What problem does the product solve? | [Top README](../../README.md) and [one-page brief](one_page_brief.md) |
+| What exactly is proved? | [Claim and evidence matrix](evidence_matrix.md) |
+| Where is the privacy boundary? | [Private-information specification](../security/private_spec.md) and the contract source |
+| How is the proof implemented? | [Sensor Registry contract](../../midnight/contracts/sensor-registry/src/sensor-registry.compact) and [witnesses](../../midnight/contracts/sensor-registry/src/witnesses.ts) |
+| How can the result be checked? | [Public verifier](../../shared/public-attestation-verifier/src/index.ts) and [release addendum](current_release_addendum.md) |
+| What was tested? | [Technical gate checklist](technical_gate_checklist.md) and the workspace test suites |
+| What remains open? | [Wave 1 progress](wave1_progress.md) and [judge Q&A](judge_qa.md) |
 
-## Deck source and legacy generator
+## Reproduce the source gate
 
-The final English nine-slide PPTX is the editable source synchronized with the video; the PDF is its
-review export. `tools/submission-media/build-submission-decks.cjs` and
-`build-submission-pdfs.cjs` reproduce the earlier twelve-page bilingual technical deck and are retained
-only for historical/reference material. They do **not** reproduce the final pitch and must not be run
-against the submitted English filenames.
+From a clean checkout with Node.js 22 and the pinned Compact toolchain:
 
-The current English PPTX and PDF use the same nine-slide story as the 2:18 video: value, trust problem,
-use-case order, proof-subject/policy binding, private sensor evidence, proof generation, user/service
-authority separation, third-party verification, and the exact claim boundary. Slide 7 now uses the
-current-system architecture to show the on-demand server-side Sponsor Wallet as an engineering result:
-it pays DUST only, does not receive Device Authority or private raw values, checkpoints before
-stopping, and avoids idle Container time. The cost callout is an explicitly bounded planning estimate.
+```bash
+npm ci
+npm run verify:source
+```
 
-The baseline deck does not add operations-console or MCP detail after the video was frozen. The separate September 10 [Cloudflare operations edition](cloudflare_operations_media.md) adds the field collection schedule and Wallet lifecycle to sibling deck and video files.
-Those implemented extensions and their current eight-circuit Preprod records are documented in the
-[current release evidence addendum](current_release_addendum.md) and [evidence matrix](evidence_matrix.md).
+`verify:source` runs portability checks, compiles the operational `sensor-registry` contract, runs
+the repository test suites, and type-checks every workspace. It does not require Device secrets,
+deployment credentials, wallet recovery material, or a live network. The current baseline is 8
+compiled circuits and 524 operational workspace tests, plus 4 managed-source mock tests (528 total).
 
-`build-on-demand-zkp-architecture.cjs` generates the editable English SVG and 1672 × 941 PNG.
+For a narrower check that does not compile Compact:
 
-`build-on-demand-zkp-architecture-ja.cjs` creates a separate Japanese localization without overwriting
-the original Japanese guide figure. `include-on-demand-architecture-in-ja-reference.cjs` replaces only
-slide/page 8 of the twelve-slide Japanese Technical Reference; it does not redefine that reference deck
-as the final submission pitch.
+```bash
+npm run verify:portability
+npm run typecheck
+npm run test:managed-source-mock
+```
 
-## Finalization order
+## Evidence boundary
 
-1. Freeze the final commit and rerun repository verification.
-2. Confirm that the capture pack contains no secret or private proof input.
-3. Publish the completed English video, deck, PDF, and thumbnail.
-4. Fill every placeholder URL in the submission copy and top README.
-5. Confirm public visibility, Apache 2.0, the midnightntwrk topic, and the logged-in AKINDO form.
-6. If replacing the historical pitch with the new GUI edition, complete and review G01–G05 before using final filenames. The bilingual preview already exists; the Japanese Technical Reference is a different edition.
+Claims in the submission docs must resolve to tracked source, tracked tests, or a public URL. A claim
+without one of those references is not part of this repository review. A public transaction record is
+dated evidence for that deployment; it does not replace the source and test checks above.
+
+## Review order
+
+1. Read the exact claim and limitations in the [one-page brief](one_page_brief.md).
+2. Follow the claim rows to source and rejection tests in the [evidence matrix](evidence_matrix.md).
+3. Run `npm run verify:source` and inspect the [technical gate checklist](technical_gate_checklist.md).
+4. Compare the current public records and their boundaries in the [release addendum](current_release_addendum.md).
+5. Use the [three-wave roadmap](../architecture/three_wave_roadmap.md) for planned work; planned work is not presented as shipped behavior.
+
+## Repository requirements
+
+The repository must be publicly readable at submission time, retain the Apache 2.0 license, and use
+the GitHub topic `midnightntwrk`. Those publication settings are external repository metadata and
+are checked separately from the source gate.

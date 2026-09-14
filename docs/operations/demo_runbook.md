@@ -151,7 +151,7 @@ view from one origin. No browser action requires a provisioning bridge or anothe
 For local asset development only, `npm run dashboard:dev` serves the same Worker routes.
 
 Use a normal Chrome profile with a DApp Connector API 4.x-compatible Lace Wallet on Preprod and open
-the deployed root. Select **English** before recording. The root starts at `#/device`; the guided flow
+the deployed root. Select **English** before review. The root starts at `#/device`; the guided flow
 is:
 
 Lace needs neither tNIGHT nor generated tDUST. It approves and binds the Device transaction with
@@ -199,11 +199,9 @@ Review the stepper in order:
 5. Proof generated, Device transaction approved, and Sponsor fee added.
 6. Midnight transaction confirmed.
 
-After confirmation, record the same browser profile so the authenticated Device and administrator
-views remain available. The recording should show Device-origin synthetic data, the pending Proof state, admission,
-proof/signing, confirmation, and the third-party claim without revealing a sensor value. In the
-third-party view, capture the public-only ZKP steps, the **HIDDEN FROM THIRD PARTIES** Raw
-Sensor Values mask, and at least one Midnight Explorer link for available Contract/TX evidence.
+After confirmation, keep the same browser profile so the authenticated Device and administrator views
+remain available. Review the public-only ZKP steps, the **HIDDEN FROM THIRD PARTIES** Raw Sensor Values
+mask, and at least one Midnight Explorer link for available Contract/TX evidence.
 
 ## 5. Validation and cleanup
 
@@ -218,7 +216,7 @@ npm run device:status
 
 `sct:api` covers the Worker and Sponsor Wallet API boundaries, including the queued registration
 regression. `sct:gui` drives the rendered English SPA through thirteen deterministic checkpoints and
-writes ignored screenshots plus `result.json` below `.sct-output/dashboard/`. See the
+stores transient screenshots and `result.json` in the local test workspace; these files are not repository evidence. See the
 [SCT matrix](../implementation/sct_matrix.md) for the acceptance mapping. These deterministic SCTs
 do not replace the final deployed Preprod run with real Lace approvals and Midnight transactions.
 

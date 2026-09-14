@@ -1,99 +1,41 @@
-# Wave 1 Judging Deliverables Plan
-
-For the current artifact inventory, September 11 validation, and remaining work, see the [final delivery summary](final_delivery.md). References to `af90ad8` and 496 tests describe the baseline recorded through September 5.
+# Wave 1 repository review plan
 
 [日本語版](../ja/submission/deliverables_plan.md)
 
-This is the production brief for the Wave 1 submission. The central message is:
+The repository review should make the product claim, implementation, limits, and reproducible checks
+easy to follow. The review baseline is commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`.
 
-> Show a third party that submitted sensor values are within the registered threshold without disclosing the sensor values.
+## Review requirements
 
-![The submission's central value: threshold verification without disclosing sensor values](../assets/review/privacy-value-proposition-en.png)
-
-## Requirements and gates
-
-| Requirement | Deliverable | Completion gate |
+| Requirement | Repository evidence | Completion gate |
 | --- | --- | --- |
-| Public GitHub repository | Repository, top README, license, topic | Publicly accessible with the midnightntwrk topic |
-| Clear README | Top README and detailed guides | Covers project, setup, architecture, Midnight integration, and evaluation |
-| Slide deck | English 16:9 nine-slide pitch synchronized with the final video; Japanese version only if required | Claims, screenshots, and evidence boundaries match the final video |
-| Demo / video pitch | English 2:18 version complete; Japanese version only if required | Concept slides and GUI footage are matched one-to-one with narration |
-| Current release evidence | Current-release addendum and evidence matrix | Deployed Contract, current E2E transactions, validation baseline, and post-video additions are separated from the frozen video story |
-| Wave progress | Dated progress record | Distinguishes pre-existing work from Wave 1 additions |
-| Compiling Compact contract | Technical-gate evidence | sensor-registry compiles with the pinned toolchain |
-| Apache 2.0 Midnight code | License audit | Scope and attribution are explicit |
-| Tests and simulations | Evidence matrix | Core success and rejection cases are reproducible |
+| Public GitHub repository | Root README, Apache 2.0 license, repository topic | Repository is publicly readable and has `midnightntwrk` at submission time |
+| Clear project explanation | [Top README](../../README.md), [submission copy](submission_copy.md), [one-page brief](one_page_brief.md) | Value, architecture, setup, Midnight integration, limitations, and evaluation path are explicit |
+| Meaningful Midnight functionality | [Compact contract](../../midnight/contracts/sensor-registry/src/sensor-registry.compact), witnesses, transaction agent, public verifier | Contract compiles with the pinned toolchain and rejection cases pass |
+| Quality and reliability | Workspace tests, portability check, source gate | `npm ci && npm run verify:source` succeeds from a clean checkout |
+| Dated deployment evidence | [Release addendum](current_release_addendum.md), [evidence matrix](evidence_matrix.md) | Public transaction records are linked with dates and claim boundaries |
+| Honest roadmap | [Wave 1 progress](wave1_progress.md), [three-wave roadmap](../architecture/three_wave_roadmap.md) | Planned work is labeled separately from current behavior |
 
-Recheck the exact submission time, field limits, upload constraints, and Official Rules on AKINDO immediately before submission.
+## Rubric mapping
 
-## Rubric strategy
-
-| Category | Weight | Primary evidence |
+| Category | Weight | Primary repository evidence |
 | --- | ---: | --- |
-| Engineering & Implementation | 40% | Eight-circuit compilation and deployment, private-input boundary, current Managed API and authenticated Device Preprod transactions, and separated public/private MCP boundaries |
-| QA & Reliability | 15% | Tests, tamper rejection, fixed 24-slot input, reproducible runbook |
-| Product & Vision | 15% | Privacy problem, target users, realistic roadmap |
-| UX & Design | 15% | Operator UI, public verifier, clear state and evidence |
-| Communication | 10% | Focused deck, concise demo, consistent technical diagrams |
-| Business Viability | 5% | Target sectors, adoption path, measured cost model |
+| Engineering & Implementation | 40% | Eight-circuit compilation, privacy boundary, authorized Device / managed transactions, separated public and private MCP Workers |
+| Quality Assurance & Reliability | 15% | Source tests, tamper rejection, fixed 24-slot input, retry and idempotency controls, reproducible source gate |
+| Product & Vision | 15% | Privacy problem, target users, exact claim, and roadmap |
+| User Experience & Design | 15% | Operator workflow, public verifier, explicit states, and evidence boundary in the frontend source |
+| Communication | 10% | Focused README, one-page brief, architecture diagrams, claim matrix, and judge Q&A |
+| Business Development & Viability | 5% | Construction measurement entry point, partner-pilot plan, and staged adoption model |
 
-## P0 artifact set
+## Evidence path
 
-1. Submission copy with title, value, problem, solution, why Midnight, progress, and links.
-2. Judge-ready README with 30-second, three-minute, and ten-minute reading paths.
-3. English nine-slide pitch deck synchronized with the final 2:18 video; keep deeper technical diagrams in the documentation package.
-4. English 2:18 demo video; produce a separate Japanese version only if the review audience requires it.
-5. Scene-level demo script and capture list.
-6. Evidence matrix connecting each claim to source, tests, runtime proof, and validation boundary.
-7. Dated Wave 1 progress record.
-8. Technical-gate checklist for compile, tests, license, repository visibility, and topic.
-9. Current-release addendum that records the deployed eight-circuit Contract, current E2E records, public verification recheck, and additions made after the video was frozen.
+1. Read the [one-page brief](one_page_brief.md) for the customer value and exact claim.
+2. Follow each claim to source and rejection tests in the [evidence matrix](evidence_matrix.md).
+3. Inspect the [Compact contract](../../midnight/contracts/sensor-registry/src/sensor-registry.compact), [witnesses](../../midnight/contracts/sensor-registry/src/witnesses.ts), and [public verifier](../../shared/public-attestation-verifier/src/index.ts).
+4. Run the source gate and compare the result with the [technical checklist](technical_gate_checklist.md).
+5. Use the [release addendum](current_release_addendum.md) for dated public records and their limits.
 
-Supporting artifacts should include a screenshot pack, judge Q&A, one-page brief, and a release snapshot tied to a commit and checksums.
+## Evidence policy
 
-## Final nine-slide deck
-
-| # | Slide | Core message |
-| ---: | --- | --- |
-| 1 | Title / Value | Threshold evidence without publishing private readings |
-| 2 | Minimum Evidence | Why cross-organization review should disclose only the required result |
-| 3 | Use Case | Register → measure → reduce → prove → authorize → verify |
-| 4 | Live Product: Register | User-controlled account, proof subject, public policy, and validity |
-| 5 | Private Evidence | Raw readings, fixed 24-slot private input, and STOPPED hours |
-| 6 | Live Product: Prove | Generate the proof against the policy registered before measurement |
-| 7 | Engineering Innovation: Sponsor | On-demand server-side Sponsor Wallet pays DUST only, preserves Device authority, and reduces idle Container time |
-| 8 | Live Product: Verify | Show public policy, result, commitment, and transaction evidence |
-| 9 | Exact Claim Boundary | State what is proved, kept private, and not established |
-
-The nine-slide story is synchronized with the final 2:18 English video. It minimizes cognitive load by moving from customer value to the controlled proof path, then showing the live review flow and ending with the exact claim boundary. Deeper architecture, test, cost, and roadmap evidence remains linked documentation rather than extra pitch slides.
-
-## Demo storyboard
-
-![The six review steps that the final English and Japanese videos must show](../assets/guides/judge-review-path-en.png)
-
-| Time | Scene | Evidence shown |
-| --- | --- | --- |
-| 0:00–0:12 | Hook | Product value and privacy question |
-| 0:12–0:32 | Minimum evidence | Cross-organization problem and selective disclosure |
-| 0:32–0:49 | Register | User-controlled account, proof subject, and pre-registered policy |
-| 0:49–1:06 | Private input | Raw readings, fixed 24 slots, and STOPPED hours |
-| 1:06–1:22 | Prove | Proof against the already registered policy |
-| 1:22–1:40 | Authorize | User authorization separated from service-funded submission |
-| 1:40–1:59 | Public verification | Policy, result, commitment, and transaction evidence |
-| 1:59–2:18 | Claim boundary | What is proved and explicitly not established |
-
-Include one OUTSIDE or tamper-rejection path. Prerecorded fallback captures must be tied to the same commit and labeled honestly.
-
-## Evidence and README
-
-The evidence set covers private synthetic inputs, the threshold registered before the selected day, private hourly minimum / maximum values, WITHIN / OUTSIDE, STOPPED hours, authority separation, a proof service that cannot authorize for the user, public-only verification responses, 1,440 readings/day, and eight-circuit compilation and deployment. It includes one current Managed API OUTSIDE record and one authenticated Device WITHIN record against the same deployed Contract. Supporting field-runtime behavior is identified separately from the primary Wave 1 review path. Each row must include date, command, commit SHA, publishable evidence, and validation boundary. See the [current-release addendum](current_release_addendum.md) for the evidence added after the video and deck were frozen.
-
-The top README should cover value, problem, exact claim, four-domain architecture, Midnight integration, demo, quick verification, evidence and limitations, repository map, detailed guides, Wave 1 progress, roadmap, license, attribution, and topic.
-
-## Production and completion
-
-Use the canonical [three-wave product and business roadmap](../architecture/three_wave_roadmap.md). It defines Wave 1 as the Core Proof PoC, Wave 2 as an operational partner pilot that hardens the already implemented operations, audit, alerting, and support foundations under real field-system load, and Wave 3 as trust minimization plus PMF through recurring commercial use.
-
-Freeze the evidence inventory and technical gates first. Then finalize submission copy and README, generate language-specific diagrams and screenshots, build the decks, capture the demo, and audit terminology, links, numbers, commits, and language separation.
-
-Completion requires public links, reproducible sensor-registry compilation, one-to-one claim evidence, language-specific assets when both languages are published, consistent capability vocabulary, explicit planned-work labels, and confirmed Apache 2.0 / public repository / midnightntwrk gates.
+Only tracked files, reproducible command results, and public URLs belong in the repository review
+evidence. A claim that cannot be reproduced or linked is marked open.

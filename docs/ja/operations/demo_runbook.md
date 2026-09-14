@@ -121,7 +121,7 @@ Deploy済みWorkerがDevice Workflow、センサーデバイス管理者画面�
 `npm run dashboard:dev`で同じWorker RouteをLocal起動できます。
 
 DApp Connector API 4.x互換Lace WalletをPreprodに設定した通常のChrome ProfileでDeploy済みRootを開き、
-録画前に**English**を選択します。Rootは`#/device`から開始します。
+Review前に**English**を選択します。Rootは`#/device`から開始します。
 
 LaceへのtNIGHT入金やtDUST生成は不要です。Laceは`payFees: false`でDevice TXを承認・Bindし、Sensor
 Contract Proofは認証済みCloudflare Proof Server、DUST付与とSubmitはServer WalletのSponsor Roleが担当します。
@@ -152,9 +152,9 @@ Wallet接続、登録署名、Device TX承認は明示的なUser Confirmationで
 Stateだけを表示します。**第三者検証**RouteはPublicで、TX hashを受け取ります。Device SessionやPrivate値を
 使わず、運用日／登録済み境界、24個の時間帯別結果、適用しきい値／有効期間、Device Commitment、Block、TX Evidenceを表示します。
 
-Stepperの順序：Device登録・認証、1時間集計、Anomaly、Proof要求／Admission、Proof生成／Device承認／Sponsor Fee付与、Midnight Confirm。説明動画ではDevice発の疑似値、Proof前、Admission、Proof／Sponsorship、Confirm、値を開示しない第三者Claimを撮影します。
+Stepperの順序：Device登録・認証、1時間集計、Anomaly、Proof要求／Admission、Proof生成／Device承認／Sponsor Fee付与、Midnight Confirm。Device発の疑似値、Proof前、Admission、Proof／Sponsorship、Confirm、値を開示しない第三者Claimを順に確認します。
 
-Confirm後は同じBrowser Profileを録画し、認証済みDevice／管理者画面を維持します。
+Confirm後も同じBrowser Profileを使い、認証済みDevice／管理者画面を維持します。
 
 第三者画面では、公開情報だけから構成した**ゼロ知識証明（ZKP）の確認ステップ**、**第三者には非公開**と示す
 元のセンサー値の黒塗り欄、利用可能なコントラクト／トランザクション情報のMidnight Explorerリンクを少なくとも1つ撮影します。
@@ -171,7 +171,7 @@ npm run device:status
 ```
 
 `sct:api`はQueue登録Regressionを含むWorker／Sponsor Wallet API境界を検証します。`sct:gui`は英語版SPAを
-実描画して13 Checkpointを自動操作し、Git対象外の`.sct-output/dashboard/`へScreenshotと`result.json`を
+実描画して13 Checkpointを自動操作し、Local Test Workspaceへ一時的なScreenshotと`result.json`を
 保存します。受入項目との対応は[SCT Matrix](../implementation/sct_matrix.md)を参照してください。これらの
 決定的SCTは、実Lace承認とMidnight TXを使うDeploy済みPreprod最終試験の代替ではありません。
 

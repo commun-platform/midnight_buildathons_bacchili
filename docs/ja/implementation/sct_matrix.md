@@ -23,5 +23,5 @@ npm run sct
 | Public検証／Privacy | ConfirmedかつTX ID／Hash／Block完備のみのHash検索、正しい24時間別結果、Private Field拒否 | TX hash検索、運用日／境界、24個のしきい値以内／範囲外／計測なし、適用しきい値／有効期間、Device Commitment、Indexer進捗、Explorer Link、Private Extrema非表示 |
 
 GUI SCTは本番SPA Assetを配信し、外部Wallet／Preprod Responseだけを決定的Test Doubleへ置換します。Cleanな
-Headless Chrome Profileを使い、Git対象外の`.sct-output/dashboard/`へEvidenceを保存します。SCT成功だけでは
+Headless Chrome Profileを使い、追跡対象外の一時出力を書き込みます。これはRepository Evidenceには含めません。SCT成功だけでは
 実Preprod TX送信を主張しません。実LaceとMidnight Explorer Evidenceを伴うDeploy済みRunbookが必要です。

@@ -2,31 +2,28 @@
 
 > センサー値を見せず、しきい値の範囲内かどうかを証明する。
 
-## 審査成果物
+## Repository Review
 
-[Wave 1審査成果物設計](submission/deliverables_plan.md)に、必須提出物、審査配点、スライド、実演、検証証拠、制作順序、完了条件をまとめています。
+[Repository審査ガイド](submission/README.md)に、追跡対象Source、Evidence境界、再現可能なCommandをまとめています。
 
 [English documentation](../../README.md)
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-[9月11日の最終成果物まとめ](submission/final_delivery.md)に、現行実装の検証結果、成果物の一覧、録画・公開待ちの項目をまとめています。`fb28ade`を基点とする作業ツリーには、実機の完了日自動送信、再試行と確定レシートの永続保存、収集の復旧タイマーと停止防止、Sponsor通知から検証画面へのリンクが含まれます。ローカルのソース・配布物と、日付付きの配備証拠は区別しています。
+[現行Source Delivery](submission/final_delivery.md)に、Review Commitの実装、Validation、日付付きPublic Record、既知の限界をまとめています。
 
-8回路のContractは2026-09-03にMidnight Preprodへ配備され、Managed API・実機の両経路で確定済み取引が記録されています。9月7〜8日の実機運用記録には、実測1,439件ずつの日次自動送信2件もあります。[現行リリース補足](submission/current_release_addendum.md)に、それぞれの確認日と旧基準`af90ad8`の検証記録を残しています。
+8回路のContractは2026-09-03にMidnight Preprodへ配備され、Managed API・実機の両経路で確定済み取引が記録されています。9月7〜8日の実機運用記録には、実測1,439件ずつの日次自動送信2件もあります。[現行リリース補足](submission/current_release_addendum.md)に、それぞれの確認日とClaim境界を記録しています。
 
 | 審査成果物 | 文書 |
 | --- | --- |
-| 最終成果物と検証結果 | [現行実装・版別一覧・レビュー用パッケージ](submission/final_delivery.md) |
+| Repository Review Guide | [Source Review、Evidence境界、再現Command](submission/README.md) |
+| 最終成果物と検証結果 | [現行実装・Validation・Public Record](submission/final_delivery.md) |
 | 提出文 | [Wave 1提出文](submission/submission_copy.md) |
-| 日本語Technical Reference | [PPTX](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pptx)・[PDF](submission/deck/bacchiri-verifiable-measurement-layer-wave1-ja.pdf) — 提出対象は最終英語9枚 |
-| Cloudflare UC別技術補足 | [説明](architecture/cloudflare_use_cases.md)・[PPTX](submission/deck/cloudflare-use-cases-ja.pptx)・[PDF](submission/deck/cloudflare-use-cases-ja.pdf) |
-| Cloudflare運用説明追加版 | [図・デック・ナレーション付き動画](submission/cloudflare_operations_media.md) — 9月10日の実機連携とWallet間欠運転を日英で説明 |
-| 新GUIの録画準備 | [日英のピッチ・仮編集動画・5場面の撮影手順](submission/new_gui_recording_handoff.md) — 新しい操作映像を受け取る段階 |
+| 審査成果物設計 | [Rubric MappingとTracked Evidence](submission/deliverables_plan.md) |
 | 主張と検証証拠 | [証拠対応表](submission/evidence_matrix.md) |
-| 現行リリース補足 | [撮影後の実装・Preprod Evidence](submission/current_release_addendum.md) |
+| 現行リリース補足 | [実装・Preprod Evidence](submission/current_release_addendum.md) |
 | Wave進捗 | [Wave 1進捗](submission/wave1_progress.md) |
 | 想定質問 | [審査員向けQ&A](submission/judge_qa.md) |
-| 英語デモ動画 | `bacchiri-demo-pitch-en.mp4`（2分18秒）を作成済み、提出用公開URL待ち — [録画台本と撮影記録](submission/demo_script.md) |
 
 ## 製品と最初のユースケース
 
@@ -46,7 +43,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 
 文書は目的別に分類しています。
 
-審査提出用の提出文、日英スライド、検証証拠、Wave 1進捗、提出前確認、Q&A、最終画面の録画台本は[submission/](submission/)に集約しています。
+審査用の提出文、Evidence、Wave 1進捗、Technical Gate、Q&Aは[submission/](submission/)に集約しています。
 
 | 分類 | 内容 |
 | --- | --- |
@@ -59,7 +56,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 [MCPのセキュリティ境界](architecture/mcp_security_boundary.md)には、非公開サポートMCPと公開TX検証MCPを別Workerへ分離する構成、認証認可、返却禁止情報、配備順序をまとめています。
 [Sponsor Wallet日次処理](operations/sponsor_wallet_operating_hours.md)には、24時間受付、JST 02:00の締切バッチ、依存順制御、安全な停止、切替コマンドをまとめています。
 
-日本語のスライド図版は[`assets/review/`](assets/review/)、文書専用図版は[`assets/guides/`](assets/guides/)に集約し、英語図版とは分離しています。
+日本語のReview図版は[`assets/review/`](assets/review/)、文書専用図版は[`assets/guides/`](assets/guides/)に集約し、英語図版とは分離しています。
 
 本リポジトリは、Wave 1のCore Proof PoCを実装します。主要な審査経路では、ユーザーが認可したブラウザクライアントを疑似計測元として使い、疑似の日次計測データと、計測期間より前に登録した判定条件との関係を証明します。Midnightには元の値ではなく、公開判定条件、証明対象、判定結果、取引記録を残します。現場側Runtimeの補助実装も含みますが、長期間の自律運用はWave 2の目標であり、Wave 1の主要Claimではありません。
 
@@ -72,7 +69,7 @@ BACCHIRI!━━Verifiable Measurement Layerは、管理画面、CSV、帳票、�
 | 適用しきい値 | 下限・上限・単位・スケール・バージョン・有効期間です。 |
 | 証明対象 | `deviceCommitment`。証明としきい値の適用設定を同じ仮名デバイスに結び付けます。 |
 
-TX hashを貼り付けると、Browserは成功したMidnight TX、そのBlock、該当BlockのContract State差分からこれらを取得します。この検証経路はD1、Wallet、Private Proof Inputを必要としません。
+TX hashを貼り付けると、Browserは成功したMidnight TX、そのBlock、該当BlockのContract State差分からこれらを取得します。このPublic検証経路はD1やPrivate Proof Inputを必要とせず、Transaction認可とFee処理はWallet-backed経路で行います。
 
 ## 基本用語
 
@@ -123,7 +120,7 @@ Trusted Backend、Midnightへ進みます。日次自動送信と復旧タイマ
 | 領域 | 主な責任 | 明確な境界 |
 | --- | --- | --- |
 | エッジデバイス | センサー収集、生の測定値の保持、24時間分の集計、API認証、Midnight取引への署名 | 生の測定列とDevice鍵は内部に保持。認可済み時間集計と非公開の証明入力はtrusted Backendへ送信し、第三者には公開しない。 |
-| 画面 | User認可済み疑似計測Workflowと第三者Public View | 疑似CaptureをBrowser Private Stateに保持し、第三者ViewへはRedacted Public Evidenceだけを表示 |
+| 画面 | User認可済み疑似計測Workflowと第三者Public View | 疑似MeasurementをBrowser Private Stateに保持し、第三者ViewへはRedacted Public Evidenceだけを表示 |
 | バックエンド | 認証、API入力検査、処理状態保存、同時実行数制限、証明生成、管理、Managed Attestation、Fee Sponsorship | 証明生成中は非公開入力を扱う信頼対象。管理、Managed API認可、DUSTだけを付与するSponsorは別の論理Authorityで拘束し、Sponsor RoleはDevice Callを変更・代理認可できない。 |
 | Midnight | しきい値、対象デバイス、コミットメント、確定済み判定の記録 | 第三者が確認する公開記録を保持し、生のセンサー値は保存しない |
 
@@ -166,7 +163,7 @@ tools/
   midnight-operator/                  Local開発Wallet・Midnight管理
   cloudflare-admin/                   Local Provisioning・Secret設定Command
   benchmarks/                         Local Compile・運用費用の計測
-  submission-media/                   Slide・PDF・Still・Demo Capture生成
+  submission-media/                   開発用Submission補助ツール
   repository-checks/                  Host境界・Portability検査
 tests/
   system/dashboard-workflow/          境界横断Browser SCT
@@ -193,16 +190,15 @@ Unit Testは所有するComponentの近くに置き、複数境界を通すCompa
 
 ```bash
 npm ci
-npm run contract:compile
-TMPDIR=/tmp npm run verify
+npm run verify:source
 ```
 
-期待結果は、運用する8つの証明回路のコンパイル、525件の自動テスト（9月11日の作業ツリー）、全構成領域の型検査とビルド、Cloudflareへの配備前検査の成功です。今回の環境ではテストと型検査が成功し、Worker部分のdry-runも通過しました。Docker DesktopのWSL連携が利用できないため、Containerイメージを含む完全なdry-runは未検証です。[検証記録](submission/final_delivery.md#検証結果)を参照してください。これは現在のソースコードを検証する手順であり、日付付きMidnight取引を再配備・再実行するものではありません。画面、デバイス初期登録、証明生成、署名、取引を含む実演は[配備・確認手順](operations/demo_runbook.md)に従います。
+期待結果は、運用8回路のCompile、運用Workspace Test 524件とManaged Source Mock Test 4件（合計528件）、全Workspace Type Check、Portability Checkの成功です。Device Secret、Deployment Credential、Docker、Network Transactionは必要ありません。これはSource Treeの検証であり、日付付きMidnight Transactionを再Deploy・再実行しません。[Source Review Guide](submission/README.md)と[Current Source Delivery](submission/final_delivery.md)を参照してください。
 
 ## 現在の連携状況
 
 - 現行8回路ContractはPreprodで稼働しています。登録済みCloud APIと認証済み現場Deviceから、それぞれ1,440件の1日分を統合Server Wallet経由で送信し、2026-09-05に両方のTX hashを公開Verification MCPで再確認しました。詳細は[現行リリース証拠](submission/current_release_addendum.md)を参照してください。
-- Wallet不要のManaged API Modeは、完了済みの固定運用日を取得・検査して24個のPrivate Slotへ集約し、同じProof／公開検証モデルを再利用します。上流API値の物理的真正性は主張しません。
+- Server Walletを使うManaged API Modeは、完了済みの固定運用日を取得・検査して24個のPrivate Slotへ集約し、同じProof／公開検証モデルを再利用します。上流API値の物理的真正性は主張しません。
 - Access保護された運用Console、Redact済み顧客操作Audit、日次Metric、日本語Discord障害／Receipt、非公開Support MCPは実装済みの基盤です。Wave 2ではPartner運用期間の検証、組織／Role分離、監査付き復旧操作、長期安定運用を完成させます。
 - 公開Verification MCPは運用DBやRuntime Bindingを持たず、TX hash検証Toolを1つだけ公開します。結果はD1ではなくPublic Midnight Indexerから取得します。
 - 日次提出には運用担当者の操作が必要です。`device:submit`は証明処理を要求して状態を確認しますが、デバイス用ウォレットは常時自動送信する仕組みではありません。
