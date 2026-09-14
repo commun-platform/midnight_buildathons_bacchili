@@ -304,7 +304,7 @@ async function main() {
     }
     records.push({id:scene.id,kind:scene.kind,image:stem+'.png',videoImage,guiBox,videoGuiBox:scene.kind==='gui'?videoGuiBox:null,screenshot:screenshotRecord});
   }
-  const name=draft?'bacchiri-local-demo-ja-draft':'bacchiri-local-demo-ja';
+  const name=draft?'bacchiri-pitch-ja-draft':'bacchiri-pitch-ja';
   await pptx.writeFile({fileName:path.join(output,name+'.pptx')});
   fs.writeFileSync(path.join(output,name+'.pdf'),await pdf.save());
   fs.writeFileSync(path.join(output,'slides.json'),JSON.stringify(records,null,2)+'\n');

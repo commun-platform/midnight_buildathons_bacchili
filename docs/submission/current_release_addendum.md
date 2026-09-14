@@ -57,10 +57,10 @@ completed days, retries the same persisted private preparation, and skips days w
 | 2026-09-06 | 1,439 | 24 | 2,446,764 | `26b7872adbecd1cf811fbb61b48f3177295c80bfddd3d8a5e51d95bd3ac97bb5` |
 
 The records matched receipt identity, day boundary, counts, and the ledger result, and a repeat did not
-create a duplicate submission. The actual count was 1,439 rather than 1,440. The [stop-protection
-record](../implementation/collector_stop_protection_execplan.md) confirms that direct stops were
-rejected while the collector continued measuring. The Sponsor's 02:00 JST schedule is processing start,
-not a confirmation deadline.
+create a duplicate submission. The actual count was 1,439 rather than 1,440. The current firmware
+configuration rejects direct collector stops while collection is active; this behavior is covered by the
+collector and installer tests. The Sponsor's 02:00 JST schedule is processing start, not a confirmation
+deadline.
 
 These are dated observations. They do not establish partner-period reliability or uninterrupted
 operation, and no new live recheck or redeployment is asserted for this review target.

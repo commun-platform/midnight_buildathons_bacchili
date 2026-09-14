@@ -29,7 +29,8 @@ function trackedFiles() {
   return execFileSync('git', ['ls-files'], { cwd: repoRoot, encoding: 'utf8' })
     .trim()
     .split(/\r?\n/u)
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((file) => fs.existsSync(path.join(repoRoot, file)));
 }
 
 const missing = requiredFiles.filter((relative) => !fs.existsSync(path.join(repoRoot, relative)));

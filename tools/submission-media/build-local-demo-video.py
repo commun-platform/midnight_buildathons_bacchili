@@ -12,7 +12,7 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location('local_demo_media_helpers', Path(__file__).with_name('build-cloudflare-operations-video.py'))
+SPEC = importlib.util.spec_from_file_location('local_demo_media_helpers', Path(__file__).with_name('local-demo-media.py'))
 media = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(media)
 

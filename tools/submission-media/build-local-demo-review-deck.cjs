@@ -81,7 +81,7 @@ async function main() {
   last.drawImage(poster, { x: 0, y: 0, width: 960, height: 540 });
   last.drawRectangle({ x: 0, y: 0, width: 960, height: 45, color: rgb(.043, .071, .125) });
   last.drawText('FULL DEMO — Play the embedded movie in PowerPoint or open the MP4.', { x: 38, y: 20, size: 14, font, color: rgb(.64, .96, .81) });
-  const stem = 'bacchiri-local-demo-en';
+  const stem = 'bacchiri-pitch-en';
   await pptx.writeFile({ fileName: path.join(output, `${stem}.pptx`) });
   fs.writeFileSync(path.join(output, `${stem}.pdf`), await pdf.save());
   fs.writeFileSync(path.join(output, 'slides.json'), JSON.stringify(images, null, 2) + '\n');

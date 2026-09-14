@@ -50,9 +50,8 @@ Retryし、Confirmed済みReceiptの日はSkipします。
 | 2026-09-06 | 1,439 | 24 | 2,446,764 | `26b7872adbecd1cf811fbb61b48f3177295c80bfddd3d8a5e51d95bd3ac97bb5` |
 
 Receipt Identity、日境界、Count、Ledger Resultが一致し、再実行で重複Submitが発生しないことを確認しました。実測値は
-1,440ではなく1,439件です。[Stop Protection Record](../../implementation/collector_stop_protection_execplan.md)では、
-Collection中の直接StopがRejectedされ、Collectorが継続したことを確認しています。Sponsorの02:00 JSTは処理開始時刻であり、
-Confirmation Deadlineではありません。
+1,440ではなく1,439件です。現行Firmware設定はCollection中の直接StopをRejectedし、CollectorとInstallerのTestでこの動作を
+確認しています。Sponsorの02:00 JSTは処理開始時刻であり、Confirmation Deadlineではありません。
 
 これらは日付付きの観測Recordです。Partner期間の信頼性や連続稼働を証明せず、このReview Targetで新しいLive Recheckや
 Redeployを行ったとは主張しません。
