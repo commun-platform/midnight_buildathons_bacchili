@@ -64,6 +64,9 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("localStorage.setItem(`vsp-selected-policy:${deviceState.projectId}`");
     expect(script).toContain('id="device-policy-refresh"');
     expect(script).toContain("deviceAction('device-policy-refresh'");
+    expect(script).toContain("policyProcessingTiming: '処理開始の目安'");
+    expect(script).toContain("t('policyProcessingTiming')");
+    expect(script).toContain("processingAlwaysOn: '次の1分Cronで処理を開始します'");
     expect(script).not.toContain('refreshPendingPolicyOperations');
     expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/policies/challenge')");
     expect(deviceFlow).toContain("endpoint(config.serviceUrl, '/api/v1/policies')");

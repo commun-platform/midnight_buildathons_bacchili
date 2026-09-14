@@ -100,7 +100,7 @@ const copy = {
     projectTimeZone: 'Fixed UTC offset', projectDayStart: 'Operational day starts',
     projectLimit: 'Projects per Wallet', projectCreated: 'Project created',
     policyAdd: '+ New Policy', policyRefresh: 'Refresh Policies', policyRefreshHint: 'Use Refresh Policies to update queued registration results.', policyName: 'Policy name', policyCreate: 'Create Policy',
-    policyCancel: 'Cancel', policyLimit: 'Policies in this Project', policyCreated: 'Policy registration queued',
+    policyCancel: 'Cancel', policyLimit: 'Policies in this Project', policyCreated: 'Policy registration queued', policyProcessingTiming: 'Processing timing',
     policyEmpty: 'Create a Threshold Policy for this Project before registering its Device.',
     policyCreating: 'This immutable public Threshold Policy is being registered on Midnight.',
     policyMinimum: 'Minimum (°C)', policyMaximum: 'Maximum (°C)', policyRegistrationTx: 'Policy registration TX',
@@ -114,7 +114,7 @@ const copy = {
     progressWalletVerification: 'Verifying Wallet authorization',
     progressQueued: 'Registration accepted and queued for server processing',
     nextProcessingStart: 'Next processing start',
-    processingAlwaysOn: 'Server processing is available now',
+    processingAlwaysOn: 'Starts on the next one-minute check',
     processingOnDemand: 'Queued work is checked every minute',
     processingCooldown: 'Container restart cooldown until',
     processingNow: 'Processing has started; the server continues automatically',
@@ -277,7 +277,7 @@ const copy = {
     projectTimeZone: '固定UTCオフセット', projectDayStart: '運用日の開始時刻',
     projectLimit: 'Walletごとのプロジェクト数', projectCreated: 'プロジェクトを作成しました',
     policyAdd: '＋ しきい値を新規追加', policyRefresh: 'しきい値を再読み込み', policyRefreshHint: '登録結果は「しきい値を再読み込み」を押すと更新されます。', policyName: 'しきい値設定名', policyCreate: 'しきい値を登録',
-    policyCancel: 'キャンセル', policyLimit: 'このプロジェクトのしきい値数', policyCreated: 'しきい値登録を受け付けました',
+    policyCancel: 'キャンセル', policyLimit: 'このプロジェクトのしきい値数', policyCreated: 'しきい値登録を受け付けました', policyProcessingTiming: '処理開始の目安',
     policyEmpty: 'デバイス登録前に、このプロジェクトのしきい値を作成してください。',
     policyCreating: '変更できない公開しきい値をMidnightへ登録しています。',
     policyMinimum: '下限（°C）', policyMaximum: '上限（°C）', policyRegistrationTx: 'しきい値登録TX',
@@ -291,7 +291,7 @@ const copy = {
     progressWalletVerification: 'Walletの登録承認を検証中',
     progressQueued: '登録を受け付け、サーバー処理キューに追加しました',
     nextProcessingStart: '次回の処理開始',
-    processingAlwaysOn: 'サーバー処理をすぐ開始できます',
+    processingAlwaysOn: '次の1分Cronで処理を開始します',
     processingOnDemand: '受付済みJobを1分ごとに確認します',
     processingCooldown: 'Container再起動クールダウン終了',
     processingNow: '処理開始時刻を過ぎています。サーバーが自動で処理を続けます',
@@ -1138,7 +1138,7 @@ function policyManagementView() {
   const operationRows = visibleOperations.map((operation) => `<tr>
     <td>${escapeHtml(operation.name)}<br><small class="hash">${escapeHtml(short(operation.policyId, 24))}</small></td>
     <td>${escapeHtml(policyModeLabel(operation.mode))}<br>${escapeHtml(policyBounds({ ...operation, unit: '°C' }))}</td>
-    <td>${status(operation.status)}<br><small>${escapeHtml(operation.stage.replaceAll('_', ' '))}</small></td>
+    <td>${status(operation.status)}<br><small>${escapeHtml(operation.stage.replaceAll('_', ' '))}</small>${['queued', 'running', 'retrying'].includes(operation.status) ? `<br><small class="processing-start-time">${escapeHtml(t('policyProcessingTiming'))}: ${escapeHtml(processingStartText())}</small>` : ''}</td>
     <td class="hash">${operation.policyTxId ? explorerLink('transaction', operation.policyTxId, deviceState.configuration?.network, short(operation.policyTxId, 24)) : '—'}${operation.error ? `<br><span class="device-error">${escapeHtml(operation.error)}</span>` : ''}</td>
   </tr>`);
   const registeredRows = policies.map((policy) => `<tr>
