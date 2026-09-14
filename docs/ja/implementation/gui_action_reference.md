@@ -20,12 +20,12 @@
 | **＋ 新規Project** | 名前入力を開き、**Projectを作成**でTrim済み名称を送信します。**キャンセル**は変更しません。 | `POST /api/v1/projects`がWallet所有のD1 Projectを作ります。Worker受付とD1 Triggerの両方で上限を強制します。 | Wallet 1つあたり最大10 Projectです。新規ProjectはPolicy 0件から開始し、Device登録前にPolicyを作ります。Midnight TXは不要です。 |
 | **＋ 新規Policy** | 名前、判定方式、Boundを入力します。方式は上下限、上限のみ、下限のみで、温度は0.01 °C刻みです。**Policyを登録**ではOne-time Challengeを取得し、Project、Policy ID、方式、Centi-degree Bound、Nonce、TimestampへBrowser Walletで署名します。**キャンセル**は変更しません。 | WorkerがProject所有権、期限、Nonce一回性、Canonical値、署名、上限を検査し、安定したPolicy Operationを作ってQueueへ投入します。Server Wallet Containerが分離された非公開Operator Authorityで`registerThresholdPolicy`を呼び、Indexer確定後にD1へそのProjectのPublic Policy Mirrorを保存します。 | Projectごとに登録済み＋処理中を合計して最大10 Policyです。登録済みPolicyは変更不可で、異なるしきい値は新しいPolicyとして登録します。ブラウザを閉じてもQueue／Retry処理は続き、Operation IDから復帰します。処理中の行には、`always-on`／`on-demand`／`scheduled`に応じた処理開始の目安を表示します。BoundはMidnight上で公開です。 |
 | **Midnight登録欄のPolicyプルダウン** | 登録済みPolicyを1つ選び、Project単位の非秘密設定としてLocal保存します。 | Device登録までは書込みません。 | Deviceへ割り当てた後は変更不可です。 |
-| **しきい値を再読み込み** | 明示操作でPolicy状態を取得し、入力途中のFormとFocusを維持して関連部分だけ更新します。取得中はボタンを無効にし、完了・失敗後に再度有効にします。 | 対象ProjectのPolicy Operationを読み、登録済み一覧が変わった場合は認証済み設定も再取得します。 | Policy状態の自動ポーリングは行いません。処理中なら再読み込みを繰り返します。サーバー処理は独立して続きます。 |
+| **再読み込み** | 明示操作でPolicy状態を取得し、入力途中のFormとFocusを維持して関連部分だけ更新します。小さなボタンは取得中に無効にし、完了・失敗・タイムアウト後に再度有効にします。 | 対象ProjectのPolicy Operationを読み、登録済み一覧が変わった場合は認証済み設定も再取得します。 | Policy状態の自動ポーリングは行いません。処理中なら再読み込みを繰り返します。サーバー処理は独立して続きます。 |
 
 GUI全体で一覧の状態を明確に区別します。アニメーション付きの**読込中**は正本データへ問い合わせ中、
 静的な**データなし**は問い合わせが正常終了して0件だった場合だけ表示します。この区別をPolicy、
 Deviceの日別履歴、管理画面の各一覧、第三者向けProof一覧へ共通適用します。Policy状態確認では、更新後の
-Project設定に登録済みPolicyが含まれるまで、処理中または登録済みの行を消しません。Policyは「しきい値を再読み込み」で更新します。状態更新時も、
+Project設定に登録済みPolicyが含まれるまで、処理中または登録済みの行を消しません。Policyは「再読み込み」で更新します。状態更新時も、
 対象の状態／一覧Componentだけを更新し、Page全体やProject／Policy FormのDOMを作り直しません。このため、
 入力途中の値、選択、Keyboard Focusを保持します。
 

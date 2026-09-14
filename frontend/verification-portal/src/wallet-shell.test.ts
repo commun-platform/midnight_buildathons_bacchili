@@ -64,6 +64,7 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("localStorage.setItem(`vsp-selected-policy:${deviceState.projectId}`");
     expect(script).toContain('id="device-policy-refresh"');
     expect(script).toContain("deviceAction('device-policy-refresh'");
+    expect(script).toContain('class="compact-button policy-refresh-button"');
     expect(script).toContain("policyProcessingTiming: '処理開始の目安'");
     expect(script).toContain("t('policyProcessingTiming')");
     expect(script).toContain("processingAlwaysOn: '次の1分Cronで処理を開始します'");
@@ -94,9 +95,12 @@ describe('Midnight Wallet shell', () => {
   });
 
   it('refreshes Policy state only through the explicit Policy reload action', () => {
-    expect(script).toContain("policyRefresh: 'しきい値を再読み込み'");
-    expect(script).toContain("policyRefreshHint: '登録結果は「しきい値を再読み込み」を押すと更新されます。'");
-    expect(script).toContain("await refreshProjectPolicies(flow, { showProgress: true })");
+    expect(script).toContain("policyRefresh: '再読み込み'");
+    expect(script).toContain("policyRefreshHint: '登録結果は「再読み込み」を押すと更新されます。'");
+    expect(script).toContain("policyRefreshTimedOut: 'しきい値の再読み込みがタイムアウトしました。もう一度お試しください。'");
+    expect(script).toContain("refreshProjectPolicies(flow, { showProgress: true })");
+    expect(script).toContain('await withUiTimeout(');
+    expect(script).toContain('if (button && !deviceState.busy) button.disabled = false;');
     expect(script).not.toContain('setInterval(() => void refreshPendingPolicyOperations()');
     expect(script).not.toContain('policyStatusRequestActive');
     expect(script).not.toContain('policyRenderStateFingerprint');
@@ -302,7 +306,19 @@ describe('Midnight Wallet shell', () => {
     expect(styles).toContain('@keyframes workflow-activity-pulse');
     expect(styles).toContain('will-change: transform');
     expect(styles).toContain('.workflow-action.active-action::after');
+    expect(styles).toContain('.transaction-progress.active-progress::after');
+    expect(styles).toContain('@keyframes workflow-progress-track');
     expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('keeps progress DOM stable while batching status repaints', () => {
+    expect(script).toContain('const preserveActiveWorkflow = current.classList.contains');
+    expect(script).toContain('function patchProgressSurface(current, next)');
+    expect(script).toContain('function scheduleDeviceDynamicComponents');
+    expect(script).toContain('scheduleDeviceDynamicComponents({ includeHistory: false })');
+    expect(script).toContain('const progressClass = failed');
+    expect(styles).toContain('.registration-progress.registration-progress-active::after');
+    expect(styles).toContain('.proof-stepper li,');
   });
 
   it('animates API acceptance and uses a static queued state for server-owned waits', () => {
@@ -312,7 +328,7 @@ describe('Midnight Wallet shell', () => {
     expect(script).toContain("proofRequestTimedOut: '処理要求の受付確認がタイムアウトしました。");
     expect(script).toContain("'sponsor-wallet-syncing'");
     expect(script).toContain("'sponsor-queued'");
-    expect(script).toContain('refreshDeviceDynamicComponents({ includeHistory: false })');
+    expect(script).toContain('scheduleDeviceDynamicComponents({ includeHistory: false })');
     expect(script).not.toContain('if (ready) return submitDeviceDay(flow, periodDate)');
     expect(deviceFlow).toContain('onAcceptanceProgress?: (progress: ProofRequestAcceptanceProgress) => void');
     expect(deviceFlow).toContain("stage: 'uploading',");

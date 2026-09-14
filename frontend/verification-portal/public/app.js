@@ -99,7 +99,7 @@ const copy = {
     projectName: 'Project name', projectCreate: 'Create Project', projectCancel: 'Cancel',
     projectTimeZone: 'Fixed UTC offset', projectDayStart: 'Operational day starts',
     projectLimit: 'Projects per Wallet', projectCreated: 'Project created',
-    policyAdd: '+ New Policy', policyRefresh: 'Refresh Policies', policyRefreshHint: 'Use Refresh Policies to update queued registration results.', policyName: 'Policy name', policyCreate: 'Create Policy',
+    policyAdd: '+ New Policy', policyRefresh: 'Refresh', policyRefreshHint: 'Use Refresh to update queued registration results.', policyRefreshTimedOut: 'Policy refresh timed out. Try again.', policyName: 'Policy name', policyCreate: 'Create Policy',
     policyCancel: 'Cancel', policyLimit: 'Policies in this Project', policyCreated: 'Policy registration queued', policyProcessingTiming: 'Processing timing',
     policyEmpty: 'Create a Threshold Policy for this Project before registering its Device.',
     policyCreating: 'This immutable public Threshold Policy is being registered on Midnight.',
@@ -276,7 +276,7 @@ const copy = {
     projectName: 'プロジェクト名', projectCreate: 'プロジェクトを作成', projectCancel: 'キャンセル',
     projectTimeZone: '固定UTCオフセット', projectDayStart: '運用日の開始時刻',
     projectLimit: 'Walletごとのプロジェクト数', projectCreated: 'プロジェクトを作成しました',
-    policyAdd: '＋ しきい値を新規追加', policyRefresh: 'しきい値を再読み込み', policyRefreshHint: '登録結果は「しきい値を再読み込み」を押すと更新されます。', policyName: 'しきい値設定名', policyCreate: 'しきい値を登録',
+    policyAdd: '＋ しきい値を新規追加', policyRefresh: '再読み込み', policyRefreshHint: '登録結果は「再読み込み」を押すと更新されます。', policyRefreshTimedOut: 'しきい値の再読み込みがタイムアウトしました。もう一度お試しください。', policyName: 'しきい値設定名', policyCreate: 'しきい値を登録',
     policyCancel: 'キャンセル', policyLimit: 'このプロジェクトのしきい値数', policyCreated: 'しきい値登録を受け付けました', policyProcessingTiming: '処理開始の目安',
     policyEmpty: 'デバイス登録前に、このプロジェクトのしきい値を作成してください。',
     policyCreating: '変更できない公開しきい値をMidnightへ登録しています。',
@@ -641,12 +641,51 @@ function deviceViewSnapshot() {
   return template.content;
 }
 
+function patchProgressSurface(current, next) {
+  const currentTransaction = current.querySelector('.transaction-progress');
+  const nextTransaction = next.querySelector('.transaction-progress');
+  if (
+    currentTransaction?.classList.contains('active-progress')
+    && nextTransaction?.classList.contains('active-progress')
+  ) {
+    if (currentTransaction.className !== nextTransaction.className) currentTransaction.className = nextTransaction.className;
+    const currentMessage = currentTransaction.querySelector('#device-progress');
+    const nextMessage = nextTransaction.querySelector('#device-progress');
+    if (currentMessage && nextMessage) currentMessage.textContent = nextMessage.textContent;
+    return true;
+  }
+
+  const currentRegistration = current.querySelector('.registration-progress');
+  const nextRegistration = next.querySelector('.registration-progress');
+  if (
+    currentRegistration?.classList.contains('registration-progress-active')
+    && nextRegistration?.classList.contains('registration-progress-active')
+  ) {
+    if (currentRegistration.className !== nextRegistration.className) currentRegistration.className = nextRegistration.className;
+    const currentStage = currentRegistration.querySelector('#registration-progress-stage');
+    const nextStage = nextRegistration.querySelector('#registration-progress-stage');
+    if (currentStage && nextStage) currentStage.textContent = nextStage.textContent;
+    const currentSummary = currentRegistration.querySelector('.device-summary');
+    const nextSummary = nextRegistration.querySelector('.device-summary');
+    if (currentSummary && nextSummary) currentSummary.innerHTML = nextSummary.innerHTML;
+    const currentHint = currentRegistration.querySelector('.queued-workflow-hint');
+    const nextHint = nextRegistration.querySelector('.queued-workflow-hint');
+    if (currentHint && nextHint) currentHint.textContent = nextHint.textContent;
+    return true;
+  }
+  return false;
+}
+
 function patchDeviceElement(snapshot, selector) {
   const current = document.querySelector(selector);
   const next = snapshot.querySelector(selector);
   if (!current || !next) return;
+  const preserveActiveWorkflow = current.classList.contains('workflow-action')
+    && current.classList.contains('active-action')
+    && next.classList.contains('active-action');
+  const preserveActiveProgress = patchProgressSurface(current, next);
   current.className = next.className;
-  current.innerHTML = next.innerHTML;
+  if (!preserveActiveWorkflow && !preserveActiveProgress) current.innerHTML = next.innerHTML;
   if ('disabled' in current && 'disabled' in next) current.disabled = next.disabled;
   if ('hidden' in current && 'hidden' in next) current.hidden = next.hidden;
   if ('value' in current && 'value' in next) current.value = next.value;
@@ -654,6 +693,34 @@ function patchDeviceElement(snapshot, selector) {
     if (next.hasAttribute(attribute)) current.setAttribute(attribute, next.getAttribute(attribute));
     else current.removeAttribute(attribute);
   }
+}
+
+let dynamicRefreshFrame = null;
+let dynamicRefreshIncludeHistory = false;
+let registrationRefreshFrame = null;
+
+function scheduleFrame(callback) {
+  if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback);
+  return setTimeout(callback, 0);
+}
+
+function scheduleDeviceDynamicComponents({ includeHistory = true } = {}) {
+  dynamicRefreshIncludeHistory ||= includeHistory;
+  if (dynamicRefreshFrame !== null) return;
+  dynamicRefreshFrame = scheduleFrame(() => {
+    dynamicRefreshFrame = null;
+    const refreshHistory = dynamicRefreshIncludeHistory;
+    dynamicRefreshIncludeHistory = false;
+    refreshDeviceDynamicComponents({ includeHistory: refreshHistory });
+  });
+}
+
+function scheduleRegistrationComponents() {
+  if (registrationRefreshFrame !== null) return;
+  registrationRefreshFrame = scheduleFrame(() => {
+    registrationRefreshFrame = null;
+    refreshRegistrationComponents();
+  });
 }
 
 function refreshPolicyComponents() {
@@ -754,6 +821,14 @@ async function fetchJson(url) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
   return body;
+}
+
+function withUiTimeout(promise, timeoutMs, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function normalizeRuntimeRoute() {
@@ -922,7 +997,14 @@ function registrationProgressView() {
     : failed
       ? '<span class="action-error" aria-hidden="true">!</span>'
       : '<span class="action-check" aria-hidden="true">✓</span>';
-  return `<div class="registration-progress ${failed ? 'registration-progress-failed' : ''}" role="status" aria-live="polite">
+  const progressClass = failed
+    ? 'registration-progress-failed'
+    : active
+      ? 'registration-progress-active'
+      : queued
+        ? 'registration-progress-queued'
+        : '';
+  return `<div class="registration-progress ${progressClass}" role="status" aria-live="polite">
     <div>${progressIcon}<strong id="registration-progress-stage">${escapeHtml(provisioningProgressText())}</strong></div>
     <dl class="device-summary">${progress?.operationId ? `<dt>${escapeHtml(t('registrationJob'))}</dt><dd class="hash" id="registration-job-id">${escapeHtml(progress.operationId)}</dd>` : ''}
       <dt>${escapeHtml(t('status'))}</dt><dd>${status(progress?.status || (deviceState.provisioned ? 'registered' : 'pending'))}</dd>
@@ -936,7 +1018,7 @@ function registrationProgressView() {
 function updateProvisioningProgress(progress) {
   deviceState.provisioning = progress;
   deviceState.message = provisioningProgressText(progress);
-  refreshRegistrationComponents();
+  scheduleRegistrationComponents();
 }
 
 function deviceDays() {
@@ -1164,7 +1246,7 @@ function policyManagementView() {
   return `<section class="window policy-management-window"><div class="window-title">${escapeHtml(t('policy'))}</div><div class="window-body device-form">
     <div class="project-selector-body">
       <button type="button" class="compact-button project-add-button ${nextDeviceAction() === 'device-policy-add' ? 'next-action' : ''}" id="device-policy-add" ${deviceState.busy || atLimit ? 'disabled' : ''} ${nextDeviceAction() === 'device-policy-add' ? 'aria-current="step"' : ''}>${escapeHtml(t('policyAdd'))}</button>
-      <button type="button" class="compact-button" id="device-policy-refresh" ${deviceState.busy ? 'disabled' : ''}>${escapeHtml(t('policyRefresh'))}</button>
+      <button type="button" class="compact-button policy-refresh-button" id="device-policy-refresh" ${deviceState.busy ? 'disabled' : ''}>${escapeHtml(t('policyRefresh'))}</button>
       <span class="project-count" id="device-policy-count">${escapeHtml(t('policyLimit'))}: <strong>${escapeHtml(count)} / ${escapeHtml(deviceState.maximumPolicies)}</strong></span>
     </div>
     <small>${escapeHtml(t('policyRefreshHint'))}</small>
@@ -1262,7 +1344,7 @@ function deviceView() {
         <dl class="device-summary" id="device-proof-summary"><dt>${escapeHtml(t('job'))}</dt><dd class="hash">${escapeHtml(short(deviceState.proofJob?.proofJobId, 30))}</dd>
           <dt>${escapeHtml(t('status'))}</dt><dd>${deviceState.proofJob ? status(deviceState.proofJob.status) : '—'}</dd></dl>
         <div id="device-chain-details">
-        <div class="transaction-progress"><strong>${escapeHtml(t('progress'))}:</strong> <span id="device-progress">${escapeHtml(deviceState.message || '—')}</span></div>
+        <div class="transaction-progress ${deviceState.busy && deviceState.activeAction === 'device-submit' ? 'active-progress' : deviceState.error ? 'failed-progress' : deviceState.transaction ? 'complete-progress' : ''}"><strong>${escapeHtml(t('progress'))}:</strong> <span id="device-progress">${escapeHtml(deviceState.message || '—')}</span></div>
         ${deviceState.submissionQueued ? `<div class="notice queued-submission-notice"><strong>${escapeHtml(t('submissionQueued'))}</strong><span>${escapeHtml(t('submissionQueuedDetail'))}</span><small>${escapeHtml(t('nextProcessingStart'))}: ${escapeHtml(processingStartText())}</small></div>` : ''}
         <div class="hash transaction-id">TX: ${escapeHtml(result?.transactionId || '—')}</div>
         <div class="hash transaction-hash">${escapeHtml(t('txHash'))}: ${explorerLink('transaction', result?.transactionHash, config?.network, result?.transactionHash || '—')}</div>
@@ -1526,7 +1608,7 @@ async function submitDeviceDay(flow, periodDate) {
         'sponsor-interrupted',
         'transaction-submitted',
       ]).has(progress);
-      refreshDeviceDynamicComponents({ includeHistory: false });
+      scheduleDeviceDynamicComponents({ includeHistory: false });
     }, periodDate);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -1610,7 +1692,7 @@ async function refreshQueuedProofWorkflow() {
     deviceState.proofJob = await flow.refreshProofJob(deviceState.proofJob.proofJobId);
     if (['ready_for_input', 'proving', 'proof_ready', 'reproof_required'].includes(deviceState.proofJob.status)) {
       deviceState.submissionQueued = false;
-      refreshDeviceDynamicComponents();
+      scheduleDeviceDynamicComponents();
       await deviceAction('device-submit', t('submitAction'), (currentFlow) => (
         submitDeviceDay(currentFlow, deviceState.selectedDate)
       ));
@@ -1622,10 +1704,10 @@ async function refreshQueuedProofWorkflow() {
     } else {
       deviceState.message = `${deviceState.proofJob.proofJobId}: ${statusText(deviceState.proofJob.status)}`;
     }
-    refreshDeviceDynamicComponents();
+    scheduleDeviceDynamicComponents();
   } catch (error) {
     deviceState.error = error instanceof Error ? error.message : String(error);
-    refreshDeviceDynamicComponents();
+    scheduleDeviceDynamicComponents();
   } finally {
     queuedWorkflowStatusRequestActive = false;
   }
@@ -1749,8 +1831,15 @@ function attachDeviceActions() {
   });
   document.querySelector('#device-policy-refresh')?.addEventListener('click', () => {
     void deviceAction('device-policy-refresh', t('policyRefresh'), async (flow) => {
-      await refreshProjectPolicies(flow, { showProgress: true });
+      await withUiTimeout(
+        refreshProjectPolicies(flow, { showProgress: true }),
+        20_000,
+        t('policyRefreshTimedOut'),
+      );
       deviceState.message = t('syncComplete');
+    }).finally(() => {
+      const button = document.querySelector('#device-policy-refresh');
+      if (button && !deviceState.busy) button.disabled = false;
     });
   });
   document.querySelector('#device-policy-cancel')?.addEventListener('click', () => {

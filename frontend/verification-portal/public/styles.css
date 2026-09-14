@@ -866,6 +866,7 @@ a:visited { color: #551a8b; }
   justify-content: flex-start;
   gap: 7px;
   text-align: left;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease;
 }
 .workflow-action-row {
   display: flex;
@@ -875,6 +876,12 @@ a:visited { color: #551a8b; }
 }
 .workflow-action-row > .workflow-action { flex: 1 1 260px; }
 .workflow-refresh-button { white-space: nowrap; }
+.policy-refresh-button {
+  width: max-content;
+  min-width: 0;
+  padding: 1px 6px;
+  font-size: 10px;
+}
 .workflow-action .action-badge {
   margin-left: auto;
   padding: 2px 5px;
@@ -884,6 +891,7 @@ a:visited { color: #551a8b; }
   font-family: "Courier New", monospace;
   font-size: 10px;
   white-space: nowrap;
+  transition: background-color .18s ease, color .18s ease;
 }
 .workflow-action.next-action {
   border-color: #fff #000080 #000080 #fff;
@@ -949,12 +957,17 @@ a:visited { color: #551a8b; }
 @keyframes workflow-progress-travel {
   to { transform: translate3d(305%, 0, 0); }
 }
+@keyframes workflow-progress-track {
+  to { background-position: 72px 0; }
+}
 @keyframes workflow-activity-pulse {
   to { opacity: .35; transform: scale(.55); }
 }
 @media (prefers-reduced-motion: reduce) {
   .wallet-connect-button.active-action:disabled::before,
   .workflow-action.active-action::after,
+  .transaction-progress.active-progress::after,
+  .registration-progress.registration-progress-active::after,
   .action-spinner,
   .activity-dot,
   .data-state-spinner,
@@ -1004,11 +1017,38 @@ a:visited { color: #551a8b; }
 .transaction-progress,
 .transaction-id,
 .sponsor-transaction { grid-column: 1 / -1; }
-.transaction-progress { overflow-wrap: anywhere; }
+.transaction-progress {
+  position: relative;
+  min-height: 38px;
+  padding: 8px 10px 12px;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  background: #d4d0c8;
+  overflow-wrap: anywhere;
+  transition: background-color .18s ease, border-color .18s ease;
+}
+.transaction-progress > span { font-family: "Courier New", monospace; font-weight: 700; }
+.transaction-progress.active-progress { background: #ffffe1; }
+.transaction-progress.complete-progress { background: #d9f2d9; }
+.transaction-progress.failed-progress { background: #ffd6d6; }
+.transaction-progress.active-progress::after,
+.registration-progress.registration-progress-active::after {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  left: 4px;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, #000080 0 18px, #0080ff 18px 30px, #fff 30px 36px);
+  background-size: 72px 3px;
+  content: "";
+  animation: workflow-progress-track .9s linear infinite;
+}
 .registration-progress {
+  position: relative;
   padding: 10px;
   border: 2px inset #fff;
   background: #ffffe1;
+  transition: background-color .18s ease, border-color .18s ease;
 }
 .registration-progress > div {
   display: flex;
@@ -1018,6 +1058,8 @@ a:visited { color: #551a8b; }
 }
 .registration-progress .device-summary { margin-bottom: 0; }
 .registration-progress-failed { background: #ffd6d6; }
+.registration-progress-queued { background: #fff4c2; }
+.registration-progress-active { background: #ffffe1; }
 .queued-clock {
   display: inline-grid;
   width: 22px;
@@ -1040,6 +1082,10 @@ a:visited { color: #551a8b; }
 }
 .proof-stepper li.queued { background: #fff4c2; border-color: #d88a00; }
 .queued-action { background: #fff4c2; }
+.proof-stepper li,
+.proof-stepper .step-number { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease; }
+.workflow-action.queued-action .action-badge { background: #805000; color: #fff4c2; }
+.workflow-action.active-action .action-badge { background: #000080; color: #fff; }
 .queued-submission-notice { grid-column: 1 / -1; background: #fff4c2; }
 .transaction-fee-notice, .sponsor-quota {
   min-width: 0;
