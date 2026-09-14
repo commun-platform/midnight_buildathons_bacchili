@@ -157,7 +157,7 @@ const copy = {
     proofRequestAccepted: 'Request accepted by the server',
     proofRequestTimedOut: 'Request acceptance timed out. Retry with the same sensor day; already received data is idempotent.',
     registrationJob: 'Registration Job', deviceRegistrationTx: 'Device registration TX', assignmentRegistrationTx: 'Threshold assignment TX',
-    captureAction: 'Capture and upload', proofAction: 'Request proof processing', submitAction: 'Submit ZKP generation and TX processing',
+    captureAction: 'Capture and upload', proofAction: 'Request proof processing', submitAction: 'Submit ZKP generation and TX processing', workflowRefresh: 'Refresh state', workflowRefreshing: 'Refreshing state...',
     retrySubmitAction: 'Regenerate proof and record TX',
     reproofReady: 'The previous TX was released. Regenerate the ZK proof and TX with the same Proof Job ID.',
     deviceId: 'Device ID (derived from Wallet)', wallet: 'Wallet', temperature: 'Temperature', progress: 'Processing status',
@@ -334,7 +334,7 @@ const copy = {
     proofRequestAccepted: 'サーバーが処理要求を受け付けました',
     proofRequestTimedOut: '処理要求の受付確認がタイムアウトしました。同じ運用日で再試行できます。受信済みデータは重複登録されません。',
     registrationJob: '登録Job', deviceRegistrationTx: 'デバイス登録TX', assignmentRegistrationTx: 'しきい値割当TX',
-    captureAction: '取得して送信', proofAction: '証明処理を開始', submitAction: 'ZKP生成・TX発行を依頼',
+    captureAction: '取得して送信', proofAction: '証明処理を開始', submitAction: 'ZKP生成・TX発行を依頼', workflowRefresh: '状態を再読み込み', workflowRefreshing: '状態を再読み込み中…',
     retrySubmitAction: 'ZK証明とトランザクションを再生成',
     reproofReady: '前回のTXは解放済みです。同じProof Job IDでZK証明とTXを再生成できます。',
     deviceId: 'デバイスID（ウォレットから自動生成）', wallet: 'ウォレット', temperature: '温度', progress: '処理状況',
@@ -683,8 +683,12 @@ function refreshRegistrationComponents({ includeHistory = false } = {}) {
     '#device-threshold-display',
     '#device-identity-create',
     '#device-register',
+    '#device-registration-refresh',
     '#device-capture',
+    '#device-capture-refresh',
     '#device-submit',
+    '#device-submit-refresh',
+    '#device-history-refresh',
     '#device-progress',
   ]) patchDeviceElement(snapshot, selector);
   if (!includeHistory) return;
@@ -693,6 +697,7 @@ function refreshRegistrationComponents({ includeHistory = false } = {}) {
   if (currentHistory && nextHistory) {
     currentHistory.innerHTML = nextHistory.innerHTML;
     attachDeviceHistoryActions();
+    attachWorkflowRefreshButton('device-history-refresh');
   }
 }
 
@@ -715,10 +720,14 @@ function refreshDeviceDynamicComponents({ includeHistory = true } = {}) {
     '#device-identity-create',
     '#device-identity-summary',
     '#device-register',
+    '#device-registration-refresh',
     '#device-capture',
+    '#device-capture-refresh',
     '#device-sensor-summary',
     '#device-proof-summary',
     '#device-submit',
+    '#device-submit-refresh',
+    '#device-history-refresh',
     '#device-chain-details',
   ]) patchDeviceElement(snapshot, selector);
   for (const selector of ['#device-project-create-form', '#device-policy-create-form']) {
@@ -732,6 +741,7 @@ function refreshDeviceDynamicComponents({ includeHistory = true } = {}) {
   if (currentHistory && nextHistory) {
     currentHistory.innerHTML = nextHistory.innerHTML;
     attachDeviceHistoryActions();
+    attachWorkflowRefreshButton('device-history-refresh');
   }
 }
 
@@ -1000,7 +1010,7 @@ function deviceHistoryView(policy) {
   const selected = selectedDeviceDay();
   const windows = [...(selected?.windows || [])].sort((left, right) => left.periodStart.localeCompare(right.periodStart));
   const localWindows = windows.length ? windows : (selected?.capture?.windows || []).map((window) => ({ ...window, unit: '°C' }));
-  return `<section class="window full-width device-history"><div class="window-title">${escapeHtml(t('dailyHistory'))}</div><div class="window-body device-form">
+  return `<section class="window full-width device-history"><div class="window-title"><span>${escapeHtml(t('dailyHistory'))}</span>${workflowRefreshButton('device-history-refresh', deviceState.busy || !deviceState.device)}</div><div class="window-body device-form">
     <div class="device-day-list">${table(
       [t('period'), t('sampleCount'), t('outlierCount'), t('status'), t('action')],
       days.map((day) => `<tr class="${day.periodDate === selected?.periodDate ? 'selected-row' : ''}"><td class="nowrap"><strong>${escapeHtml(day.periodDate)}</strong><br><button type="button" class="compact-button device-day-select" data-period-date="${escapeHtml(day.periodDate)}">${escapeHtml(t('selectDay'))}</button></td><td class="numeric">${escapeHtml(day.capture?.records?.length ?? day.proofJob?.sampleCount ?? day.windows.reduce((sum, window) => sum + window.count, 0))}</td><td class="numeric">${escapeHtml(day.capture?.outlierCount ?? '—')}</td><td>${thresholdResult(day.proofJob?.thresholdSatisfied ?? day.capture?.thresholdSatisfied, day.proofJob?.observedHourCount ?? day.capture?.attestation?.publicData?.observedHourCount)}<br>${day.proofJob ? status(day.proofJob.status) : status('aggregating')}<br><small>${escapeHtml(day.capture ? t('privateAvailable') : t('privateUnavailable'))}</small></td><td>${dailyProofAction(day)}</td></tr>`),
@@ -1045,6 +1055,10 @@ function workflowButton(id, label, complete, disabled, queued = false) {
     ${complete ? '<span class="action-check" aria-hidden="true">✓</span>' : queued ? '<span class="queued-clock" aria-hidden="true">◷</span>' : ''}${active ? '<span class="action-spinner" aria-hidden="true"></span>' : ''}<span>${escapeHtml(label)}</span>
     ${state ? `<span class="action-badge"${active ? ' role="status" aria-live="polite"' : ''}>${active ? '<span class="activity-dot" aria-hidden="true"></span>' : ''}${escapeHtml(state)}</span>` : ''}
   </button>`;
+}
+
+function workflowRefreshButton(id, disabled) {
+  return `<button type="button" id="${escapeHtml(id)}" class="compact-button workflow-refresh-button" ${disabled ? 'disabled' : ''}>${escapeHtml(t('workflowRefresh'))}</button>`;
 }
 
 function fixedOffsetLabel(minutes) {
@@ -1223,7 +1237,7 @@ function deviceView() {
       <section class="window"><div class="window-title">2. ${escapeHtml(t('midnightRegistration'))}</div><div class="window-body device-form">
         <label>${escapeHtml(t('policy'))}<select id="device-policy" ${deviceState.provisioned || !policy || ['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status) ? 'disabled' : ''}>${(config?.policies || []).map((item) => `<option value="${escapeHtml(item.policyId)}" ${item.policyId === policy?.policyId ? 'selected' : ''}>${escapeHtml(item.name || item.policyId)} / ${escapeHtml(policyBounds({ ...item, unit: '°C' }))}</option>`).join('')}</select></label>
         <div class="threshold-display" id="device-threshold-display"><strong>${escapeHtml(policyDescription)}</strong><small>${escapeHtml(policy?.registeredTxId || '—')}</small></div>
-        ${workflowButton('device-register', t('registerAction'), Boolean(deviceState.provisioned), deviceState.busy || !deviceState.device || !policy || Boolean(deviceState.provisioned) || ['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status))}
+        <div class="workflow-action-row">${workflowButton('device-register', t('registerAction'), Boolean(deviceState.provisioned), deviceState.busy || !deviceState.device || !policy || Boolean(deviceState.provisioned) || ['queued', 'running', 'retrying'].includes(deviceState.provisioning?.status))}${workflowRefreshButton('device-registration-refresh', deviceState.busy || !deviceState.device || !policy)}</div>
         <div id="registration-progress-slot">${registrationProgressView()}</div>
         <div class="hash">Contract: ${escapeHtml(short(config?.contractAddress, 34))}</div>
       </div></section>
@@ -1236,7 +1250,7 @@ function deviceView() {
           </div><small>${escapeHtml(t('generationRange'))}: ${escapeHtml(generationBounds.minimum)} – ${escapeHtml(generationBounds.maximum)}</small></div>
           <label>${escapeHtml(t('generationMode'))}<select id="device-generation-mode"><option value="with-outliers" ${deviceState.generationMode === 'with-outliers' ? 'selected' : ''}>${escapeHtml(t('withOutliers'))}</option><option value="within-threshold" ${deviceState.generationMode === 'within-threshold' ? 'selected' : ''}>${escapeHtml(t('withinThreshold'))}</option>${demo ? `<option value="missing-hours" ${deviceState.generationMode === 'missing-hours' ? 'selected' : ''}>18 hours + 6 NO DATA / 6時間欠測</option><option value="no-data" ${deviceState.generationMode === 'no-data' ? 'selected' : ''}>24 hours NO DATA / 全時間欠測</option>` : ''}</select></label>
         </div>
-        ${workflowButton('device-capture', t('autoGenerate'), Boolean(deviceState.measurement), deviceState.busy || !registrationAccepted)}
+        <div class="workflow-action-row">${workflowButton('device-capture', t('autoGenerate'), Boolean(deviceState.measurement), deviceState.busy || !registrationAccepted)}${workflowRefreshButton('device-capture-refresh', deviceState.busy || !deviceState.device)}</div>
         <dl class="device-summary" id="device-sensor-summary"><dt>${escapeHtml(t('period'))}</dt><dd>${escapeHtml(deviceState.measurement?.periodDate || '—')}</dd>
           <dt>${escapeHtml(t('sampleCount'))}</dt><dd>${escapeHtml(deviceState.measurement?.records?.length ?? '—')}</dd>
           <dt>${escapeHtml(t('outlierCount'))}</dt><dd>${escapeHtml(deviceState.measurement?.outlierCount ?? '—')}</dd>
@@ -1244,7 +1258,7 @@ function deviceView() {
           <dt>Attestation</dt><dd class="hash">${escapeHtml(short(deviceState.measurement?.attestation?.publicData?.attestationCommitment, 30))}</dd></dl>
       </div></section>
       <section class="window full-width"><div class="window-title">4. ${escapeHtml(t('proofAndRecord'))}</div><div class="window-body device-form transaction-workflow">
-        ${workflowButton('device-submit', submitActionLabel, Boolean(deviceState.transaction), deviceState.busy || !deviceState.measurement || !deviceState.measurement.completeDay || Boolean(deviceState.transaction) || deviceState.submissionQueued || ['confirmed', 'dead_lettered'].includes(deviceState.proofJob?.status) || !sponsorQuotaAllows(deviceState.proofJob?.proofJobId), deviceState.submissionQueued)}
+        <div class="workflow-action-row">${workflowButton('device-submit', submitActionLabel, Boolean(deviceState.transaction), deviceState.busy || !deviceState.measurement || !deviceState.measurement.completeDay || Boolean(deviceState.transaction) || deviceState.submissionQueued || ['confirmed', 'dead_lettered'].includes(deviceState.proofJob?.status) || !sponsorQuotaAllows(deviceState.proofJob?.proofJobId), deviceState.submissionQueued)}${workflowRefreshButton('device-submit-refresh', deviceState.busy || !deviceState.device)}</div>
         <dl class="device-summary" id="device-proof-summary"><dt>${escapeHtml(t('job'))}</dt><dd class="hash">${escapeHtml(short(deviceState.proofJob?.proofJobId, 30))}</dd>
           <dt>${escapeHtml(t('status'))}</dt><dd>${deviceState.proofJob ? status(deviceState.proofJob.status) : '—'}</dd></dl>
         <div id="device-chain-details">
@@ -1435,6 +1449,41 @@ async function deviceAction(actionId, message, operation, preparedFlow = null) {
   }
 }
 
+async function refreshDeviceRegistrationState(flow) {
+  const completed = await flow.resumePendingDeviceRegistration(updateProvisioningProgress);
+  if (!completed) return false;
+  deviceState.provisioned = completed;
+  const deferred = await flow.loadDeferredWorkflow();
+  if (deferred) {
+    deviceState.measurement = deferred.capture;
+    deviceState.selectedDate = deferred.capture.periodDate;
+    deviceState.submissionQueued = deferred.workflow.submissionRequested;
+    deviceState.proofJob = await flow.requestProof({
+      admitNow: false,
+      periodDate: deferred.capture.periodDate,
+    });
+  }
+  await refreshDeviceHistory(flow);
+  deviceState.message = `${t('registered')}: ${completed.registeredTxId}`;
+  deviceState.error = '';
+  return true;
+}
+
+async function refreshDeviceWorkflowState(flow) {
+  const completed = await refreshDeviceRegistrationState(flow);
+  if (!completed && deviceState.provisioned) await refreshDeviceHistory(flow);
+  refreshDeviceMessageForLocale();
+}
+
+function attachWorkflowRefreshButton(id) {
+  document.querySelector(`#${id}`)?.addEventListener('click', () => {
+    void deviceAction(id, t('workflowRefreshing'), async (flow) => {
+      await refreshDeviceWorkflowState(flow);
+      deviceState.message = t('syncComplete');
+    });
+  });
+}
+
 async function refreshPendingDeviceRegistration() {
   if (
     provisioningStatusRequestActive
@@ -1446,23 +1495,7 @@ async function refreshPendingDeviceRegistration() {
   provisioningStatusRequestActive = true;
   try {
     const flow = await loadDeviceModule();
-    const completed = await flow.resumePendingDeviceRegistration(updateProvisioningProgress);
-    if (completed) {
-      deviceState.provisioned = completed;
-      const deferred = await flow.loadDeferredWorkflow();
-      if (deferred) {
-        deviceState.measurement = deferred.capture;
-        deviceState.selectedDate = deferred.capture.periodDate;
-        deviceState.submissionQueued = deferred.workflow.submissionRequested;
-        deviceState.proofJob = await flow.requestProof({
-          admitNow: false,
-          periodDate: deferred.capture.periodDate,
-        });
-      }
-      await refreshDeviceHistory(flow);
-      deviceState.message = `${t('registered')}: ${completed.registeredTxId}`;
-      deviceState.error = '';
-    }
+    await refreshDeviceRegistrationState(flow);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (deviceState.provisioning?.status === 'failed') {
@@ -1798,6 +1831,10 @@ function attachDeviceActions() {
       }
     });
   });
+  attachWorkflowRefreshButton('device-registration-refresh');
+  attachWorkflowRefreshButton('device-capture-refresh');
+  attachWorkflowRefreshButton('device-submit-refresh');
+  attachWorkflowRefreshButton('device-history-refresh');
   document.querySelector('#device-policy')?.addEventListener('change', (event) => {
     deviceState.selectedPolicyId = event.target.value;
     localStorage.setItem(`vsp-selected-policy:${deviceState.projectId}`, deviceState.selectedPolicyId);

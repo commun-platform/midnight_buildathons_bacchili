@@ -319,6 +319,16 @@ describe('Midnight Wallet shell', () => {
     expect(deviceFlow).toContain('completed: index + 1');
   });
 
+  it('places explicit state refresh controls beside asynchronous workflow actions', () => {
+    expect(script).toContain("workflowRefreshButton('device-registration-refresh'");
+    expect(script).toContain("workflowRefreshButton('device-capture-refresh'");
+    expect(script).toContain("workflowRefreshButton('device-submit-refresh'");
+    expect(script).toContain("workflowRefreshButton('device-history-refresh'");
+    expect(script).toContain('async function refreshDeviceWorkflowState(flow)');
+    expect(script).toContain("attachWorkflowRefreshButton('device-capture-refresh')");
+    expect(styles).toContain('.workflow-action-row');
+  });
+
   it('shows the actual Device and Threshold transaction stages', () => {
     expect(script).toContain("progressDeviceProof: 'デバイス登録TX用のZKPを生成中'");
     expect(script).toContain("progressDeviceSending: 'デバイス登録TXを送信中'");

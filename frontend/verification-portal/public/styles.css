@@ -867,6 +867,14 @@ a:visited { color: #551a8b; }
   gap: 7px;
   text-align: left;
 }
+.workflow-action-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.workflow-action-row > .workflow-action { flex: 1 1 260px; }
+.workflow-refresh-button { white-space: nowrap; }
 .workflow-action .action-badge {
   margin-left: auto;
   padding: 2px 5px;
@@ -992,7 +1000,7 @@ a:visited { color: #551a8b; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
 }
-.transaction-workflow > .workflow-action,
+.transaction-workflow > .workflow-action-row,
 .transaction-progress,
 .transaction-id,
 .sponsor-transaction { grid-column: 1 / -1; }
