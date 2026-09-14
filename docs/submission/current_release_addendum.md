@@ -3,7 +3,7 @@
 [日本語版](../ja/submission/current_release_addendum.md)
 
 Status: reconciled on 2026-09-14 JST
-Review commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review target: the checked-out `main` commit (`git rev-parse HEAD`)
 
 This addendum records dated Midnight and field-operation evidence that can be checked independently
 from the source gate. It does not mix a local run or generated workspace output into the repository
@@ -63,12 +63,12 @@ rejected while the collector continued measuring. The Sponsor's 02:00 JST schedu
 not a confirmation deadline.
 
 These are dated observations. They do not establish partner-period reliability or uninterrupted
-operation, and no new live recheck or redeployment is asserted for this review commit.
+operation, and no new live recheck or redeployment is asserted for this review target.
 
 ## Source validation
 
 - Compact toolchain `0.31.1` compiled all 8 operational circuits.
-- 524 operational workspace tests and 4 managed-source mock tests passed at the review commit (528 total).
+- 524 operational workspace tests and 4 managed-source mock tests passed at the review target (528 total).
 - All configured type checks and portability checks passed.
 - MCP validation passed: 3 shared public-verifier, 11 private Support MCP, and 5 public Verification MCP tests.
 

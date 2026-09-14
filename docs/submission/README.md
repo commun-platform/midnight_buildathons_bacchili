@@ -2,7 +2,8 @@
 
 This guide is the source-only entry point for reviewing BACCHIRI!━━Verifiable Measurement Layer.
 It points to files, tests, commands, and public transaction records that are part of this repository's
-technical review. The review baseline is commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`.
+technical review. The review target is the checked-out `main` commit; record its exact SHA with
+`git rev-parse HEAD`.
 
 [日本語版](../ja/submission/README.md)
 
@@ -24,10 +25,11 @@ From a clean checkout with Node.js 22 and the pinned Compact toolchain:
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 ```
 
-`verify:source` runs portability checks, compiles the operational `sensor-registry` contract, runs
+`verify:source` runs the source-only review boundary, portability checks, compiles the operational `sensor-registry` contract, runs
 the repository test suites, and type-checks every workspace. It does not require Device secrets,
 deployment credentials, wallet recovery material, or a live network. The current baseline is 8
 compiled circuits and 524 operational workspace tests, plus 4 managed-source mock tests (528 total).
@@ -39,6 +41,11 @@ npm run verify:portability
 npm run typecheck
 npm run test:managed-source-mock
 ```
+
+The GitHub source workflow runs `npm run verify:review`, portability, and the deterministic
+Managed Source mock because hosted runners do not contain the pinned Compact Developer Tools by
+default. The full compile and workspace suite remain reproducible with `npm run verify:source` on a
+development host after `compact update 0.31.1`.
 
 ## Evidence boundary
 

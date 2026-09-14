@@ -10,7 +10,7 @@
 
 ![センサー値を開示せず、しきい値の範囲内かどうかを示す](assets/review/privacy-value-proposition-ja.png)
 
-[現行Source Delivery](submission/final_delivery.md)に、Review Commitの実装、Validation、日付付きPublic Record、既知の限界をまとめています。
+[現行Source Delivery](submission/final_delivery.md)に、Review Targetの実装、Validation、日付付きPublic Record、既知の限界をまとめています。
 
 8回路のContractは2026-09-03にMidnight Preprodへ配備され、Managed API・実機の両経路で確定済み取引が記録されています。9月7〜8日の実機運用記録には、実測1,439件ずつの日次自動送信2件もあります。[現行リリース補足](submission/current_release_addendum.md)に、それぞれの確認日とClaim境界を記録しています。
 
@@ -163,7 +163,6 @@ tools/
   midnight-operator/                  Local開発Wallet・Midnight管理
   cloudflare-admin/                   Local Provisioning・Secret設定Command
   benchmarks/                         Local Compile・運用費用の計測
-  submission-media/                   開発用Submission補助ツール
   repository-checks/                  Host境界・Portability検査
 tests/
   system/dashboard-workflow/          境界横断Browser SCT

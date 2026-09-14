@@ -250,5 +250,5 @@ ZKPを生成し、09:17:20にBlock 2,380,338で確定した。すべてのManage
 - 認証済みDevice TX [`7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40`](https://preprod.midnightexplorer.com/transactions/7e93c537e85dbc16892716429b0f426e731999775b0cef460bd4b0d358c42b40)：Block 2,385,898、観測24時間すべてWITHIN。
 
 2026-09-05 JSTに、別Workerの公開Verification MCPから両方のHashをPublic Preprod Indexerへ問い合わせ、
-D1やPrivate Inputなしで現行Ledger Checkに成功した。Review Commit`b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`は、8回路Compile、
+D1やPrivate Inputなしで現行Ledger Checkに成功した。Review Targetは、8回路Compile、
 運用Workspace Test 524件とManaged Source Mock Test 4件、全Type Check、Portability検査に成功している。

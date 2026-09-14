@@ -6,8 +6,7 @@ The tracked review figures are generated either by the built-in image generator 
 SVG-to-PNG renderers. This manifest records their source and insertion points; generated local output
 is not repository evidence.
 
-Reproducible sources: `tools/submission-media/build-on-demand-zkp-architecture.cjs` and
-`tools/submission-media/build-on-demand-zkp-architecture-ja.cjs`
+The tracked SVG/PNG figures are the review assets. Generation inputs and local rendering output are not review evidence.
 Output: 1672 × 941 PNG, 16:9
 Style: dark-navy technical documentation, subtle grid, white type, cyan and purple accents, muted
 green/amber/red, flat line icons

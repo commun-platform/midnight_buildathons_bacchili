@@ -10,7 +10,7 @@
 
 ## Judge review
 
-Start with the [repository review guide](docs/submission/README.md). It describes only evidence tracked in this repository and the commands a clean checkout can run. The current review commit is `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`; it includes automatic completed-day Device submission, durable retries and receipts, collector recovery and stop protection, and a verification-page link in Sponsor receipts.
+Start with the [repository review guide](docs/submission/README.md). It describes only evidence tracked in this repository and the commands a clean checkout can run. The review target is the checked-out `main` commit; record its exact SHA with `git rev-parse HEAD`. The implementation history includes automatic completed-day Device submission, durable retries and receipts, collector recovery and stop protection, and a verification-page link in Sponsor receipts.
 
 The eight-circuit Contract was deployed to Midnight Preprod on 2026-09-03. Managed API and authenticated Device records reached confirmation, and the September 7–8 field-operation record adds two automatically submitted days with 1,439 real measurements each. The [release addendum](docs/submission/current_release_addendum.md) preserves their evidence dates and claim boundaries.
 
@@ -167,7 +167,6 @@ tools/
   midnight-operator/                  local development Wallet and Midnight administration
   cloudflare-admin/                   local provisioning and secret-management commands
   benchmarks/                         local compile and operating-cost measurements
-  submission-media/                   optional local submission tooling
   repository-checks/                  host-boundary and portability checks
 tests/
   system/dashboard-workflow/          cross-boundary browser SCT
@@ -194,6 +193,7 @@ The source-level gate requires no Device secrets or Midnight preproduction-netwo
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 ```
 

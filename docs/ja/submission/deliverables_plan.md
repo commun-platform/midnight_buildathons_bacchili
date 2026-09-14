@@ -2,8 +2,8 @@
 
 [English](../../submission/deliverables_plan.md)
 
-Repository Reviewでは、Product Claim、実装、限界、再現可能なCheckを追いやすくします。Review Baselineは
-Commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd` です。
+Repository Reviewでは、Product Claim、実装、限界、再現可能なCheckを追いやすくします。Review Targetは
+チェックアウトした `main` コミットです。正確な SHA は `git rev-parse HEAD` で記録します。
 
 ## Review Requirements
 

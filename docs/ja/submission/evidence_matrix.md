@@ -2,7 +2,7 @@
 
 [English](../../submission/evidence_matrix.md)
 
-Review Commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review Target: チェックアウトした `main` コミット（`git rev-parse HEAD`）
 Source Validation: 2026-09-14 JST
 Preprod Deploy: 2026-09-03 JST
 
@@ -29,12 +29,13 @@ Preprod Deploy: 2026-09-03 JST
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 ```
 
-`verify:source`はPortability、Operational Compact Compile、全Source Test、Workspace Type Checkを実行します。Device Secret、Wallet Recovery Material、Deployment Credential、稼働中Networkは使いません。
+`verify:source`はソース限定レビュー境界、Portability、Operational Compact Compile、全Source Test、Workspace Type Checkを実行します。Device Secret、Wallet Recovery Material、Deployment Credential、稼働中Networkは使いません。
 
-## Review CommitのTest内訳
+## Review TargetのTest内訳
 
 | Workspace | 成功数 |
 | --- | ---: |

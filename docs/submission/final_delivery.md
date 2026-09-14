@@ -2,8 +2,8 @@
 
 [日本語版](../ja/submission/final_delivery.md)
 
-This document reconciles the implementation and the review evidence in commit
-`b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`. It is a repository source handoff: every technical claim
+This document reconciles the implementation and the review evidence in the checked-out `main`
+commit (`git rev-parse HEAD`). It is a repository source handoff: every technical claim
 below points to tracked code, tracked tests, or a public transaction record.
 
 ## What is implemented
@@ -29,23 +29,24 @@ time; they do not imply that a fresh network transaction was performed for this 
 See the [release addendum](current_release_addendum.md) and [evidence matrix](evidence_matrix.md) for
 transaction hashes, dates, source boundaries, and public verification links.
 
-## Validation at the review commit
+## Validation at the review target
 
 | Check | Result |
 | --- | --- |
 | Operational Compact compilation | PASS: pinned toolchain `0.31.1`, 8 circuits |
-| Source tests | PASS: 528 tests across the operational workspaces |
+| Source tests | PASS: 524 tests across the operational workspaces |
 | Managed-source mock tests | PASS: 4 tests |
 | Workspace type checks | PASS |
 | Portability and whitespace checks | PASS |
 | Source gate | `npm run verify:source` runs the checks above from a clean checkout |
 | Full deployment gate | Not asserted here; Container image validation requires a Docker-capable host |
 
-The source test count is the review baseline recorded in this commit. Run the gate from the repository
+The source test count is recorded for this review target. Run the gate from the repository
 root:
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 ```
 

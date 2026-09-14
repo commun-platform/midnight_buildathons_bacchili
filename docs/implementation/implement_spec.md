@@ -181,4 +181,4 @@ The exact GUI control-to-processing mapping is documented in
 [`device_registry.md`](../security/device_registry.md). On 2026-08-28 JST, self-funded Edge Device
 WITHIN and OUTSIDE transactions against the newly deployed Fleet Registry were confirmed and
 returned by the public verifier. That remains historical evidence. Sponsor-funded submission must
-pass a fresh Preprod E2E gate before the guided reviewer recording is produced.
+pass a fresh Preprod E2E gate before it is treated as current deployment evidence.

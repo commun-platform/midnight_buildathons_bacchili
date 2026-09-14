@@ -2,7 +2,7 @@
 
 [日本語版](../ja/submission/evidence_matrix.md)
 
-Review commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review target: the checked-out `main` commit (`git rev-parse HEAD`)
 Source validation date: 2026-09-14 JST
 Preprod deployment date: 2026-09-03 JST
 
@@ -30,13 +30,14 @@ Local generated output and private runtime state are not submission evidence.
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 ```
 
-`verify:source` runs portability checks, operational Compact compilation, all source tests, and workspace
+`verify:source` runs the source-only review boundary, portability checks, operational Compact compilation, all source tests, and workspace
 type checks. It uses no Device secrets, wallet recovery material, deployment credentials, or live network.
 
-## Test distribution at the review commit
+## Test distribution at the review target
 
 | Workspace | Passed |
 | --- | ---: |
@@ -56,5 +57,5 @@ type checks. It uses no Device secrets, wallet recovery material, deployment cre
 | Managed-source mock | 4 |
 | **`npm test` total** | **528** |
 
-The test count is a source-suite count at the review commit. Public transaction records are dated
+The test count is a source-suite count at the review target. Public transaction records are dated
 network evidence and are not inferred from local tests.

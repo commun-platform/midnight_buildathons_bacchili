@@ -32,7 +32,7 @@ the values private. It does not replace existing measurement equipment or manage
 4. The user authorizes the transaction while the service handles its fee through the Server Wallet.
 5. Midnight records all 24 hourly results, policy/validity, Device Commitment, and transaction evidence for inspection.
 
-## Verified at the review commit
+## Verified at the review target
 
 - All 8 proof circuits compile with Compact toolchain `0.31.1`.
 - 524 operational workspace tests and 4 managed-source mock tests pass (528 total).

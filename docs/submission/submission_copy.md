@@ -58,7 +58,7 @@ The repository contains supporting field-runtime authentication, collection, tra
 rollback code. That code is integration evidence for the next stage; Wave 1 does not claim autonomous
 long-running field operation or production separation of roles and applications.
 
-Review commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd` was validated on 2026-09-14 JST:
+The checked-out `main` commit (`git rev-parse HEAD`) was validated on 2026-09-14 JST:
 
 - all 8 proof circuits compiled;
 - 524 operational workspace tests and 4 managed-source mock tests passed (528 total);

@@ -43,7 +43,7 @@ Review Interfaceを実装しました。
 Discord Alert、Private Read-only Support MCP、Public Transaction Verification MCPも実装済みです。Partner期間のProduction
 MaturityはWave 2の成果です。
 
-Review Commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd` を2026-09-14 JSTに検証しました。
+チェックアウトした `main` コミット（`git rev-parse HEAD`）を2026-09-14 JSTに検証しました。
 
 - Proof Circuit 8回路をCompile。
 - 運用Workspace Test 524件とManaged Source Mock Test 4件（合計528件）がPass。

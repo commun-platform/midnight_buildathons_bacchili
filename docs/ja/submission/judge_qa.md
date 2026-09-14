@@ -1,6 +1,6 @@
 # 審査員向けQ&A
 
-Source Reviewの入口は[Repository審査ガイド](README.md)です。Review Commitは`b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`で、`npm run verify:source`によりSource Checkを再現できます。
+Source Reviewの入口は[Repository審査ガイド](README.md)です。Review Targetはチェックアウトした `main` コミット（`git rev-parse HEAD`）で、`npm run verify:source`によりSource Checkを再現できます。
 
 [English](../../submission/judge_qa.md)
 
@@ -48,7 +48,7 @@ Attestor Authorityを使います。User／Deviceになりすますものでは�
 
 ## 現時点でどこまで検証済みですか
 
-Review Commitは8回路Compile、運用Workspace Test 524件とManaged Source Mock Test 4件、全Type Check、Portability Checkに成功しています。現行8回路Contractは2026-09-03に配備済みです。Managed APIの1,440件はBlock 2,385,826でOUTSIDE、認証済みDeviceの1,440件はBlock 2,385,898でWITHINとして確定しました。2026-09-05にPublic Verification MCPから両HashをMidnight Indexerへ問い合わせ、D1／Private InputなしでLedger Checkに成功しました。
+Review Targetは8回路Compile、運用Workspace Test 524件とManaged Source Mock Test 4件、全Type Check、Portability Checkに成功しています。現行8回路Contractは2026-09-03に配備済みです。Managed APIの1,440件はBlock 2,385,826でOUTSIDE、認証済みDeviceの1,440件はBlock 2,385,898でWITHINとして確定しました。2026-09-05にPublic Verification MCPから両HashをMidnight Indexerへ問い合わせ、D1／Private InputなしでLedger Checkに成功しました。
 
 ## 第三者画面だけで独立検証できますか
 

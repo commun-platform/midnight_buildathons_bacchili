@@ -315,7 +315,7 @@ TXが未発見、失敗、部分成功、別Network、未承認Contract、Decode
 | Ledger遷移Decodeと整合性検査 | `frontend/verification-portal/src/public-verifier.ts` |
 | Contract制約と公開Ledger項目 | `midnight/contracts/sensor-registry/src/sensor-registry.compact` |
 | TX hash Routeと画面描画 | `frontend/verification-portal/public/app.js` |
-| D1 API不使用を検査するBrowser Verification Test | `tools/submission-media/capture-dashboard-demo.mjs` |
+| D1 API不使用を検査するBrowser Verification Test | `frontend/verification-portal/src/public-verifier.test.ts` と `shared/public-attestation-verifier/src/index.test.ts` |
 
 現行Hosted ViewerはTXからContract Action候補を導出し、Schema 7としてDecodeできる1件を受理します。
 独立した本番ビューワは、これに加えて3章の承認済みDeployment規則を必ず実装してください。Ledger形状

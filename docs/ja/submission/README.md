@@ -1,8 +1,8 @@
 # リポジトリ審査ガイド
 
 BACCHIRI!━━Verifiable Measurement Layerをリポジトリだけで確認するための入口です。追跡対象の
-ソース、テスト、実行コマンド、公開トランザクション記録だけを参照します。審査基準となる
-コミットは `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd` です。
+ソース、テスト、実行コマンド、公開トランザクション記録だけを参照します。レビュー対象はチェックアウトした
+`main` コミットです。正確な SHA は `git rev-parse HEAD` で記録します。
 
 [English](../../submission/README.md)
 
@@ -24,10 +24,11 @@ Node.js 22と固定したCompact ToolchainがあるクリーンなCheckoutで実
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 ```
 
-`verify:source`はPortability Check、運用用 `sensor-registry` ContractのCompile、全Workspaceの
+`verify:source`はソース限定レビュー境界、Portability Check、運用用 `sensor-registry` ContractのCompile、全Workspaceの
 Test、Type Checkを順に実行します。Device Secret、Deployment Credential、Wallet Recovery Material、
 稼働中Networkは必要ありません。現在の基準は8回路のCompile、運用Workspace Test 524件、Managed
 Source Mock Test 4件（合計528件）です。
@@ -39,6 +40,10 @@ npm run verify:portability
 npm run typecheck
 npm run test:managed-source-mock
 ```
+
+GitHubのソースワークフローは、ホストランナーに固定版 Compact Developer Tools が標準搭載されていないため、
+`npm run verify:review`、Portability、決定的な Managed Source Mock を実行します。完全なCompileとWorkspace Testは、
+開発ホストで `compact update 0.31.1` を実行した後に `npm run verify:source` で再現できます。
 
 ## Evidenceの境界
 

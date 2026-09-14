@@ -3,7 +3,7 @@
 [English](../../submission/current_release_addendum.md)
 
 Status: 2026-09-14 JSTに整理
-Review Commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review Target: チェックアウトした `main` コミット（`git rev-parse HEAD`）
 
 このAddendumは、Source Gateとは独立に確認できる日付付きのMidnightおよびField Operation Evidenceを
 記録します。Local Runや生成されたWorkspace出力をRepository Evidenceへ混ぜません。
@@ -54,13 +54,13 @@ Receipt Identity、日境界、Count、Ledger Resultが一致し、再実行で�
 Collection中の直接StopがRejectedされ、Collectorが継続したことを確認しています。Sponsorの02:00 JSTは処理開始時刻であり、
 Confirmation Deadlineではありません。
 
-これらは日付付きの観測Recordです。Partner期間の信頼性や連続稼働を証明せず、このReview Commitで新しいLive Recheckや
+これらは日付付きの観測Recordです。Partner期間の信頼性や連続稼働を証明せず、このReview Targetで新しいLive Recheckや
 Redeployを行ったとは主張しません。
 
 ## Source Validation
 
 - Compact Toolchain `0.31.1`で運用8回路をCompile。
-- Review Commitで運用Workspace Test 524件とManaged Source Mock Test 4件（合計528件）がPass。
+- Review Targetで運用Workspace Test 524件とManaged Source Mock Test 4件（合計528件）がPass。
 - 設定済みType CheckとPortability CheckがPass。
 - MCP ValidationがPass: Shared Public Verifier 3件、Private Support MCP 11件、Public Verification MCP 5件。
 

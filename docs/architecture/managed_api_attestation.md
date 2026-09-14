@@ -336,5 +336,5 @@ The consolidated `midnight-server-wallet` then completed two 1,440-reading paths
 
 On 2026-09-05 JST, the separately deployed public Verification MCP resolved both hashes from the
 public Preprod Indexer and completed all five current ledger checks without D1 or private inputs.
-Review commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd` compiled all 8 circuits and passed 524 operational workspace tests plus 4 managed-source mock tests, type
+The review target compiled all 8 circuits and passed 524 operational workspace tests plus 4 managed-source mock tests, type
 checks, builds, API/GUI SCT, Wrangler dry-runs, and portability checks.

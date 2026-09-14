@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   repository-checks:
-    name: Portability and deterministic source check
+    name: Source-only review checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,5 +28,22 @@ jobs:
 
       - name: Run repository checks
         run: |
+          npm run verify:review
           npm run verify:portability
           npm run test:managed-source-mock
+
+      - name: Explain the full source gate
+        if: always()
+        run: |
+          {
+            echo '### Full source gate'
+            echo
+            echo 'The clean-checkout contract compile and workspace suite are run with the pinned Compact toolchain on a development host:'
+            echo
+            echo '```bash'
+            echo 'npm ci'
+            echo 'npm run verify:source'
+            echo '```'
+            echo
+            echo 'This GitHub-hosted job intentionally runs the toolchain-independent review boundary, portability, and deterministic mock-source checks.'
+          } >> "$GITHUB_STEP_SUMMARY"

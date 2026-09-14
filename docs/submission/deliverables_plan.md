@@ -3,7 +3,8 @@
 [日本語版](../ja/submission/deliverables_plan.md)
 
 The repository review should make the product claim, implementation, limits, and reproducible checks
-easy to follow. The review baseline is commit `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`.
+easy to follow. The review target is the checked-out `main` commit; record its exact SHA with
+`git rev-parse HEAD`.
 
 ## Review requirements
 

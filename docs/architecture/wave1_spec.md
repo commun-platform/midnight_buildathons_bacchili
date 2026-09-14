@@ -494,7 +494,7 @@ Legacy tables remain migration-only and receive no new operational proof writes.
 
 ## 12. GUI
 
-The framework-free GUI is locally hostable for review/recording and may be served by the Worker.
+The framework-free GUI is locally hostable for review and may be served by the Worker.
 
 Administrator stepper:
 

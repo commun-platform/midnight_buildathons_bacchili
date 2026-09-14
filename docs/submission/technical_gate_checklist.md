@@ -2,7 +2,7 @@
 
 [日本語版](../ja/submission/technical_gate_checklist.md)
 
-Review commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review target: the checked-out `main` commit (`git rev-parse HEAD`)
 Last source validation: 2026-09-14 JST
 
 | Gate | Status | Evidence / action |
@@ -20,8 +20,8 @@ Last source validation: 2026-09-14 JST
 | Public verification boundary | PASS | [Public verifier](../../shared/public-attestation-verifier/src/index.ts) returns public state only |
 | MCP least-privilege boundary | PASS | Private Support and public Verification Workers remain separate; 3 + 11 + 5 tests |
 | Reproducible source command | PASS | `npm ci && npm run verify:source` |
-| GitHub source check | PASS | [Source validation workflow](../../.github/workflows/source-validation.yml) runs portability and deterministic mock-source checks on push / pull request |
-| Public repository visibility | PENDING EXTERNAL | Set the repository to public before submission |
+| GitHub source check | PASS | [Source validation workflow](../../.github/workflows/source-validation.yml) runs the source-boundary, portability, and deterministic mock-source checks on push / pull request |
+| Public repository visibility | PASS | Repository metadata is public at submission review time |
 | GitHub topic `midnightntwrk` | PASS | Confirmed on the repository metadata |
 
 ## Source gate
@@ -30,6 +30,7 @@ Run from the repository root on Node.js 22 with the pinned Compact toolchain:
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 git diff --check
 ```

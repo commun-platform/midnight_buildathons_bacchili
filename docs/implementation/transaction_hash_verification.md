@@ -328,7 +328,7 @@ transaction, block confirmation, and public verification are real.
 | Ledger transition decoding and consistency checks | `frontend/verification-portal/src/public-verifier.ts` |
 | Contract constraints and public ledger fields | `midnight/contracts/sensor-registry/src/sensor-registry.compact` |
 | TX-hash route and viewer rendering | `frontend/verification-portal/public/app.js` |
-| Browser verification test with D1-API rejection | `tools/submission-media/capture-dashboard-demo.mjs` |
+| Browser verification and D1-independence tests | `frontend/verification-portal/src/public-verifier.test.ts` and `shared/public-attestation-verifier/src/index.test.ts` |
 
 The current hosted viewer derives candidate Contract actions from the transaction and accepts the one
 that decodes as the schema-7 contract transition. Independent production verifiers must additionally

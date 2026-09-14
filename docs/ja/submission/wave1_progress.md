@@ -3,11 +3,11 @@
 [English](../../submission/wave1_progress.md)
 
 対象期間: 2026-08-27〜2026-09-14 JST
-Review Commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review Target: チェックアウトした `main` コミット（`git rev-parse HEAD`）
 
 ## このRecordの読み方
 
-Repository HistoryはWave 1開始日に始まるため、この文書はReview Commitに含まれる実装とValidationを記録します。
+Repository HistoryはWave 1開始日に始まるため、この文書はReview Targetに含まれる実装とValidationを記録します。
 過去のPublic Releaseとの差分を推測しません。日付付きNetwork RecordはSource Checkとは分けて記載します。
 
 ## Wave 1で実装した領域
@@ -35,7 +35,7 @@ Source Location、Test、Validation Limitは[Claim / Evidence Map](evidence_matr
 7. Registered Managed Sourceが固定Proof ModelとServer Walletで日次Attestationを完了します。
 8. Operations Evidenceを保護Console、Private Support MCP、Public Transaction Verificationへ分離しました。
 
-## Review Commitで確認した結果
+## Review Targetで確認した結果
 
 - Repository Portability CheckがPass。
 - `sensor-registry`の8 Proof CircuitをCompile。

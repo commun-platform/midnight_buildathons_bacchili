@@ -2,7 +2,7 @@
 
 [English](../../submission/technical_gate_checklist.md)
 
-Review Commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review Target: チェックアウトした `main` コミット（`git rev-parse HEAD`）
 最終Source Validation: 2026-09-14 JST
 
 | Gate | Status | Evidence / Action |
@@ -20,8 +20,8 @@ Review Commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
 | Public Verification Boundary | PASS | [Public Verifier](../../../shared/public-attestation-verifier/src/index.ts)はPublic Stateだけを返す |
 | MCP Least Privilege | PASS | Private SupportとPublic VerificationのWorkerを分離。3 + 11 + 5 Test |
 | 再現可能なSource Command | PASS | `npm ci && npm run verify:source` |
-| GitHub Source Check | PASS | [Source Validation Workflow](../../../.github/workflows/source-validation.yml)がPush / Pull RequestでPortabilityとDeterministic Mock Source Checkを実行 |
-| Public Repository Visibility | PENDING EXTERNAL | 提出前にRepositoryをPublicへ変更 |
+| GitHub Source Check | PASS | [Source Validation Workflow](../../../.github/workflows/source-validation.yml)がPush / Pull Requestでソース境界、Portability、Deterministic Mock Source Checkを実行 |
+| Public Repository Visibility | PASS | 提出レビュー時のRepository MetadataがPublic |
 | GitHub Topic `midnightntwrk` | PASS | Repository Metadataで確認済み |
 
 ## Source Gate
@@ -30,6 +30,7 @@ Node.js 22と固定Compact Toolchainを用意し、Repository Rootから実行�
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 git diff --check
 ```

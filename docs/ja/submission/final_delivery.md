@@ -2,7 +2,7 @@
 
 [English](../../submission/final_delivery.md)
 
-この文書は、コミット `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd` に含まれる実装とReview Evidenceを
+この文書は、チェックアウトした `main` コミット（`git rev-parse HEAD`）に含まれる実装とReview Evidenceを
 対応付けます。以下の技術的Claimは、追跡対象のCode、追跡対象のTest、または公開Transaction Recordへ
 解決できます。
 
@@ -29,12 +29,12 @@ Network Transactionを実行したことを意味しません。
 Transaction Hash、日付、Source境界、公開Verification Linkは[Release Addendum](current_release_addendum.md)と
 [Evidence Matrix](evidence_matrix.md)を参照してください。
 
-## Review CommitでのValidation
+## Review TargetでのValidation
 
 | Check | 結果 |
 | --- | --- |
 | Operational Compact Compile | PASS: 固定Toolchain `0.31.1`、8回路 |
-| Source Test | PASS: 運用Workspace合計528件 |
+| Source Test | PASS: 運用Workspace合計524件 |
 | Managed Source Mock Test | PASS: 4件 |
 | Workspace Type Check | PASS |
 | Portability / Whitespace Check | PASS |
@@ -45,6 +45,7 @@ Source Rootから次を実行します。
 
 ```bash
 npm ci
+compact update 0.31.1
 npm run verify:source
 ```
 

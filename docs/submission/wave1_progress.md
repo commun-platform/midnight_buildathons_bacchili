@@ -3,12 +3,12 @@
 [日本語版](../ja/submission/wave1_progress.md)
 
 Period covered: 2026-08-27 to 2026-09-14 JST
-Review commit: `b72efb7d4df8384a9e8dd873b8e3a65f6e9e5fbd`
+Review target: the checked-out `main` commit (`git rev-parse HEAD`)
 
 ## How to read this record
 
 The repository history begins on the Wave 1 opening date, so this document reports the implementation
-and validation that are present in the review commit. It does not infer a feature-by-feature difference
+and validation that are present in the review target. It does not infer a feature-by-feature difference
 from an earlier public release. Dated network records are listed separately from source checks.
 
 ## Built during Wave 1
@@ -36,7 +36,7 @@ See the [claim-to-evidence map](evidence_matrix.md) for source locations, tests,
 7. A registered managed source completes a daily attestation through the same fixed proof model and Server Wallet.
 8. Operations evidence is split between a protected console, private Support MCP, and public transaction verification.
 
-## Result verified at the review commit
+## Result verified at the review target
 
 - Repository portability validation passed.
 - All 8 `sensor-registry` proof circuits compiled.

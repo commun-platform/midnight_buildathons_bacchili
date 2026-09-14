@@ -5,7 +5,7 @@
 追跡対象のReview図版は、Codex内蔵画像生成または決定的なSVG→PNG Rendererで生成します。このManifestはSourceと挿入先を記録し、
 Localで生成した出力をRepository Evidenceとして扱いません。
 
-再生成Source: `tools/submission-media/build-on-demand-zkp-architecture.cjs`、`tools/submission-media/build-on-demand-zkp-architecture-ja.cjs`
+追跡対象のSVG／PNG図版をレビュー用アセットとして保持します。生成入力とLocal Renderer出力はレビューEvidenceに含めません。
 出力: 1672 × 941 PNG、16:9
 共通Design: 濃紺の技術文書、細いGrid、白文字、Cyan / Purple、抑えたGreen / Amber / Red、平面的な線画
 共通除外: 人物、企業Logo、Coin、写真、透かし、Raspberry Pi、開発Host構成、過剰なNeon装飾

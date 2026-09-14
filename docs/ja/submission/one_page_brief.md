@@ -31,7 +31,7 @@ Measurement EquipmentやManagement Systemを置き換えません。
 4. UserがTransactionを認可し、ServiceがServer WalletでFeeを処理します。
 5. Midnightが24 Hourly Result、Policy / Validity、Device Commitment、Transaction Evidenceを記録します。
 
-## Review Commitでの確認
+## Review Targetでの確認
 
 - Compact Toolchain `0.31.1`で8 Proof CircuitをCompile。
 - 運用Workspace Test 524件とManaged Source Mock Test 4件（合計528件）がPass。
