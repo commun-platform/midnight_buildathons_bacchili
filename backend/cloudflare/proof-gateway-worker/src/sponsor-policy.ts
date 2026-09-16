@@ -78,9 +78,9 @@ export function sponsorSubmissionRequiresDustRefresh(message: string): boolean {
 }
 
 export function sponsorSubmissionRequiresReproof(message: string): boolean {
-  // A stale contract-state transaction cannot become valid by resending the
-  // same bytes; the Device must rebuild it against current contract state.
-  // MalformedError::TransactionApplicationError to Custom error 182. A
+  // A transaction-application rejection (including expired intent TTL) cannot
+  // be repaired by resending the same bytes; the Device must rebuild it.
+  // MalformedError::TransactionApplication maps to Custom error 182. A
   // textual variant is retained for node responses that expose the enum name.
   return /(?:Custom error:\s*182\b|Malformed\(TransactionApplicationError\))/iu.test(message);
 }
