@@ -1191,7 +1191,8 @@ export async function releaseStaleSponsorReservationForReproof(
   const updatedAt = new Date().toISOString();
   const updated = await createSqlDatabase(env).execute(
     `UPDATE daily_proof_jobs
-     SET status = 'reproof_required', device_transaction_object_key = NULL,
+     SET status = 'reproof_required', lease_expires_at = NULL,
+         device_transaction_object_key = NULL,
          device_transaction_hash = NULL, device_transaction_bytes = NULL,
          sponsor_transaction_object_key = NULL, sponsor_serialized_sha256 = NULL,
          sponsor_transaction_id = NULL, sponsor_fee_specks = NULL,

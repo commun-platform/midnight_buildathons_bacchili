@@ -1170,8 +1170,10 @@ describe('stale-contract-state Sponsor reservation', () => {
               && bindings[1] === job.id
               && bindings[2] === serializedHash
             ) {
+              expect(query).toContain("status = 'reproof_required', lease_expires_at = NULL");
               Object.assign(job, {
                 status: 'reproof_required',
+                lease_expires_at: null,
                 device_transaction_object_key: null,
                 device_transaction_hash: null,
                 device_transaction_bytes: null,
