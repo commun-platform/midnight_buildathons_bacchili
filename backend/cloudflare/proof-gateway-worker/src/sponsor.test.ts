@@ -8,6 +8,7 @@ import {
   shouldReplaySponsorDustState,
   sponsorJobCanProceed,
   sponsorSubmissionIsReplayProtectionViolation,
+  sponsorSubmissionRequiresDustRefresh,
   sponsorSubmissionRequiresReproof,
   sponsorTransactionNeedsRefresh,
   sponsorWalletCanSubmit,
@@ -862,6 +863,15 @@ describe('Device transaction idempotency', () => {
     expect(deviceTransactionAcceptance('reproof_required', null, firstHash)).toBe('accept-new');
   });
 
+  it('refreshes only explicitly rejected DUST proofs', () => {
+    for (const code of [170, 171]) {
+      expect(sponsorSubmissionRequiresDustRefresh(`1010: Invalid Transaction: Custom error: ${code}`)).toBe(true);
+    }
+    for (const message of ['Custom error: 182', 'Custom error: 193', 'timeout', 'Custom error: 1700']) {
+      expect(sponsorSubmissionRequiresDustRefresh(message)).toBe(false);
+    }
+  });
+
   it('recognizes the Preprod stale-contract-state submission error', () => {
     expect(sponsorSubmissionRequiresReproof(
       '1010: Invalid Transaction: Custom error: 182',
@@ -1253,9 +1263,11 @@ describe('expired Sponsor reservation', () => {
   });
 
   it.each([
-    ['releases through the Wallet', false],
-    ['abandons an unreachable Wallet reservation', true],
-  ])('%s and makes the Device transaction resumable', async (_name, releaseUnavailable) => {
+    ['releases through the Wallet', false, 'expired'],
+    ['abandons an unreachable Wallet reservation', true, 'expired'],
+    ['releases rejected DUST proof', false, 'dust-proof-rejected'],
+    ['preserves rejected DUST reservation when release fails', true, 'dust-proof-rejected'],
+  ] as const)('%s and makes the Device transaction resumable', async (_name, releaseUnavailable, reason) => {
     const bytes = new Uint8Array([5, 4, 3, 2]);
     const serializedHash = await sha256Hex(bytes);
     const artifactKey = `sponsor-transactions/proof-idempotency-001/${serializedHash}.tx`;
@@ -1332,7 +1344,7 @@ describe('expired Sponsor reservation', () => {
                 sponsorship_completed_at: null,
                 attest_tx_id: null,
                 attest_tx_hash: null,
-                last_error_code: 'sponsor_transaction_expired_reprepare',
+                last_error_code: String(bindings[3]),
                 updated_at: String(bindings[0]),
               });
               return d1Result(1) as D1Result<T>;
@@ -1362,7 +1374,13 @@ describe('expired Sponsor reservation', () => {
       SPONSOR_WALLET: {},
     } as unknown as Env;
 
-    const result = await releaseExpiredSponsorReservation(env, job, 'ab'.repeat(32));
+    if (reason === 'dust-proof-rejected' && releaseUnavailable) {
+      await expect(releaseExpiredSponsorReservation(env, job, 'ab'.repeat(32), reason)).rejects.toThrow();
+      expect(job.status).toBe('sponsored');
+      expect(deleted).toEqual([]);
+      return;
+    }
+    const result = await releaseExpiredSponsorReservation(env, job, 'ab'.repeat(32), reason);
 
     expect(deleted).toEqual(releaseUnavailable
       ? [artifactKey]
@@ -1375,7 +1393,7 @@ describe('expired Sponsor reservation', () => {
       sponsor_serialized_sha256: null,
       sponsorship_started_at: null,
       attest_tx_id: null,
-      last_error_code: 'sponsor_transaction_expired_reprepare',
+      last_error_code: reason === 'expired' ? 'sponsor_transaction_expired_reprepare' : 'sponsor_dust_proof_rejected_reprepare',
     });
   });
 });

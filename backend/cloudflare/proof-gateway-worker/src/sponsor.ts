@@ -7,6 +7,7 @@ import {
   deviceTransactionAcceptance,
   shouldReplaySponsorDustState,
   sponsorSubmissionIsReplayProtectionViolation,
+  sponsorSubmissionRequiresDustRefresh,
   sponsorSubmissionRequiresReproof,
   sponsorTransactionNeedsRefresh,
 } from './sponsor-policy.js';
@@ -1223,6 +1224,7 @@ export async function releaseExpiredSponsorReservation(
   env: Env,
   job: ProofJobRow,
   contractAddress: string,
+  reason: 'expired' | 'dust-proof-rejected' = 'expired',
 ): Promise<ProofJobRow> {
   if (
     job.status !== 'sponsored'
@@ -1258,6 +1260,9 @@ export async function releaseExpiredSponsorReservation(
     await persistSponsorCheckpoint(env);
     await clearSponsorRecoveryCheckpoint(env);
   } catch (error) {
+    // A rejected but unexpired reservation must be positively released before
+    // new DUST can be reserved. Never use the expiration fallback for it.
+    if (reason === 'dust-proof-rejected') throw error;
     // The finalized transaction was never exposed outside the private R2
     // bucket and has already crossed the refresh horizon. Clearing the DB/R2
     // reservation lets the next maintenance pass restart from chain state,
@@ -1274,11 +1279,12 @@ export async function releaseExpiredSponsorReservation(
          sponsorship_started_at = NULL, sponsorship_completed_at = NULL,
          attest_tx_id = NULL, attest_tx_hash = NULL,
          sponsor_stage = 'queued',
-         sponsor_reason_code = 'sponsor_transaction_expired_reprepare',
+         sponsor_reason_code = ?4,
          sponsor_stage_updated_at = ?1,
-         last_error_code = 'sponsor_transaction_expired_reprepare', updated_at = ?1
+         last_error_code = ?4, updated_at = ?1
      WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
-    [updatedAt, job.id, job.sponsor_serialized_sha256],
+    [updatedAt, job.id, job.sponsor_serialized_sha256,
+      reason === 'expired' ? 'sponsor_transaction_expired_reprepare' : 'sponsor_dust_proof_rejected_reprepare'],
   );
   if (!sponsorClaimWasApplied(updated)) {
     throw new Error('Expired Sponsor reservation changed during release');
@@ -1661,6 +1667,8 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
             message: 'sponsor_queue_already_attested_closed',
             proofJobId: job.id,
           }));
+        } else if (sponsorSubmissionRequiresDustRefresh(submissionError) && job.sponsor_attempt_count < 4) {
+          job = await releaseExpiredSponsorReservation(env, job, contractAddress, 'dust-proof-rejected');
         } else if (sponsorSubmissionRequiresReproof(submissionError)) {
           job = await releaseStaleSponsorReservationForReproof(env, job, contractAddress);
         } else {

@@ -68,6 +68,11 @@ export function deviceTransactionAcceptance(
   return 'ineligible';
 }
 
+export function sponsorSubmissionRequiresDustRefresh(message: string): boolean {
+  // Midnight ledger-8 MalformedError: invalid DUST spend proof / validity window.
+  return /(?:Custom error:\s*(?:170|171)\b|InvalidDustSpendProof|OutOfDustValidityWindow)/iu.test(message);
+}
+
 export function sponsorSubmissionRequiresReproof(message: string): boolean {
   // A stale contract-state transaction cannot become valid by resending the
   // same bytes; the Device must rebuild it against current contract state.
