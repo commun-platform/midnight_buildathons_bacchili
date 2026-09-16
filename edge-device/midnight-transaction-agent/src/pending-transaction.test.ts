@@ -6,8 +6,45 @@ import test from 'node:test';
 
 import {
   loadPendingDeviceTransaction,
+  retirePendingDeviceTransactionForReproof,
   savePendingDeviceTransaction,
 } from './pending-transaction.js';
+
+test('retains rejected bytes and retires once per server-authorized reproof generation', (context) => {
+  const walletHome = fs.mkdtempSync(path.join(os.tmpdir(), 'reproof-device-transaction-'));
+  context.after(() => fs.rmSync(walletHome, { recursive: true, force: true }));
+  const job = {
+    proofJobId: 'proof-abc', status: 'ready_for_input', sponsorStage: 'reproof_queued',
+    attemptCount: 2, deviceTransactionHash: null, sponsorTransactionId: null, attestTxId: null,
+  };
+  const old = Uint8Array.of(1, 2, 3);
+  savePendingDeviceTransaction(job.proofJobId, old, walletHome);
+  const file = path.join(walletHome, 'pending-transactions', 'proof-abc.json');
+  const before = fs.readFileSync(file);
+  retirePendingDeviceTransactionForReproof({ ...job, status: 'submitted' }, walletHome);
+  retirePendingDeviceTransactionForReproof({ ...job, deviceTransactionHash: 'bound' }, walletHome);
+  assert.deepEqual(loadPendingDeviceTransaction(job.proofJobId, walletHome)?.bytes, old);
+  retirePendingDeviceTransactionForReproof(job, walletHome);
+  assert.equal(loadPendingDeviceTransaction(job.proofJobId, walletHome), null);
+  assert.deepEqual(fs.readFileSync(`${file}.reproof-2`), before);
+  const fresh = Uint8Array.of(4, 5, 6);
+  savePendingDeviceTransaction(job.proofJobId, fresh, walletHome);
+  retirePendingDeviceTransactionForReproof(job, walletHome);
+  assert.deepEqual(loadPendingDeviceTransaction(job.proofJobId, walletHome)?.bytes, fresh);
+});
+
+test('records an empty old generation so subsequent retries retain new bytes', (context) => {
+  const walletHome = fs.mkdtempSync(path.join(os.tmpdir(), 'reproof-empty-'));
+  context.after(() => fs.rmSync(walletHome, { recursive: true, force: true }));
+  const job = {
+    proofJobId: 'proof-abc', status: 'proof_ready', sponsorStage: 'reproof_queued',
+    attemptCount: 2, deviceTransactionHash: null, sponsorTransactionId: null, attestTxId: null,
+  };
+  retirePendingDeviceTransactionForReproof(job, walletHome);
+  savePendingDeviceTransaction(job.proofJobId, Uint8Array.of(4), walletHome);
+  retirePendingDeviceTransactionForReproof(job, walletHome);
+  assert.deepEqual(loadPendingDeviceTransaction(job.proofJobId, walletHome)?.bytes, Uint8Array.of(4));
+});
 
 test('atomically persists and idempotently reloads one Device transaction per Proof Job', (context) => {
   const walletHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pending-device-transaction-'));

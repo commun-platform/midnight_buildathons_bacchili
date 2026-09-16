@@ -42,6 +42,7 @@ export interface ProofJob {
   sponsorFeeSpecks: string | null;
   sponsorTransactionBytes: number | null;
   sponsorAttemptCount: number;
+  sponsorStage?: string | null;
   sponsorshipStartedAt: string | null;
   sponsorshipCompletedAt: string | null;
   attestTxId: string | null;

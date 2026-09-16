@@ -1,0 +1,11 @@
+# Retained daily proof recovery
+
+When Midnight rejects a prepared transaction because the contract state changed, the Sponsor first releases its reservation and records `reproof_required`. The device's next authenticated repeat of the same proof request can automatically return that row to `pending`. Request ID, target day, public inputs, original creation time, and cumulative attempt counts are retained.
+
+Recovery requires `contract_state_changed_reproof_required`, cleared transaction references, no confirmed block, and no active leases. Submitted and confirmed jobs are never reset. `proof_recovery_attempts` records the previous error and attempt count in the same database transaction as the reset. Each request permits three automatic recoveries, spaced at least five minutes apart. Exhaustion leaves the request in `reproof_required` for investigation; it does not delete or mark it successful. Existing failure monitoring continues to see this state.
+
+The device recognizes `sponsorStage=reproof_queued`. Under its existing exclusive Wallet operation lock, it archives the old pending transaction once per admission attempt as an owner-only `.reproof-N` file before generating fresh bytes. Repeating that attempt preserves its new pending bytes, including after a process crash. Prepared measurements are unchanged and remain on the device.
+
+Deploy migration `0039_proof_recovery_attempts.sql` and the Worker together using `npm run deploy -w @midnight-demo/proof-gateway`. Install device firmware containing `retirePendingDeviceTransactionForReproof`; without it, the old file correctly blocks different transaction bytes under the same request ID. Preserve the live collector with installer `--no-start`. Pause only the daily timer during activation, ensure no daily operation is running, and resume that timer after installation.
+
+Verify progression through `pending`, `ready_for_input`, `proving`, `awaiting_sponsor`, and `confirmed`. Inspect only status, timestamps, recovery counts and artifact presence; never export raw measurements, private inputs or transaction bytes. Completion requires the public proof response's `checks.midnightConfirmed=true`, not just successful re-admission. If recovery fails again, retain the request and investigate the new error before attempting further repair.

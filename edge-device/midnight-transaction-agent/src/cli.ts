@@ -39,7 +39,7 @@ import {
   waitForProofJob,
 } from './proof-job.js';
 import { submitCompletedDays } from './daily-submission.js';
-import { loadPendingDeviceTransaction } from './pending-transaction.js';
+import { loadPendingDeviceTransaction, retirePendingDeviceTransactionForReproof } from './pending-transaction.js';
 import {
   contractAuthorityEnrollmentFile,
   generateContractAuthority,
@@ -205,6 +205,7 @@ async function runSubmit(
   if (admission.proofJobId) {
     process.stdout.write(`Proof Job ${admission.proofJobId} admitted for private input.\n`);
   }
+  if (admission.job) retirePendingDeviceTransactionForReproof(admission.job);
   const pending = admission.proofJobId
     ? loadPendingDeviceTransaction(admission.proofJobId)
     : null;

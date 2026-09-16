@@ -4,6 +4,7 @@ import { authorizeLocalAdministrator } from './admin-auth.js';
 import type { ProofJobRow } from './jobs.js';
 import { readSponsorQuota } from './sponsor-quota.js';
 import { createSqlDatabase } from './storage/index.js';
+import { recoverReleasedProofJob } from './reproof-recovery.js';
 import {
   operationalPeriodStart,
   utcDayStartMinute,
@@ -987,10 +988,15 @@ async function createProofJob(request: Request, env: Env): Promise<Response> {
     ) {
       return json(409, { error: 'proofJobId conflicts with another Proof Job' });
     }
-    return json(changes > 0 ? 202 : 200, {
+    const recovered = job.status === 'reproof_required'
+      && await recoverReleasedProofJob(database, proofJobId, now);
+    const current = job.status === 'reproof_required'
+      ? await database.first<ProofJobRow>('SELECT * FROM daily_proof_jobs WHERE id = ?1', [proofJobId])
+      : job;
+    return json(changes > 0 || recovered ? 202 : 200, {
       accepted: true,
-      idempotent: changes === 0,
-      job: proofJobView(job),
+      idempotent: changes === 0 && !recovered,
+      job: proofJobView(current ?? job),
     });
   } catch (error) {
     return json(400, { error: errorMessage(error) });

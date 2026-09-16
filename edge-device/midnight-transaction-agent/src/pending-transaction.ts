@@ -19,6 +19,38 @@ export interface PendingDeviceTransaction {
 
 const proofJobIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 
+export function retirePendingDeviceTransactionForReproof(
+  job: {
+    proofJobId: string;
+    status: string;
+    sponsorStage?: string | null;
+    attemptCount: number;
+    deviceTransactionHash: string | null;
+    sponsorTransactionId: string | null;
+    attestTxId: string | null;
+  },
+  walletHome = deviceWalletHome,
+): void {
+  if (job.sponsorStage !== 'reproof_queued'
+    || !['ready_for_input', 'proving', 'proof_ready'].includes(job.status)
+    || job.deviceTransactionHash || job.sponsorTransactionId || job.attestTxId) return;
+  if (!Number.isSafeInteger(job.attemptCount) || job.attemptCount < 1) {
+    throw new Error('Reproof admission attempt is invalid');
+  }
+  const file = transactionPath(job.proofJobId, walletHome);
+  const archived = `${file}.reproof-${job.attemptCount}`;
+  // Retire at most once per admitted generation. A later crash may have left
+  // this generation's new transaction in the active file: keep it for retry.
+  if (fs.existsSync(archived)) return;
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  if (fs.existsSync(file)) {
+    loadPendingDeviceTransaction(job.proofJobId, walletHome);
+    fs.renameSync(file, archived);
+  } else {
+    fs.writeFileSync(archived, '{"retiredTransaction":false}\n', { mode: 0o600, flag: 'wx' });
+  }
+}
+
 function serializedSha256(bytes: Uint8Array): string {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
