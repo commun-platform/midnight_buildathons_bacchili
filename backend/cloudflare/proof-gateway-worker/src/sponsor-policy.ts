@@ -13,6 +13,10 @@ const sponsorTransactionRefreshMs = 25 * 60_000;
 export interface SponsorWalletReadiness {
   phase: string;
   spendableDustCoins?: number;
+  progressDetails?: {
+    unshielded: { connected: boolean; complete: boolean };
+    dust: { connected: boolean };
+  } | null;
   supervisor?: {
     status: 'healthy' | 'degraded' | 'unavailable';
     walletProcessAlive: boolean;
@@ -110,6 +114,15 @@ export function sponsorJobCanProceed(
   status: string,
   health: SponsorWalletReadiness,
 ): boolean {
+  // Prepared bytes must remain recoverable while fresh DUST preparation is
+  // waiting. The Container still validates submission synchronization itself;
+  // this path first reconciles chain evidence and can release expired bytes.
+  if (status === 'sponsored' && health.phase === 'syncing'
+    && health.supervisor?.status === 'healthy'
+    && health.supervisor.walletProcessAlive && health.supervisor.walletStatusFresh
+    && health.progressDetails?.unshielded.connected === true
+    && health.progressDetails.unshielded.complete === true
+    && health.progressDetails.dust.connected === true) return true;
   if (!sponsorWalletIsSynchronized(health)) return false;
   // A prepared transaction already owns its DUST input. It must be submitted
   // or released even when no additional DUST is currently spendable; otherwise

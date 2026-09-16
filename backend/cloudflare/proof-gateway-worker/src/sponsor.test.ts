@@ -239,14 +239,18 @@ describe('Sponsor Wallet deadlock regression', () => {
   });
 
   it.each([
-    ['no reservation', 0, ['/health', '/checkpoint']],
-    ['an active reservation', 1, ['/health']],
+    ['no reservation', 0, ['/health', '/checkpoint'], false],
+    ['an active reservation', 1, ['/health'], false],
+    ['a requested replay while not ready', 0, ['/health', '/maintenance/replay-dust'], true],
+    ['a requested replay blocked by a reservation', 1, ['/health'], true],
   ])('checkpoints synchronization progress safely with %s', async (
     _name,
     activeReservations,
     expectedRequests,
+    requestedReplay,
   ) => {
     const containerRequests: string[] = [];
+    let replayMarked = false;
     vi.stubGlobal('FixedLengthStream', class {
       readonly readable: ReadableStream<Uint8Array>;
       readonly writable: WritableStream<Uint8Array>;
@@ -261,6 +265,7 @@ describe('Sponsor Wallet deadlock regression', () => {
       async fetch(request: Request) {
         const pathname = new URL(request.url).pathname;
         containerRequests.push(pathname);
+        if (pathname === '/maintenance/replay-dust') return new Response(null, { status: 204 });
         if (pathname === '/checkpoint') {
           return new Response(new Uint8Array([1, 2, 3]), {
             headers: { 'Content-Length': '3' },
@@ -317,7 +322,17 @@ describe('Sponsor Wallet deadlock regression', () => {
             if (query.includes('COUNT(*) AS active_count')) {
               return { active_count: activeReservations } as T;
             }
+            if (query.includes('sponsor_dust_state_replay_required')) {
+              return requestedReplay ? { id: 'retained-replay' } as T : null;
+            }
             throw new Error(`Unexpected D1 first query: ${query}`);
+          },
+          async run() {
+            if (!query.includes("last_error_code = 'sponsor_dust_state_replay_started'")) {
+              throw new Error('Unexpected recovery update');
+            }
+            replayMarked = true;
+            return d1Result(1);
           },
         } as unknown as D1PreparedStatement;
         return statement;
@@ -328,16 +343,18 @@ describe('Sponsor Wallet deadlock regression', () => {
       SPONSOR_WALLET: {},
       SPONSOR_WALLET_SEED: '11'.repeat(32),
       SPONSOR_STATE: {
-        async head() { return null; },
+        async head() { return requestedReplay ? { size: 3 } : null; },
         async put(_key: string, body: ReadableStream<Uint8Array>) {
           await new Response(body).arrayBuffer();
         },
       },
     } as unknown as Env;
 
-    await warmSponsorWallet(env);
+    const result = await warmSponsorWallet(env);
 
     expect(containerRequests).toEqual(expectedRequests);
+    expect(replayMarked).toBe(requestedReplay && activeReservations === 0);
+    if (replayMarked) expect(result.health?.phase).toBe('starting');
   });
 
   it('clears an expired zero-spendable-DUST reservation without blocking the queue', async () => {
@@ -1267,6 +1284,8 @@ describe('expired Sponsor reservation', () => {
     ['abandons an unreachable Wallet reservation', true, 'expired'],
     ['releases rejected DUST proof', false, 'dust-proof-rejected'],
     ['preserves rejected DUST reservation when release fails', true, 'dust-proof-rejected'],
+    ['records a persistent full DUST replay request', false, 'dust-state-replay'],
+    ['preserves full replay reservation when release fails', true, 'dust-state-replay'],
   ] as const)('%s and makes the Device transaction resumable', async (_name, releaseUnavailable, reason) => {
     const bytes = new Uint8Array([5, 4, 3, 2]);
     const serializedHash = await sha256Hex(bytes);
@@ -1374,7 +1393,7 @@ describe('expired Sponsor reservation', () => {
       SPONSOR_WALLET: {},
     } as unknown as Env;
 
-    if (reason === 'dust-proof-rejected' && releaseUnavailable) {
+    if (reason !== 'expired' && releaseUnavailable) {
       await expect(releaseExpiredSponsorReservation(env, job, 'ab'.repeat(32), reason)).rejects.toThrow();
       expect(job.status).toBe('sponsored');
       expect(deleted).toEqual([]);
@@ -1393,7 +1412,9 @@ describe('expired Sponsor reservation', () => {
       sponsor_serialized_sha256: null,
       sponsorship_started_at: null,
       attest_tx_id: null,
-      last_error_code: reason === 'expired' ? 'sponsor_transaction_expired_reprepare' : 'sponsor_dust_proof_rejected_reprepare',
+      last_error_code: reason === 'expired' ? 'sponsor_transaction_expired_reprepare'
+        : reason === 'dust-state-replay' ? 'sponsor_dust_state_replay_required'
+          : 'sponsor_dust_proof_rejected_reprepare',
     });
   });
 });

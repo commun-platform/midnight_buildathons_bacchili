@@ -528,6 +528,7 @@ async function persistSponsorCheckpointIfStale(
 async function replayInconsistentSponsorDustState(
   env: Env,
   health: SponsorWalletHealth,
+  force = false,
 ): Promise<boolean> {
   const active = await createSqlDatabase(env).first<{ active_count: number }>(
     `SELECT COUNT(*) AS active_count FROM daily_proof_jobs
@@ -537,6 +538,7 @@ async function replayInconsistentSponsorDustState(
   let recoveryCheckpoint = await env.SPONSOR_STATE.head(sponsorCheckpointRecoveryKey);
   if (
     recoveryCheckpoint === null
+    && !force
     && !shouldReplaySponsorDustState(health, activeReservations)
   ) return false;
   if (activeReservations !== 0) {
@@ -1224,7 +1226,7 @@ export async function releaseExpiredSponsorReservation(
   env: Env,
   job: ProofJobRow,
   contractAddress: string,
-  reason: 'expired' | 'dust-proof-rejected' = 'expired',
+  reason: 'expired' | 'dust-proof-rejected' | 'dust-state-replay' = 'expired',
 ): Promise<ProofJobRow> {
   if (
     job.status !== 'sponsored'
@@ -1262,7 +1264,7 @@ export async function releaseExpiredSponsorReservation(
   } catch (error) {
     // A rejected but unexpired reservation must be positively released before
     // new DUST can be reserved. Never use the expiration fallback for it.
-    if (reason === 'dust-proof-rejected') throw error;
+    if (reason !== 'expired') throw error;
     // The finalized transaction was never exposed outside the private R2
     // bucket and has already crossed the refresh horizon. Clearing the DB/R2
     // reservation lets the next maintenance pass restart from chain state,
@@ -1284,7 +1286,9 @@ export async function releaseExpiredSponsorReservation(
          last_error_code = ?4, updated_at = ?1
      WHERE id = ?2 AND status = 'sponsored' AND sponsor_serialized_sha256 = ?3`,
     [updatedAt, job.id, job.sponsor_serialized_sha256,
-      reason === 'expired' ? 'sponsor_transaction_expired_reprepare' : 'sponsor_dust_proof_rejected_reprepare'],
+      reason === 'expired' ? 'sponsor_transaction_expired_reprepare'
+        : reason === 'dust-state-replay' ? 'sponsor_dust_state_replay_required'
+          : 'sponsor_dust_proof_rejected_reprepare'],
   );
   if (!sponsorClaimWasApplied(updated)) {
     throw new Error('Expired Sponsor reservation changed during release');
@@ -1562,6 +1566,19 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
     // the exact transaction. Reconcile immutable Indexer evidence before
     // touching the Wallet again so a Container restart or Wallet resync cannot
     // delay completion and the same DUST intent is not resubmitted needlessly.
+    if (job.status === 'awaiting_sponsor' && job.last_error_code === 'sponsor_dust_state_replay_required') {
+      const replayed = await replayInconsistentSponsorDustState(env, await sponsorWalletHealth(env), true);
+      if (!replayed) throw new Error('DUST replay is waiting for active reservations');
+      await database.execute(
+        `UPDATE daily_proof_jobs SET last_error_code = 'sponsor_dust_state_replay_started',
+           sponsor_reason_code = 'sponsor_dust_state_replay_started', updated_at = ?1
+         WHERE id = ?2 AND status = 'awaiting_sponsor'
+           AND last_error_code = 'sponsor_dust_state_replay_required'`,
+        [new Date().toISOString(), job.id],
+      );
+      message.ack();
+      return;
+    }
     if (
       job.status === 'sponsored'
       && job.last_error_code === 'sponsor_submit_failed'
@@ -1583,7 +1600,9 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
       const sponsoredObject = await env.SPONSOR_STATE.get(job.sponsor_transaction_object_key);
       if (!sponsoredObject) throw new Error('Sponsored transaction artifact was not found');
       if (sponsorTransactionNeedsRefresh(sponsoredObject.uploaded)) {
-        job = await releaseExpiredSponsorReservation(env, job, contractAddress);
+        job = await releaseExpiredSponsorReservation(env, job, contractAddress,
+          job.last_error_code === 'sponsor_submit_failed' && job.sponsor_attempt_count === 4
+            ? 'dust-state-replay' : 'expired');
         await enqueueSponsorJob(env, job.id);
         console.log(JSON.stringify({
           message: 'sponsor_queue_expired_reservation_requeued',
@@ -1667,8 +1686,9 @@ async function processSponsorQueueMessage(message: Message<unknown>, env: Env): 
             message: 'sponsor_queue_already_attested_closed',
             proofJobId: job.id,
           }));
-        } else if (sponsorSubmissionRequiresDustRefresh(submissionError) && job.sponsor_attempt_count < 4) {
-          job = await releaseExpiredSponsorReservation(env, job, contractAddress, 'dust-proof-rejected');
+        } else if (sponsorSubmissionRequiresDustRefresh(submissionError) && job.sponsor_attempt_count <= 4) {
+          job = await releaseExpiredSponsorReservation(env, job, contractAddress,
+            job.sponsor_attempt_count === 4 ? 'dust-state-replay' : 'dust-proof-rejected');
         } else if (sponsorSubmissionRequiresReproof(submissionError)) {
           job = await releaseStaleSponsorReservationForReproof(env, job, contractAddress);
         } else {
@@ -1944,6 +1964,23 @@ export async function warmSponsorWallet(env: Env): Promise<SponsorWalletWarmupRe
     const status = await sponsorWalletHealth(env);
     const contractAddress = normalizedContractAddress(env.PUBLIC_SENSOR_REGISTRY_CONTRACT_ADDRESS);
     if (contractAddress) await releaseContractUpgradeReservations(env, contractAddress);
+    // Recovery is maintenance, not a fresh spending operation. Requiring ready
+    // here would deadlock precisely when the DUST state needs rebuilding.
+    const replayRequest = await createSqlDatabase(env).first<{ id: string }>(
+      `SELECT id FROM daily_proof_jobs WHERE status = 'awaiting_sponsor'
+       AND last_error_code = 'sponsor_dust_state_replay_required'
+       ORDER BY updated_at LIMIT 1`,
+    );
+    if (replayRequest && await replayInconsistentSponsorDustState(env, status, true)) {
+      await createSqlDatabase(env).execute(
+        `UPDATE daily_proof_jobs SET last_error_code = 'sponsor_dust_state_replay_started',
+           sponsor_reason_code = 'sponsor_dust_state_replay_started', updated_at = ?1
+         WHERE id = ?2 AND status = 'awaiting_sponsor'
+           AND last_error_code = 'sponsor_dust_state_replay_required'`,
+        [new Date().toISOString(), replayRequest.id],
+      );
+      return { health: { ...status, phase: 'starting' }, errorCode: null };
+    }
     if (await replayInconsistentSponsorDustState(env, status)) {
       return { health: status, errorCode: null };
     }

@@ -30,6 +30,7 @@ import {
   formatSponsorSyncProgress,
   isSponsorBaseSyncComplete,
   isSponsorDustOnlyBaseSyncComplete,
+  isSponsorDustReplayComplete,
   isSponsorDustOnlyTransactionSyncComplete,
   sponsorSyncProgressDetails,
   type SponsorSyncProgressDetails,
@@ -423,6 +424,13 @@ export class SponsorWalletRuntime {
     await activation;
   }
 
+  async waitForDustReplay(): Promise<void> {
+    await Rx.firstValueFrom(this.wallet.state().pipe(
+      Rx.filter((state) => isSponsorDustReplayComplete(state.dust.progress)),
+      Rx.timeout({ first: 120_000, with: () => Rx.throwError(() => new Error('Sponsor DUST replay has not reached the event tip')) }),
+    ));
+  }
+
   async finalizeAuthorityTransaction(
     transaction: UnboundTransaction,
     ttl = new Date(Date.now() + 30 * 60 * 1000),
@@ -467,6 +475,7 @@ export class SponsorWalletRuntime {
       throw new Error('Sponsored operation ID is invalid');
     }
     await this.waitUntilReady();
+    await this.waitForDustReplay();
     const originalPolicy = validateAllowlistedSponsorTransaction(
       transaction,
       contractAddress,
@@ -700,7 +709,8 @@ export class SponsorWalletRuntime {
     diagnosticLog('sponsor_wallet_spendable_dust_wait_started');
     await Rx.firstValueFrom(
       this.wallet.state().pipe(
-        Rx.filter((next) => next.dust.availableCoins.length > 0),
+        Rx.filter((next) => next.dust.availableCoins.length > 0
+          && isSponsorDustReplayComplete(next.dust.progress)),
         Rx.timeout({
           first: timeoutMs(),
           with: () => Rx.throwError(() => new Error('Sponsor Wallet has no spendable DUST')),

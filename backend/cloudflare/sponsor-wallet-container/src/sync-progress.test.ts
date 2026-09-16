@@ -5,9 +5,20 @@ import {
   formatSponsorSyncProgress,
   isSponsorBaseSyncComplete,
   isSponsorDustOnlyBaseSyncComplete,
+  isSponsorDustReplayComplete,
   isSponsorDustOnlyTransactionSyncComplete,
   sponsorSyncProgressDetails,
 } from './sync-progress.js';
+
+test('DUST readiness uses the received event tip rather than wall-clock age or highestIndex', () => {
+  const caughtUp = { appliedIndex: 15n, highestIndex: 0n,
+    highestRelevantWalletIndex: 15n, isConnected: true, isStrictlyComplete: () => false };
+  assert.equal(isSponsorDustReplayComplete(caughtUp), true);
+  assert.equal(isSponsorDustReplayComplete({ ...caughtUp, appliedIndex: 14n }), false);
+  assert.equal(isSponsorDustReplayComplete({ ...caughtUp, isConnected: false }), false);
+  assert.equal(isSponsorDustReplayComplete({ ...caughtUp, highestRelevantWalletIndex: 0n }), false);
+  assert.equal(isSponsorDustReplayComplete({ ...caughtUp, highestRelevantWalletIndex: undefined }), false);
+});
 
 function progress(complete: boolean, connected = true) {
   return {

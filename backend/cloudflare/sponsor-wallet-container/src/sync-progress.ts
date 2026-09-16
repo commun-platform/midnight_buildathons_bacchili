@@ -15,6 +15,16 @@ export interface SponsorSyncProgressDetails {
   complete: boolean;
 }
 
+export function isSponsorDustReplayComplete(progress: SyncProgressLike): boolean {
+  // DUST subscriptions report maxId as highestRelevantWalletIndex, not
+  // highestIndex. Ledger syncTime is an event time, not a heartbeat: an idle
+  // stream can be fully caught up even when its last event is hours old.
+  const tip = progress.highestRelevantWalletIndex;
+  return progress.isConnected === true
+    && tip !== undefined && tip > 0n
+    && progress.appliedIndex !== undefined && progress.appliedIndex >= tip;
+}
+
 export function isSponsorBaseSyncComplete(progress: {
   shielded: SyncProgressLike;
   unshielded: SyncProgressLike;

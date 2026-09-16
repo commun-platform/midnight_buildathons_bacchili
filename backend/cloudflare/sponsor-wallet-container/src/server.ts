@@ -280,6 +280,7 @@ async function handlePrepare(
   const originalPolicy = validateSponsorTransaction(original, contractAddress, false);
   const runtime = await initializedSponsor();
   await runtime.waitUntilReady();
+  await runtime.waitForDustReplay();
   diagnosticLog('sponsor_wallet_prepare_wallet_ready', { proofJobId });
   const balanceStartedAt = performance.now();
   diagnosticLog('sponsor_wallet_balance_started', { proofJobId });

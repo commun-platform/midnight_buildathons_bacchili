@@ -71,6 +71,24 @@ describe('Server Wallet scheduled work coordinator', () => {
     })).toBe(true);
   });
 
+  it('can recover prepared bytes during DUST activation without admitting new spending', () => {
+    const health = {
+      phase: 'syncing', spendableDustCoins: 0,
+      supervisor: { status: 'healthy' as const, walletProcessAlive: true, walletStatusFresh: true },
+      progressDetails: {
+        unshielded: { connected: true, complete: true }, dust: { connected: true },
+      },
+    };
+    const work = { kind: 'sponsor-transaction' as const, id: 'retained',
+      createdAt: '2026-09-16T00:00:00Z', sponsorStatus: 'sponsored' };
+    expect(serverWalletWorkCanProceed(work, health)).toBe(true);
+    expect(serverWalletWorkCanProceed({ ...work, sponsorStatus: 'awaiting_sponsor' }, health)).toBe(false);
+    expect(serverWalletWorkCanProceed(work, { ...health,
+      supervisor: { ...health.supervisor, walletStatusFresh: false } })).toBe(false);
+    expect(serverWalletWorkCanProceed(work, { ...health,
+      progressDetails: { ...health.progressDetails, dust: { connected: false } } })).toBe(false);
+  });
+
   it('waits for synchronization before non-sponsor Wallet work', () => {
     const policyWork = {
       kind: 'browser-policy' as const,
