@@ -658,6 +658,7 @@ async function handleCheckpoint(
     'Content-Length': checkpoint.byteLength,
     'Content-Type': 'application/octet-stream',
     'X-Sponsor-Checkpoint-Boot-Id': sponsorWalletBootId,
+    'X-Sponsor-Checkpoint-Mode': mode ?? 'full',
     'X-Sponsor-Checkpoint-Phase': status.phase,
     'X-Sponsor-Checkpoint-Shielded-Applied': checkpointProgress?.shielded.applied ?? '0',
     'X-Sponsor-Checkpoint-Unshielded-Applied': checkpointProgress?.unshielded.applied ?? '0',

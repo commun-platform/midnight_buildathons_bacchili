@@ -76,3 +76,13 @@ test('formats connection, completion, and replay position for monitoring', () =>
     complete: false,
   });
 });
+
+test('reports the DUST event tip instead of a misleading zero lag', () => {
+  const details = sponsorSyncProgressDetails({
+    appliedIndex: 100n, highestIndex: 0n, highestRelevantWalletIndex: 150n,
+    isConnected: true, isStrictlyComplete: () => false,
+  });
+  assert.equal(details.applied, '100');
+  assert.equal(details.highest, '150');
+  assert.equal(details.complete, false);
+});

@@ -19,6 +19,7 @@ vi.mock('@cloudflare/containers', () => ({ getContainer: vi.fn() }));
 import {
   dispatchSponsorJobs,
   handleSponsorQueue,
+  persistSponsorDustReplayCheckpoint,
   releaseAlreadyAttestedSponsorReservation,
   releaseExpiredSponsorReservation,
   releaseStaleSponsorReservationForReproof,
@@ -32,6 +33,22 @@ import {
 } from './sponsor.js';
 
 const runtimeCrypto = crypto;
+
+describe('DUST replay checkpoint mode', () => {
+  it.each([null, 'full'])('rejects a full or unlabelled cached checkpoint (%s)', async (mode) => {
+    const put = vi.fn();
+    vi.mocked(getContainer).mockReturnValue({
+      async fetch() {
+        return new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'Content-Length': '3', ...(mode ? { 'X-Sponsor-Checkpoint-Mode': mode } : {}) },
+        });
+      },
+    } as never);
+    const env = { SPONSOR_WALLET: {}, SPONSOR_STATE: { put } } as unknown as Env;
+    await expect(persistSponsorDustReplayCheckpoint(env)).rejects.toThrow('without DUST state');
+    expect(put).not.toHaveBeenCalled();
+  });
+});
 
 function alwaysOnSchedule<T>(): T {
   return {

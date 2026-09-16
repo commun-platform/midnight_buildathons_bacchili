@@ -8,6 +8,12 @@ const defaultCheckpointCachePath = '/tmp/sponsor-wallet-sync-checkpoint.enc';
 const minimumCheckpointDelayMs = 60_000;
 const maximumCheckpointDelayMs = 5 * 60_000;
 
+export function canServeSynchronizationCheckpointCache(mode: string | null, phase: string): boolean {
+  // The cache is a full snapshot. Returning it for without-dust silently
+  // restores the very DUST state that recovery requested to rebuild.
+  return mode === null && phase !== 'ready';
+}
+
 export function nextSynchronizationCheckpointDelayMs(durationMs: number): number {
   if (!Number.isFinite(durationMs) || durationMs < 0) return maximumCheckpointDelayMs;
   return Math.min(

@@ -472,7 +472,7 @@ async function persistSponsorCheckpoint(env: Env): Promise<void> {
   });
 }
 
-async function persistSponsorDustReplayCheckpoint(env: Env): Promise<void> {
+export async function persistSponsorDustReplayCheckpoint(env: Env): Promise<void> {
   const response = await sponsorContainer(env).fetch(new Request(
     'http://sponsor-wallet/checkpoint?mode=without-dust',
     { signal: AbortSignal.timeout(5 * 60_000) },
@@ -482,6 +482,10 @@ async function persistSponsorDustReplayCheckpoint(env: Env): Promise<void> {
     throw new Error(
       `Sponsor Wallet base checkpoint failed with HTTP ${response.status}: ${detail.slice(0, 240)}`,
     );
+  }
+  if (response.headers.get('X-Sponsor-Checkpoint-Mode') !== 'without-dust') {
+    await response.body.cancel();
+    throw new Error('Sponsor DUST replay requires a checkpoint without DUST state');
   }
   const contentLength = Number(response.headers.get('Content-Length'));
   if (

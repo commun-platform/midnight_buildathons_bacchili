@@ -5,11 +5,21 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  canServeSynchronizationCheckpointCache,
   readSynchronizationCheckpointCache,
   readSynchronizationCheckpointCacheMetadata,
   nextSynchronizationCheckpointDelayMs,
   writeSynchronizationCheckpointCache,
 } from './checkpoint-cache.js';
+
+test('never serves a full sync cache for a DUST replay checkpoint', () => {
+  for (const phase of ['starting', 'syncing', 'ready', 'error']) {
+    assert.equal(canServeSynchronizationCheckpointCache('without-dust', phase), false);
+    assert.equal(canServeSynchronizationCheckpointCache('unknown', phase), false);
+  }
+  assert.equal(canServeSynchronizationCheckpointCache(null, 'syncing'), true);
+  assert.equal(canServeSynchronizationCheckpointCache(null, 'ready'), false);
+});
 
 test('backs off expensive synchronization checkpoints while keeping an upper bound', () => {
   assert.equal(nextSynchronizationCheckpointDelayMs(500), 60_000);

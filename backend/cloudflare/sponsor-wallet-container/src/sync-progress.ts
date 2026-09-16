@@ -72,7 +72,8 @@ export function sponsorSyncProgressDetails(
   let highest: bigint;
   if (value.appliedIndex !== undefined && value.highestIndex !== undefined) {
     applied = value.appliedIndex;
-    highest = value.highestIndex;
+    highest = value.highestIndex > 0n
+      ? value.highestIndex : value.highestRelevantWalletIndex ?? 0n;
   } else if (value.appliedId !== undefined && value.highestTransactionId !== undefined) {
     applied = value.appliedId;
     highest = value.highestTransactionId;

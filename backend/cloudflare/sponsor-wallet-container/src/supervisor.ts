@@ -18,6 +18,7 @@ import {
 } from './wallet-signature.js';
 import {
   readSynchronizationCheckpointCache,
+  canServeSynchronizationCheckpointCache,
   readSynchronizationCheckpointCacheMetadata,
 } from './checkpoint-cache.js';
 
@@ -288,7 +289,8 @@ const server = http.createServer((request, response) => {
   }
   if (request.method === 'GET' && pathname === '/checkpoint') {
     const phase = supervisorHealth().phase;
-    if (phase !== 'ready') {
+    const mode = new URL(request.url ?? '/', 'http://sponsor.internal').searchParams.get('mode');
+    if (canServeSynchronizationCheckpointCache(mode, phase)) {
       void serveSynchronizationCheckpoint(response).then((served) => {
         if (!served && !response.headersSent) {
           responseJson(response, 503, { error: 'Synchronization checkpoint is not available yet' });
