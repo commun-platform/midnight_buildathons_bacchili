@@ -29,6 +29,8 @@ import {
 import {
   formatSponsorSyncProgress,
   isSponsorBaseSyncComplete,
+  isSponsorDustOnlyBaseSyncComplete,
+  isSponsorDustOnlyTransactionSyncComplete,
   sponsorSyncProgressDetails,
   type SponsorSyncProgressDetails,
 } from './sync-progress.js';
@@ -513,11 +515,15 @@ export class SponsorWalletRuntime {
     if (this.role !== 'sponsor') throw new Error('Authority Wallet cannot submit transactions');
     await Rx.firstValueFrom(
       this.wallet.state().pipe(
-        Rx.filter((state) => (
-          state.shielded.progress.isStrictlyComplete()
-          && state.unshielded.progress.isStrictlyComplete()
-          && state.dust.progress.isStrictlyComplete()
-        )),
+        Rx.filter((state) => this.role === 'sponsor'
+          ? isSponsorDustOnlyTransactionSyncComplete({
+            unshielded: state.unshielded.progress,
+            dust: state.dust.progress,
+          })
+          : isSponsorBaseSyncComplete({
+            shielded: state.shielded.progress,
+            unshielded: state.unshielded.progress,
+          }) && state.dust.progress.isStrictlyComplete()),
         Rx.timeout({
           first: timeoutMs(),
           with: () => Rx.throwError(() => new Error(
@@ -595,13 +601,17 @@ export class SponsorWalletRuntime {
     this.#phase = 'syncing';
     this.#lastError = null;
     const syncStartedAt = performance.now();
-    diagnosticLog('sponsor_wallet_base_sync_wait_started');
+    diagnosticLog('sponsor_wallet_base_sync_wait_started', {
+      requiredChannels: this.role === 'sponsor' ? ['unshielded'] : ['shielded', 'unshielded'],
+    });
     const state = await Rx.firstValueFrom(
       this.wallet.state().pipe(
-        Rx.filter((next) => isSponsorBaseSyncComplete({
-          shielded: next.shielded.progress,
-          unshielded: next.unshielded.progress,
-        })),
+        Rx.filter((next) => this.role === 'sponsor'
+          ? isSponsorDustOnlyBaseSyncComplete({ unshielded: next.unshielded.progress })
+          : isSponsorBaseSyncComplete({
+            shielded: next.shielded.progress,
+            unshielded: next.unshielded.progress,
+          })),
         Rx.timeout({
           first: timeoutMs(),
           with: () => Rx.throwError(() => new Error('Sponsor Wallet synchronization timed out')),
