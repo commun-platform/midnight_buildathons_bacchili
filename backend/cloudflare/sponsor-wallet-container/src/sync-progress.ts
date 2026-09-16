@@ -34,15 +34,18 @@ export function isSponsorDustOnlyBaseSyncComplete(progress: {
 }
 
 /**
- * A prepared fee-only transaction can be submitted once the Unshielded and
- * DUST views are complete. Shielded progress remains observable but is not a
- * dependency of this transaction shape.
+ * A prepared fee-only transaction has already been balanced and finalized.
+ * Submission therefore must not wait for a second DUST replay to report a
+ * finite highest position: some DUST streams expose an indeterminate highest
+ * position (`highest=0`) while still being connected and serving spendable
+ * coins. The prepared transaction owns its DUST input, so Unshielded
+ * completion plus a live DUST channel is the sufficient submission gate.
  */
 export function isSponsorDustOnlyTransactionSyncComplete(progress: {
   unshielded: SyncProgressLike;
   dust: SyncProgressLike;
 }): boolean {
-  return progress.unshielded.isStrictlyComplete() && progress.dust.isStrictlyComplete();
+  return progress.unshielded.isStrictlyComplete() && progress.dust.isConnected === true;
 }
 
 export function formatSponsorSyncProgress(value: SyncProgressLike): string {

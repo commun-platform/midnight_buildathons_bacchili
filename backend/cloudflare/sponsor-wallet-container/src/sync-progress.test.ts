@@ -38,14 +38,14 @@ test('DUST-only Sponsor base synchronization does not require Shielded completio
   }), false);
 });
 
-test('DUST-only prepared submission requires Unshielded and DUST completion', () => {
-  assert.equal(isSponsorDustOnlyTransactionSyncComplete({
-    unshielded: progress(true),
-    dust: progress(true),
-  }), true);
+test('DUST-only prepared submission requires Unshielded completion and a connected DUST channel', () => {
   assert.equal(isSponsorDustOnlyTransactionSyncComplete({
     unshielded: progress(true),
     dust: progress(false),
+  }), true);
+  assert.equal(isSponsorDustOnlyTransactionSyncComplete({
+    unshielded: progress(true),
+    dust: progress(false, false),
   }), false);
   assert.equal(isSponsorDustOnlyTransactionSyncComplete({
     unshielded: progress(false),
