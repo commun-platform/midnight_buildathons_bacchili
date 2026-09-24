@@ -395,14 +395,13 @@ function stateSignature(view: SponsorWalletOperationsView): string {
   return JSON.stringify({
     healthClass: view.healthClass,
     phase: view.phase,
-    bootId: view.bootId,
-    supervisor: view.supervisor?.status ?? null,
-    connected: view.synchronization.map(({ channel, connected }) => [channel, connected]),
-    complete: view.synchronization.map(({ channel, complete }) => [channel, complete]),
-    applied: view.synchronization.map(({ channel, applied }) => [channel, applied]),
-    initialization: view.initialization?.status ?? null,
-    checkpoint: view.synchronizationCheckpoint?.status ?? null,
-    errorCode: view.errorCode,
+    synchronization: view.synchronization.map(({ channel, applied, highest, connected, complete }) => [
+      channel,
+      applied,
+      highest,
+      connected,
+      complete,
+    ]),
   });
 }
 

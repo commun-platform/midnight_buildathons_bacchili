@@ -23,6 +23,7 @@ import {
 import { reconcileReplayProtectedSponsorTransaction } from './sponsor-reconciliation.js';
 import { serverWalletContainerName } from './sponsor-container.js';
 import {
+  recordSponsorWalletStopped,
   sponsorWalletOperatingWindow,
   sponsorWorkIsEligible,
   type SponsorWalletOperatingWindow,
@@ -42,6 +43,9 @@ const sponsorPrepareTimeoutMs = 2 * 60_000;
 const sponsorSubmitTimeoutMs = 2 * 60_000;
 const sponsorCheckpointTimeoutMs = 60_000;
 const sponsorCheckpointWatchdogMs = 2 * 60_000;
+const sponsorSyncRecoveryGraceMs = 5 * 60_000;
+const sponsorSyncRecoveryCooldownMs = 15 * 60_000;
+const sponsorSyncRecoveryAction = 'sponsor.wallet.sync_recovery';
 
 export async function withSponsorOperationTimeout<T>(
   timeoutMs: number,
@@ -348,6 +352,208 @@ export async function stopSponsorWalletAfterDrain(
   env: Env,
 ): Promise<{ stopped: boolean; state: string }> {
   return sponsorContainer(env).stopAfterScheduledDrain();
+}
+
+export interface SponsorWalletSyncRecoveryResult {
+  attempted: boolean;
+  stopped: boolean;
+  reason: string;
+}
+
+interface PersistedSponsorWalletState {
+  health_class: 'healthy' | 'degraded' | 'unavailable';
+  last_observed_at: string;
+  last_changed_at: string;
+  summary_json: string;
+}
+
+interface PersistedSponsorWalletSummary {
+  phase?: SponsorWalletHealth['phase'];
+  initialization?: SponsorWalletHealth['initialization'];
+  supervisor?: SponsorWalletHealth['supervisor'];
+  synchronization?: Array<{
+    channel?: 'shielded' | 'unshielded' | 'dust';
+    connected?: boolean;
+    complete?: boolean;
+  }>;
+  shuttingDown?: boolean;
+}
+
+export function stalledSponsorWalletSyncReason(
+  health: SponsorWalletHealth,
+  now = Date.now(),
+  graceMs = sponsorSyncRecoveryGraceMs,
+): string | null {
+  if (
+    health.phase !== 'syncing'
+    || health.initialization?.status !== 'succeeded'
+    || health.shuttingDown
+    || health.supervisor?.walletProcessAlive !== true
+  ) return null;
+  const lastStateAt = Date.parse(health.lastStateAt ?? '');
+  if (!Number.isFinite(lastStateAt) || now - lastStateAt < graceMs) return null;
+  const stalledChannel = (['shielded', 'unshielded', 'dust'] as const).find((channel) => {
+    const progress = health.progressDetails?.[channel];
+    return progress !== undefined && !progress.connected && !progress.complete;
+  });
+  return stalledChannel ? `${stalledChannel}_sync_stalled` : null;
+}
+
+export function persistedStalledSponsorWalletSyncReason(
+  state: PersistedSponsorWalletState,
+  now = Date.now(),
+  graceMs = sponsorSyncRecoveryGraceMs,
+): string | null {
+  if (state.health_class !== 'degraded') return null;
+  // `last_observed_at` is only a probe heartbeat and can advance forever while
+  // a Wallet is stuck. `last_changed_at` advances only when the redacted sync
+  // state (channel connectivity/completeness/applied height) changes.
+  const lastChangedAt = Date.parse(state.last_changed_at);
+  if (!Number.isFinite(lastChangedAt) || now - lastChangedAt < graceMs) return null;
+  let summary: PersistedSponsorWalletSummary;
+  try {
+    summary = JSON.parse(state.summary_json) as PersistedSponsorWalletSummary;
+  } catch {
+    return null;
+  }
+  if (
+    summary.phase !== 'syncing'
+    || summary.initialization?.status !== 'succeeded'
+    || summary.shuttingDown
+    || summary.supervisor?.walletProcessAlive !== true
+  ) return null;
+  const stalledChannel = summary.synchronization?.find((channel) =>
+    (channel.channel === 'shielded' || channel.channel === 'unshielded' || channel.channel === 'dust')
+    && channel.connected === false
+    && channel.complete === false);
+  return stalledChannel?.channel ? `${stalledChannel.channel}_sync_stalled` : null;
+}
+
+async function recordSponsorWalletSyncRecoveryEvent(
+  database: ReturnType<typeof createSqlDatabase>,
+  occurredAt: string,
+  outcome: string,
+  reason: string,
+  errorCode: string | null,
+): Promise<void> {
+  await database.execute(
+    `INSERT INTO operational_events (
+       id, occurred_at, category, severity, actor_type, action, outcome,
+       resource_type, resource_id, state_from, state_to, error_code
+     ) VALUES (?1, ?2, 'health', ?3, 'system', ?4, ?5,
+       'component', 'sponsor-wallet', 'syncing', ?6, ?7)`,
+    [
+      crypto.randomUUID(),
+      occurredAt,
+      outcome === 'failed' ? 'error' : 'warning',
+      sponsorSyncRecoveryAction,
+      outcome,
+      outcome === 'stopped' ? 'stopped' : 'syncing',
+      errorCode ?? reason,
+    ],
+  );
+}
+
+async function recoverStalledSponsorWalletWithReason(
+  env: Env,
+  reason: string,
+  now: Date,
+): Promise<SponsorWalletSyncRecoveryResult> {
+  const database = createSqlDatabase(env);
+  const nowIso = now.toISOString();
+  const active = await database.first<{ active_count: number }>(
+    `SELECT
+       (SELECT COUNT(*) FROM daily_proof_jobs
+        WHERE status IN ('sponsoring', 'sponsored'))
+       +
+       (SELECT COUNT(*) FROM server_wallet_processing_lease
+        WHERE singleton_id = 1
+          AND lease_token IS NOT NULL
+          AND lease_expires_at > ?1) AS active_count`,
+    [nowIso],
+  );
+  if (Number(active?.active_count ?? 0) > 0) {
+    return { attempted: false, stopped: false, reason: 'active-wallet-operation' };
+  }
+  const latestRecovery = await database.first<{ occurred_at: string }>(
+    `SELECT occurred_at FROM operational_events
+     WHERE action = ?1
+       AND resource_type = 'component'
+       AND resource_id = 'sponsor-wallet'
+     ORDER BY occurred_at DESC LIMIT 1`,
+    [sponsorSyncRecoveryAction],
+  );
+  const latestRecoveryAt = Date.parse(latestRecovery?.occurred_at ?? '');
+  if (Number.isFinite(latestRecoveryAt)
+    && now.valueOf() - latestRecoveryAt < sponsorSyncRecoveryCooldownMs) {
+    return { attempted: false, stopped: false, reason: 'recovery-cooldown' };
+  }
+  try {
+    const result = await stopSponsorWalletAfterDrain(env);
+    if (!result.stopped) {
+      await recordSponsorWalletSyncRecoveryEvent(
+        database,
+        nowIso,
+        'not_running',
+        reason,
+        'sponsor_wallet_sync_recovery_not_running',
+      );
+      return { attempted: true, stopped: false, reason: 'not-running' };
+    }
+    await recordSponsorWalletStopped(env, now);
+    await recordSponsorWalletSyncRecoveryEvent(
+      database,
+      nowIso,
+      'stopped',
+      reason,
+      'sponsor_wallet_sync_recovery',
+    );
+    return { attempted: true, stopped: true, reason };
+  } catch (error) {
+    const errorCode = error instanceof Error && error.message.includes('did not stop')
+      ? 'sponsor_wallet_sync_recovery_stop_timeout'
+      : 'sponsor_wallet_sync_recovery_failed';
+    try {
+      await recordSponsorWalletSyncRecoveryEvent(database, nowIso, 'failed', reason, errorCode);
+    } catch (auditError) {
+      console.error(JSON.stringify({
+        message: 'sponsor_wallet_sync_recovery_audit_failed',
+        errorName: auditError instanceof Error ? auditError.name : 'UnknownError',
+      }));
+    }
+    console.error(JSON.stringify({
+      message: 'sponsor_wallet_sync_recovery_failed',
+      reason,
+      errorCode,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    }));
+    return { attempted: true, stopped: false, reason: errorCode };
+  }
+}
+
+export async function recoverStalledSponsorWallet(
+  env: Env,
+  health: SponsorWalletHealth,
+  now = new Date(),
+): Promise<SponsorWalletSyncRecoveryResult> {
+  const reason = stalledSponsorWalletSyncReason(health, now.valueOf());
+  if (!reason) return { attempted: false, stopped: false, reason: 'not-stalled' };
+  return recoverStalledSponsorWalletWithReason(env, reason, now);
+}
+
+export async function recoverStalledSponsorWalletFromPersistedState(
+  env: Env,
+  now = new Date(),
+): Promise<SponsorWalletSyncRecoveryResult> {
+  const database = createSqlDatabase(env);
+  const state = await database.first<PersistedSponsorWalletState>(
+    `SELECT health_class, last_observed_at, last_changed_at, summary_json
+     FROM system_component_state WHERE component = 'sponsor-wallet'`,
+  );
+  if (!state) return { attempted: false, stopped: false, reason: 'no-persisted-state' };
+  const reason = persistedStalledSponsorWalletSyncReason(state, now.valueOf());
+  if (!reason) return { attempted: false, stopped: false, reason: 'not-stalled' };
+  return recoverStalledSponsorWalletWithReason(env, reason, now);
 }
 
 async function sponsorArtifactResponse(

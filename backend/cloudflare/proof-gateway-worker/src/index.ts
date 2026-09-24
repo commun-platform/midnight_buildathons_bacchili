@@ -27,6 +27,8 @@ import {
 } from './sponsor-checkpoint.js';
 import {
   handleSponsorQueue,
+  recoverStalledSponsorWallet,
+  recoverStalledSponsorWalletFromPersistedState,
   sponsorProofTransaction,
   stopSponsorWalletAfterDrain,
   warmSponsorWallet,
@@ -877,6 +879,22 @@ export default {
         }
         try {
           const { health } = await sponsorMaintenance();
+          const liveRecovery = health
+            ? await recoverStalledSponsorWallet(env, health, new Date())
+            : null;
+          if (liveRecovery?.attempted && liveRecovery.stopped) return;
+          let persistedRecovery: Awaited<ReturnType<typeof recoverStalledSponsorWalletFromPersistedState>> | null = null;
+          if ((!health || liveRecovery?.reason === 'not-stalled') && (!health || health.phase === 'syncing')) {
+            persistedRecovery = await recoverStalledSponsorWalletFromPersistedState(env, new Date());
+            console.log(JSON.stringify({
+              message: 'sponsor_wallet_sync_recovery_evaluated',
+              liveReason: liveRecovery?.reason ?? 'unavailable',
+              persistedReason: persistedRecovery.reason,
+              attempted: persistedRecovery.attempted,
+              stopped: persistedRecovery.stopped,
+            }));
+            if (persistedRecovery.attempted && persistedRecovery.stopped) return;
+          }
           if (!health || !serverWalletWorkCanProceed(pendingWork, health)) {
             console.log(JSON.stringify({
               message: 'server_wallet_work_waiting_for_synchronization',
